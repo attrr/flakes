@@ -42,6 +42,12 @@ in
       home.stateVersion = "25.11"; # Please read the comment before changing.
       fonts.fontconfig.enable = true;
 
+      home.file.".zshenv".source = "${inputs.dotfiles}/.zshenv";
+      home.file.".config" = {
+        source = "${inputs.dotfiles}/.config";
+        recursive = true;
+      };
+
       allowUnfree.enable = true;
       home.packages = with pkgs; [
         nerd-fonts.symbols-only
