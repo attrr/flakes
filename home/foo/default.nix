@@ -47,6 +47,10 @@ in
         source = "${inputs.dotfiles}/.config";
         recursive = true;
       };
+      home.file.".local" = {
+        source = "${inputs.dotfiles}/.local";
+        recursive = true;
+      };
 
       allowUnfree.enable = true;
       home.packages = with pkgs; [
