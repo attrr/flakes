@@ -1,0 +1,20 @@
+{
+    "nix.serverSettings": {
+        "nixd": {
+            "nixpkgs": {
+                "expr": "import <nixpkgs> { }"
+            },
+            "options": {
+                "nixos": {
+                    "expr": "(import ./eval-modules.nix).nixos"
+                },
+                "home-manager": {
+                    "expr": "(import ./eval-modules.nix).home-manager"
+                },
+                "custom": {
+                    "expr": "(import ./eval-modules.nix).custom"
+                }
+            }
+        }
+    }
+}

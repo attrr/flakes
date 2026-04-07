@@ -1,0 +1,22 @@
+# Ignore all, Unignore file with extensions, Unignore dirs
+*
+!*.*
+!*/
+
+Makefile
+# Ignore tempdir
+**/dist
+**/build
+
+# containers
+!**/Dockerfile
+!**/Containerfile
+!tests
+
+# python
+__pycache__/
+*.py[cod]
+
+# ignore unfinished migration
+dev
+archive
