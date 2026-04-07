@@ -13,6 +13,19 @@
       golang.go
       Google.gemini-cli-vscode-ide-companion
     ];
+    profiles.default = {
+      userSettings = {
+        "workbench.colorTheme" = "Tokyo Night Light";
+        # nix
+        "nix.enableLanguageServer" = true;
+        "nix.serverPath" = "nixd";
+        "nix.formatterPath" = "nixfmt";
+        "[nix]" = {
+          "editor.bracketPairColorization.enabled" = true;
+          "editor.guides.bracketPairs" = "active";
+        };
+      };
+    };
   };
 
   home.packages =

@@ -21,8 +21,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     stage1-dd = {
-      url = "git+ssh://git@github.com/attrr/stage1-dd.git";
+      url = "github:attrr/stage1-dd";
       inputs.nixpkgs.follows = "nixpkgs";
+    };
+    dotfiles = {
+      url = "github:attrr/dotfiles";
+      flake = false;
     };
   };
 
