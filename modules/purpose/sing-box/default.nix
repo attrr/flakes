@@ -13,6 +13,7 @@ in
     ./shadowsocks.nix
     ./hysteria2.nix
     ./warp.nix
+    ./lowend.nix
   ];
 
   options.core.server.sing-box = {

@@ -56,7 +56,13 @@
     zram-percent = 150;
   };
 
+  systemd.services.nix-daemon.serviceConfig = {
+    MemoryMax = "150M";
+    MemoryHigh = "120M";
+  };
+
   core.server.sing-box = {
+    lowend = true;
     settings = {
       route.rules = [
         {
@@ -72,6 +78,5 @@
         }
       ];
     };
-    warp.lowend = true;
   };
 }

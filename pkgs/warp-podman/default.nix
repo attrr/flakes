@@ -77,7 +77,7 @@ pkgs.dockerTools.streamLayeredImage {
       ];
       Interval = 15000000000; # 15 seconds in nanoseconds
       Timeout = 5000000000; # 5 seconds
-      StartPeriod = 30000000000; # 30 seconds
+      StartPeriod = 60000000000; # 30 seconds
       Retries = 3;
     };
   };

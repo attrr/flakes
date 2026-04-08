@@ -11,10 +11,14 @@ in
 {
   options.core.server.sing-box.warp = {
     enable = lib.mkEnableOption "enable warp container";
-    lowend = lib.mkEnableOption "enable warp sysctl fix";
   };
 
   config = lib.mkIf (config.core.server.sing-box.enable && cfg.enable) {
+    systemd.services.podman-warp = {
+      serviceConfig = {
+        Type = lib.mkForce "exec";
+      };
+    };
     virtualisation.oci-containers.containers.warp = {
       image = "warp:latest";
       imageStream = warp-podman;
@@ -44,11 +48,6 @@ in
         Type = "oneshot";
         ExecStart = "${pkgs.podman}/bin/podman network reload --all";
       };
-    };
-
-    boot.kernel.sysctl = lib.mkIf cfg.lowend {
-      "net.core.rmem_default" = lib.mkForce 262144;
-      "net.core.rmem_max"     = lib.mkForce 8388608;
     };
   };
 }
