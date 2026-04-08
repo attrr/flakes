@@ -58,6 +58,7 @@ in
         nerd-fonts.jetbrains-mono
         # misc
         zsh-completions
+        nix-zsh-completions
         autossh
         rclone-ssh
         google-cloud-sdk

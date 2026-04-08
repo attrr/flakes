@@ -43,11 +43,11 @@
     "dotfiles": {
       "flake": false,
       "locked": {
-        "lastModified": 1775478467,
-        "narHash": "sha256-f9JQwF6whEAi31lZETBNkfquqcn7abptb8yYiDcWNs0=",
+        "lastModified": 1775587965,
+        "narHash": "sha256-Mt1RMUMe/r03uOnbOotiLVdREFdFuXQG5l2plefXbLU=",
         "owner": "attrr",
         "repo": "dotfiles",
-        "rev": "a3bd55da2ac120f141461ebd1422be0e09bb68f6",
+        "rev": "9c6436fd55cccd0d2da4f06e26637b5621442a8b",
         "type": "github"
       },
       "original": {
@@ -128,11 +128,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1775365543,
-        "narHash": "sha256-f50qrK0WwZ9z5EdaMGWOTtALgSF7yb7XwuE7LjCuDmw=",
+        "lastModified": 1775619836,
+        "narHash": "sha256-VcC/+MMMldwQKcST2y/QTndGLusSxjeUvYwFwzZKKko=",
         "owner": "Mic92",
         "repo": "sops-nix",
-        "rev": "a4ee2de76efb759fe8d4868c33dec9937897916f",
+        "rev": "de5f2d596eb896a5728afcd15f823f59cb9ecfdb",
         "type": "github"
       },
       "original": {

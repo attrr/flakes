@@ -8,11 +8,13 @@
     ./override.nix
   ];
 
+  nix.package = pkgs.lixPackageSets.stable.lix;
   nix.settings = {
     extra-experimental-features = [
       "nix-command"
       "flakes"
     ];
+    allowed-users = [ "@users" ];
     trusted-users = [ "@wheel" ];
   };
   security.sudo.wheelNeedsPassword = false;
