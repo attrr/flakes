@@ -21,7 +21,7 @@ in
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  networking.hostName = "neko";
+  networking.hostName = ctx.metadata.hostname;
 
   # Configure network connections interactively with nmcli or nmtui.
   networking.networkmanager.enable = true;
