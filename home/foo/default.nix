@@ -17,6 +17,7 @@ in
     ./i18n.nix
     ./ide.nix
     ./ssh.nix
+    ./htop.nix
   ];
   config = lib.mkMerge [
     (lib.mkIf (host == "nixos") {

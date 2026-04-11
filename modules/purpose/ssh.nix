@@ -49,8 +49,9 @@ in
         AllowUsers = builtins.attrNames cfg.users;
       };
     };
+    services.fail2ban.enable = true;
 
-    services.endlessh = lib.mkIf (!builtins.elem 22 cfg.ports){
+    services.endlessh = lib.mkIf (!builtins.elem 22 cfg.ports) {
       enable = lib.mkDefault true;
       port = 22;
       openFirewall = true;
