@@ -46,6 +46,38 @@
     };
   };
 
+  programs.htop = {
+    enable = true;
+    settings = rec {
+      highlight_base_name = true;
+      tree_view = true;
+      show_cpu_frequency = true;
+      # less verbose
+      show_program_path = false;
+      hide_kernel_threads = true;
+      hide_userland_threads = true;
+      # steal time
+      detailed_cpu_time = true;
+
+      left_meters = [
+        "AllCPUs"
+        "Memory"
+        "Swap"
+      ];
+      left_meter_modes = (lib.replicate (builtins.length left_meters) 1);
+
+      right_meters = [
+        "NetworkIO"
+        "DiskIO"
+        "Tasks"
+        "LoadAverage"
+        "Uptime"
+        "CPU"
+      ];
+      right_meter_modes = (lib.replicate (builtins.length left_meters) 2);
+    };
+  };
+
   # basic maintenance tools
   environment.systemPackages = with pkgs; [
     curl
@@ -55,9 +87,7 @@
     wget
     nftables
     dig
-    # tui
-    iotop
-    htop
+    nethogs
     iftop
   ];
 }

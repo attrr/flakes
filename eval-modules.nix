@@ -52,7 +52,7 @@ in
           {
             options.ctx = lib.mkOption {
               type = lib.types.submodule {
-                imports = [ flake.inputs.blueprint.nixosModules.default ];
+                imports = [ flake.inputs.ctx.nixosModules.default ];
               };
               default = { };
             };
