@@ -9,12 +9,13 @@
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
-    ./disko.nix
-    ./dns.nix
-    ./librechat.nix
     ../../modules/host/server.nix
     ../../modules/ctx/proxy.nix
     ../../modules/purpose/acme.nix
+    ./disko.nix
+    ./dns.nix
+    ./librechat.nix
+    ./wiki.nix
   ];
 
   # Basics
