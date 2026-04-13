@@ -33,4 +33,5 @@
       }
     ];
   };
+  services.tailscale.enable = true;
 }

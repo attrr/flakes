@@ -1,56 +1,14 @@
 {
   ctx,
   global,
-  lib,
   ...
 }:
 let
-  acme = ctx.services.acme-dns;
   knot = ctx.services.knot;
 in
 {
   sops.secrets."${knot.tsig-key.name}".owner = "knot";
-  # acme-dns for DNS-01
-  services.acme-dns = {
-    enable = true;
-    settings = {
-      general = {
-        # use ns. domain to avoid loop
-        listen = "${lib.head ctx.network.ipv4.addresses}:53";
-        domain = acme.ns-domain;
-        nsname = acme.ns-domain;
-        nsadmin = "hostmaster.${global.domain.main}";
-        records = [
-          "${acme.ns-domain}. A  ${lib.head ctx.network.ipv4.addresses}"
-          "${acme.ns-domain}. NS ${acme.ns-domain}."
-        ];
-      };
-      api = {
-        ip = "127.0.0.1";
-        port = acme.port;
-        tls = "none";
-        use_header = true;
-        header_name = "X-Forwarded-For";
-        disable_registration = false;
-      };
-    };
-  };
 
-  core.acme.certs."${acme.domain}" = {
-    reloadServices = [ "caddy.service" ];
-  };
-  services.caddy = {
-    enable = true;
-    virtualHosts."${acme.domain}" = {
-      listenAddresses = ctx.tailscale.ips;
-      extraConfig = ''
-        tls /var/lib/acme/${acme.domain}/cert.pem /var/lib/acme/${acme.domain}/key.pem
-        reverse_proxy 127.0.0.1:${toString acme.port}
-      '';
-    };
-  };
-
-  # Authorize DNS server
   services.knot =
     let
       listenAddrs = map (s: s + "@53") ctx.tailscale.ips;
@@ -140,19 +98,8 @@ in
       };
     };
 
-  networking.firewall = {
-    # acme-dns public facing ns
+  networking.firewall.interfaces.tailscale0 = {
+    allowedTCPPorts = [ 53 ];
     allowedUDPPorts = [ 53 ];
-    interfaces.tailscale0 = {
-      allowedTCPPorts = [
-        53
-        80
-        443
-      ];
-      allowedUDPPorts = [
-        53
-        443
-      ];
-    };
   };
 }
