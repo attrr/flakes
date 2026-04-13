@@ -39,6 +39,7 @@
   };
   services.tailscale.enable = true;
   core.server.sing-box.uid = 994;
+
   core.acme = {
     enable = true;
     api = registry.acme-dns.url;
