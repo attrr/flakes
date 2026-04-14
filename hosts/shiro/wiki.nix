@@ -1,48 +1,167 @@
 {
   pkgs,
+  config,
+  global,
   ctx,
   lib,
   ...
 }:
 let
   wiki = ctx.services.mediawiki;
-  domain = "wiki." + ctx.metadata.fdqn;
+  domain = "wiki." + global.domain.main;
+  domain-lobba = "lobba." + domain;
+  extensions = pkgs.callPackage ../../pkgs/mediawiki-extensions { };
+
+  user = "mediawiki";
+  group = config.services.httpd.group;
+  state-dir = "/var/lib/mediawiki";
+  uploads-dir = state-dir + "/uploads";
 in
 {
   # resolve conflict with minimal profile
   services.logrotate.enable = lib.mkForce true;
 
-  sops.secrets.${wiki.admin-password.name}.owner = "mediawiki";
-  services.mediawiki = {
+  # ensure database
+  services.mysql = {
     enable = true;
-    name = "Wiki";
-    httpd.virtualHost.listen = [
+    package = pkgs.mariadb;
+    ensureDatabases = [
+      "lobba"
+      "main"
+    ];
+    ensureUsers = [
+      {
+        name = "mediawiki";
+        ensurePermissions = {
+          "lobba.*" = "ALL PRIVILEGES";
+          "main.*" = "ALL PRIVILEGES";
+        };
+      }
+    ];
+  };
+
+  # reverse proxy
+  core.acme.certs."${domain}" = {
+    inherit domain;
+    extraDomainNames = [
+      "*.${domain}"
+    ];
+    reloadServices = [ "caddy.service" ];
+  };
+  services.caddy.virtualHosts =
+    let
+      target-config = {
+        listenAddresses = ctx.tailscale.ips;
+        extraConfig = ''
+          reverse_proxy 127.0.0.1:8080
+          tls /var/lib/acme/${domain}/cert.pem /var/lib/acme/${domain}/key.pem
+        '';
+      };
+    in
+    {
+      "${domain}" = target-config;
+      "${domain-lobba}" = target-config;
+    };
+  networking.firewall.interfaces.tailscale0 = {
+    allowedTCPPorts = [
+      80
+      443
+    ];
+    allowedUDPPorts = [ 443 ];
+  };
+
+  # wiki
+  sops.secrets.${wiki.admin-password.name}.owner = "mediawiki";
+  services.mediawiki.httpd.virtualHost = {
+    listen = [
       {
         ip = "127.0.0.1";
         port = 8080;
         ssl = false;
       }
     ];
-    httpd.virtualHost.extraConfig = ''
+    extraConfig = ''
       RewriteEngine On
       RewriteRule ^/wiki(/.*)?$ /index.php [L,QSA]
     '';
+  };
+
+  services.mediawiki = {
+    enable = true;
+    name = "Wiki";
+    database = {
+      name = "main";
+      user = "mediawiki";
+      socket = "/run/mysqld/mysqld.sock";
+      createLocally = false;
+    };
 
     passwordFile = wiki.admin-password.path;
     passwordSender = "no-reply@localhost";
     extraConfig = ''
-      $wgServer = "https://${domain}";
       $wgScriptPath = "";
       $wgArticlePath = "/wiki/$1";
+      $wgDefaultMobileSkin = 'minerva';
       $wgGroupPermissions['sysop']['deleterevision'] = true;
+      # relative link at mainpage
+      $wgNamespacesWithSubpages[NS_MAIN] = true;
 
       # provide lua binary
       $wgScribuntoDefaultEngine = 'luastandalone';
       $wgScribuntoEngineConf['luastandalone']['luaPath'] = '${pkgs.lua5_1}/bin/lua';
 
-      # Disable anonymous users
+      # disable anonymous users
       $wgGroupPermissions['*']['edit'] = false;
       $wgGroupPermissions['*']['createaccount'] = false;
+
+      # default logo
+      $wgLogos = [
+          '1x'  => '/resources/assets/mediawiki.png',
+          'svg' => '/resources/assets/mediawiki.png',
+          'icon' => '/resources/assets/mediawiki.png',
+      ];
+
+      # determine db name
+      $wikis = [
+        '${domain}' => 'main',
+        '${domain-lobba}' => 'lobba',
+      ];
+      if ( defined( 'MW_DB' ) ) {
+        // Automatically set from --wiki option to maintenance scripts
+        $wgDBname = MW_DB;
+      } else {
+        // Use MW_DB environment variable or map the domain name
+          $wgDBname = $_SERVER['MW_DB'] ?? $wikis[ $_SERVER['HTTP_HOST'] ?? ''' ] ?? null;
+        if ( !$wgDBname ) {
+            die( 'Unknown wiki.' );
+        }
+      }
+
+      # per-site config dispatcher
+      $wgConf->settings = [
+          'wgServer' => [
+              'default' => 'https://' . $_SERVER['HTTP_HOST'],
+          ],
+          'wgArticlePath' => [
+              'default' => '/wiki/$1',
+          ],
+          'wgSitename' => [
+              'lobba' => 'LobbaWiki',
+              'main' => 'MainWiki',
+          ],
+          'wgUploadDirectory' => [
+              'lobba' => '${uploads-dir}/lobba',
+              'main'  => '${uploads-dir}/main',
+          ],
+          'wgUploadPath' => [
+              'lobba' => '/images/lobba',
+              'main'  => '/images/main',
+          ],
+          'wgLanguageCode' => [
+              // 'foowiki' => 'pt',
+          ],
+      ];
+      extract( $wgConf->getAll( $wgDBname ) );
     '';
 
     extensions = {
@@ -52,57 +171,51 @@ in
       # editor
       WikiEditor = null;
       CodeEditor = null;
+      VisualEditor = null;
       TemplateData = null;
 
+      # ui
+      CategoryTree = null;
+      MultimediaViewer = null;
+
+      # format
       Math = null;
-      Interwiki = null;
+      Poem = null;
+      TemplateStyles = null;
       SyntaxHighlight_GeSHi = null;
+
+      # ref
+      Interwiki = null;
       Cite = null;
       CiteThisPage = null;
-      ConfirmEdit = null;
+
+      # utils
+      Nuke = null;
       Gadgets = null;
       ImageMap = null;
       InputBox = null;
-      Nuke = null;
-      Poem = null;
 
-      Cargo = pkgs.fetchzip {
-        url = "https://github.com/wikimedia/mediawiki-extensions-Cargo/archive/refs/heads/REL1_44.zip";
-        hash = "sha256-F1vPo9Tmb+D4AMU77CTm7w3jfJ8Ra2U0133XODWpEjI=";
-      };
-      CSS = pkgs.fetchzip {
-        url = "https://github.com/wikimedia/mediawiki-extensions-CSS/archive/refs/heads/REL1_44.zip";
-        hash = "sha256-+Jjt5c1cEObQN9/s1ipPxviAfGeoq2vSHSjwzbiR5PI=";
-      };
-      NoTitle = pkgs.fetchzip {
-        url = "https://github.com/wikimedia/mediawiki-extensions-NoTitle/archive/refs/heads/REL1_44.zip";
-        hash = "sha256-7DAFNTJWthas5n2haUEzKu/nNsEGuFbaFCgTHFg9UkQ=";
-      };
+      inherit (extensions)
+        Cargo
+        CSS
+        NoTitle
+        MobileFrontend
+        ;
+    };
+
+    skins = {
+      inherit (extensions) MinervaNeue;
     };
   };
 
-  services.mysql = {
-    enable = true;
-    package = pkgs.mariadb;
-  };
-
-  core.acme.certs."${ctx.metadata.fdqn}" = {
-    reloadServices = [ "caddy.service" ];
-  };
-
-  services.caddy.virtualHosts."${domain}" = {
-    listenAddresses = ctx.tailscale.ips;
-    extraConfig = ''
-      tls /var/lib/acme/${ctx.metadata.fdqn}/cert.pem /var/lib/acme/${ctx.metadata.fdqn}/key.pem
-      reverse_proxy 127.0.0.1:8080
-    '';
-  };
-
-  networking.firewall.interfaces.tailscale0 = {
-    allowedTCPPorts = [
-      80
-      443
-    ];
-    allowedUDPPorts = [ 443 ];
-  };
+  systemd.tmpfiles.rules =
+    lib.concatMap
+      (dir: [
+        "d '${dir}' 0750 ${user} ${group} - -"
+        "Z '${dir}' 0750 ${user} ${group} - -"
+      ])
+      [
+        "${uploads-dir}/main"
+        "${uploads-dir}/lobba"
+      ];
 }
