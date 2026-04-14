@@ -101,20 +101,37 @@ in
     extraConfig = ''
       $wgScriptPath = "";
       $wgArticlePath = "/wiki/$1";
-      $wgDefaultMobileSkin = 'minerva';
       $wgGroupPermissions['sysop']['deleterevision'] = true;
       # relative link at mainpage
       $wgNamespacesWithSubpages[NS_MAIN] = true;
 
+      # theme
+      $wgDefaultSkin = 'vector-2022';
+      $wgDefaultMobileSkin = 'minerva';
+      $wgAllowSiteCSSOnRestrictedPages = true;
+
+
       # provide lua binary
       $wgScribuntoDefaultEngine = 'luastandalone';
       $wgScribuntoEngineConf['luastandalone']['luaPath'] = '${pkgs.lua5_1}/bin/lua';
+
+      # cache
+      $wgMainCacheType = CACHE_ACCEL;
+      $wgSessionCacheType = CACHE_DB;
+
+      # resource
+      $wgFileExtensions[] = 'svg';
+      $wgAllowTitlesInSVG = true;
+      $wgSVGConverter = 'rsvg';
+      $wgSVGConverterPath = "${pkgs.librsvg}/bin/";
+      $wgUseInstantCommons = true;
 
       # disable anonymous users
       $wgGroupPermissions['*']['edit'] = false;
       $wgGroupPermissions['*']['createaccount'] = false;
 
       # default logo
+      $wgFavicon = '/resources/assets/mediawiki.png';
       $wgLogos = [
           '1x'  => '/resources/assets/mediawiki.png',
           'svg' => '/resources/assets/mediawiki.png',
@@ -165,6 +182,8 @@ in
     '';
 
     extensions = {
+      # base
+      OATHAuth = null;
       ParserFunctions = null;
       Scribunto = null;
 
@@ -190,15 +209,23 @@ in
       CiteThisPage = null;
 
       # utils
-      Nuke = null;
       Gadgets = null;
       ImageMap = null;
       InputBox = null;
+      PageImages = null;
+      TextExtracts = null;
+      PdfHandler = null;
+
+      # management
+      Nuke = null;
+      ReplaceText = null;
+      SpamBlacklist = null;
 
       inherit (extensions)
         Cargo
         CSS
         NoTitle
+        Popups
         MobileFrontend
         ;
     };

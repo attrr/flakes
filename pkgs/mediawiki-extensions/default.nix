@@ -63,6 +63,12 @@ in
     hash = "sha256-7DAFNTJWthas5n2haUEzKu/nNsEGuFbaFCgTHFg9UkQ=";
   };
 
+  Popups = mkMWExtension {
+    name = "Popups";
+    rev = "6d3dabed4ca0d4a29788feab9f61d4533a3ce6e1"; # REL1_44 @ 2026-04-15
+    sha256 = "sha256-RYE4OCp//hpJpYbWrWCOeIpfn7yASyNoFfdCaS5qEpQ=";
+  };
+
   MobileFrontend = mkMWExtension {
     name = "MobileFrontend";
     rev = "9452affdab5703d6b2c2ce3a6575505a8d90bd62"; # REL1_44 @ 2026-04-14
