@@ -87,6 +87,31 @@ in
     };
   };
 
+  core.restic.backups.librechat =
+    let
+      target = "/var/backup/librechat";
+    in
+    {
+      paths = [
+        target
+        "/var/lib/containers/storage/volumes/librechat-uploads/_data"
+        "/var/lib/containers/storage/volumes/librechat-images/_data"
+      ];
+
+      backupPrepareCommand = ''
+        rm -rf ${target}
+        mkdir -p ${target}
+
+        ${pkgs.podman}/bin/podman exec -i systemd-lc-mongodb \
+          mongodump --archive > ${target}/mongo.archive
+        ${pkgs.podman}/bin/podman exec -i systemd-lc-vector \
+          bash -c "pg_dump -U \$POSTGRES_USER -d \$POSTGRES_DB" > ${target}/pgvector.dump
+      '';
+      backupCleanupCommand = ''
+        rm -rf ${target}
+      '';
+    };
+
   networking.firewall.interfaces.tailscale0 = {
     allowedTCPPorts = [
       80

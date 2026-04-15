@@ -42,7 +42,7 @@ in
       default = { };
       type = lib.types.attrsOf (
         lib.types.submodule (
-          { ... }:
+          { name, ... }:
           {
             imports = options.services.restic.backups.type.nestedTypes.elemType.getSubModules;
             config = {
@@ -50,6 +50,8 @@ in
               inherit (cfg) passwordFile environmentFile;
               initialize = lib.mkDefault true;
               pruneOpts = lib.mkDefault [
+                "--group-by host,paths,tags"
+                "--tag ${name}"
                 "--keep-last 5"
                 "--keep-hourly 24"
                 "--keep-daily 7"
@@ -60,6 +62,7 @@ in
               extraOptions = lib.mkDefault [
                 "s3.storage-class=ONEZONE_IA"
               ];
+              extraBackupArgs = lib.mkDefault [ "--tag ${name}" ];
               timerConfig = lib.mkDefault {
                 OnCalendar = "daily";
                 RandomizedDelaySec = "2h";
