@@ -249,4 +249,27 @@ in
         "${uploads-dir}/main"
         "${uploads-dir}/lobba"
       ];
+
+  # backups
+  core.restic.backups.mediawiki =
+    let
+      mysql-backup-dir = "/var/backup/mysql";
+      mysql-backup-paths = [
+        "${mysql-backup-dir}/main.sql"
+        "${mysql-backup-dir}/lobba.sql"
+      ];
+      rm-mysql-paths = "rm -f ${lib.concatStringsSep " " mysql-backup-paths}";
+    in
+    {
+      paths = [ uploads-dir ] ++ mysql-backup-paths;
+      backupPrepareCommand = ''
+        mkdir -p ${mysql-backup-dir}
+        ${rm-mysql-paths}
+        ${pkgs.mariadb}/bin/mysqldump main > ${mysql-backup-dir}/main.sql
+        ${pkgs.mariadb}/bin/mysqldump lobba > ${mysql-backup-dir}/lobba.sql
+      '';
+      backupCleanupCommand = ''
+        ${rm-mysql-paths}
+      '';
+    };
 }

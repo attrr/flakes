@@ -12,6 +12,7 @@
     ../../modules/host/server.nix
     ../../modules/ctx/proxy.nix
     ../../modules/purpose/acme.nix
+    ../../modules/purpose/restic.nix
     ./disko.nix
     ./dns.nix
     ./librechat.nix
@@ -51,6 +52,17 @@
       ];
     };
   };
+
+  core.restic =
+    let
+      restic = ctx.services.restic;
+    in
+    {
+      enable = true;
+      s3.bucketName = restic.bucket-name;
+      environmentFile = restic.env.path;
+      passwordFile = restic.password.path;
+    };
 
   services.tailscale.extraSetFlags = [
     "--relay-server-port=${toString ctx.tailscale.relay-port}"
