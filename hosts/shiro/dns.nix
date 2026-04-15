@@ -1,6 +1,7 @@
 {
   ctx,
   global,
+  pkgs,
   ...
 }:
 let
@@ -102,4 +103,23 @@ in
     allowedTCPPorts = [ 53 ];
     allowedUDPPorts = [ 53 ];
   };
+
+  # backups
+  core.restic.backups.knot =
+    let
+      # probably systemd restriction
+      path = "/var/lib/knot/backup";
+    in
+    {
+      paths = [ path ];
+      backupPrepareCommand = ''
+        rm -rf ${path}
+        mkdir -p ${path}
+        chown knot:knot ${path}
+        ${pkgs.knot-dns}/bin/knotc zone-backup +backupdir ${path}
+      '';
+      backupCleanupCommand = ''
+        rm -rf ${path}
+      '';
+    };
 }
