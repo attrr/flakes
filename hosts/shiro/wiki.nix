@@ -131,7 +131,7 @@ in
       $wgGroupPermissions['*']['createaccount'] = false;
 
       # default logo
-      $wgFavicon = '/resources/assets/mediawiki.png';
+      $wgFavicon = '/resources/assets/mediawiki_compact.svg';
       $wgLogos = [
           '1x'  => '/resources/assets/mediawiki.png',
           'svg' => '/resources/assets/mediawiki.png',
