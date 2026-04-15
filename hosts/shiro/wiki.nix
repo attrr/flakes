@@ -148,9 +148,13 @@ in
         $wgDBname = MW_DB;
       } else {
         // Use MW_DB environment variable or map the domain name
-          $wgDBname = $_SERVER['MW_DB'] ?? $wikis[ $_SERVER['HTTP_HOST'] ?? ''' ] ?? null;
+        if (PHP_SAPI === 'cli') {
+            $wgDBname = getenv('MW_DB') ?: 'main';
+        } else {
+            $wgDBname = $_SERVER['MW_DB'] ?? $wikis[ $_SERVER['HTTP_HOST'] ?? ''' ] ?? null;
+        }
         if ( !$wgDBname ) {
-            die( 'Unknown wiki.' );
+            die( "Unknown wiki. Host: " . ($_SERVER['HTTP_HOST'] ?? 'CLI') );
         }
       }
 
