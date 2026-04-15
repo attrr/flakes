@@ -1,50 +1,99 @@
 {
   config,
   lib,
+  pkgs,
   utils,
   ...
 }:
 let
-  inherit (lib) mkOption types mapAttrs' nameValuePair;
+  cfg = config.virtualisation.quadlet;
 
-  # Use NixOS's systemd generator for consistent serialization
-  mkQuadlet = utils.systemdUtils.lib.settingsToSections;
+  mkSystemd = utils.systemdUtils.lib.settingsToSections;
+
+  mkQuadlet =
+    n: v:
+    mkSystemd (
+      # FIXME: improve merge logic
+      lib.recursiveUpdate {
+        Unit.PartOf = [ "quadlet-trigger-${n}.service" ];
+      } v
+    );
+
+  mkQuadletKind =
+    kind: units:
+    lib.mapAttrs' (
+      n: v:
+      let
+        path = "containers/systemd/${n}.${kind}";
+        unitName = if kind == "container" then n else "${n}-${kind}";
+      in
+      lib.nameValuePair path { text = mkQuadlet unitName v; }
+    ) units;
+
+  mkTriggerKind =
+    kind: units:
+    lib.mapAttrs' (
+      n: v:
+      let
+        unit = if kind == "container" then n else "${n}-${kind}";
+      in
+      lib.nameValuePair "quadlet-trigger-${unit}" {
+        description = "NixOS Trigger for Quadlet ${unit}.service";
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${pkgs.coreutils}/bin/true";
+        };
+        restartTriggers = [
+          (builtins.hashString "sha256" (mkSystemd v))
+        ];
+
+        wantedBy = [ "multi-user.target" ];
+      }
+    ) units;
+
 in
 {
   options.virtualisation.quadlet = {
-    containers = mkOption {
-      type = types.attrsOf (types.attrsOf types.unspecified);
+    containers = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.attrsOf lib.types.unspecified);
       default = { };
       description = "Podman Quadlet container definitions (.container)";
     };
-    pods = mkOption {
-      type = types.attrsOf (types.attrsOf types.unspecified);
+    pods = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.attrsOf lib.types.unspecified);
       default = { };
       description = "Podman Quadlet pod definitions (.pod)";
     };
-    networks = mkOption {
-      type = types.attrsOf (types.attrsOf types.unspecified);
+    networks = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.attrsOf lib.types.unspecified);
       default = { };
       description = "Podman Quadlet network definitions (.network)";
     };
-    volumes = mkOption {
-      type = types.attrsOf (types.attrsOf types.unspecified);
+    volumes = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.attrsOf lib.types.unspecified);
       default = { };
       description = "Podman Quadlet volume definitions (.volume)";
     };
   };
 
-  config.environment.etc =
-    (mapAttrs' (
-      name: value: nameValuePair "containers/systemd/${name}.container" { text = mkQuadlet value; }
-    ) config.virtualisation.quadlet.containers)
-    // (mapAttrs' (
-      name: value: nameValuePair "containers/systemd/${name}.pod" { text = mkQuadlet value; }
-    ) config.virtualisation.quadlet.pods)
-    // (mapAttrs' (
-      name: value: nameValuePair "containers/systemd/${name}.network" { text = mkQuadlet value; }
-    ) config.virtualisation.quadlet.networks)
-    // (mapAttrs' (
-      name: value: nameValuePair "containers/systemd/${name}.volume" { text = mkQuadlet value; }
-    ) config.virtualisation.quadlet.volumes);
+  config =
+    let
+      kinds = [
+        "container"
+        "pod"
+        "network"
+        "volume"
+      ];
+    in
+    {
+      environment.etc = lib.pipe kinds [
+        (map (kind: mkQuadletKind kind cfg."${kind}s"))
+        (lib.foldl' lib.recursiveUpdate { })
+      ];
+      systemd.services = lib.pipe kinds [
+        (map (kind: mkTriggerKind kind cfg."${kind}s"))
+        (lib.foldl' lib.recursiveUpdate { })
+      ];
+    };
 }

@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1776094608,
-        "narHash": "sha256-QcYaq53KUqJ/Zo5fg09zzcKcSDCRbcUpg38Occ5rO7o=",
+        "lastModified": 1776265220,
+        "narHash": "sha256-NKqVUu02MdLmkahS0bQDTlPv+nKFsB2dXot/D75mWbE=",
         "ref": "refs/heads/main",
-        "rev": "2577c8dbdcb41f9a8aee71f8ce2e9d09680e99eb",
-        "revCount": 20,
+        "rev": "83acf1aac23434c0ce4fc82bb48c5ca8eebd5010",
+        "revCount": 22,
         "type": "git",
         "url": "ssh://git@github.com/attrr/ctx.git"
       },
@@ -43,11 +43,11 @@
     "dotfiles": {
       "flake": false,
       "locked": {
-        "lastModified": 1775587965,
-        "narHash": "sha256-Mt1RMUMe/r03uOnbOotiLVdREFdFuXQG5l2plefXbLU=",
+        "lastModified": 1776282181,
+        "narHash": "sha256-D44Xkw211PLyR+JgTsBNdgi3uRWDMvUzDrHRVS2mrlE=",
         "owner": "attrr",
         "repo": "dotfiles",
-        "rev": "9c6436fd55cccd0d2da4f06e26637b5621442a8b",
+        "rev": "51b1c637f89be899408385c41b51443c355350aa",
         "type": "github"
       },
       "original": {

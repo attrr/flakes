@@ -140,6 +140,7 @@ in
         Install.WantedBy = [ "multi-user.target" ];
       };
 
+      # FIXME: remove when librechat add vertex wif support
       lc-litellm = {
         Unit = {
           Description = "LibreChat LiteLLM Proxy (Vertex AI)";
@@ -156,13 +157,14 @@ in
           Environment = "GOOGLE_APPLICATION_CREDENTIALS=/run/librechat/account.json";
           EnvironmentFile = librechat.env.path;
           Exec = "--config /app/config.yaml --port 4000";
-          HealthCmd = "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:4000/health/liveliness\")'";
-          HealthInterval = "30s";
-          HealthTimeout = "10s";
-          HealthRetries = 3;
-          HealthStartPeriod = "40s";
+          # FIXME: there should be a health check here
+          # but do to fundamentally incompatible between nixos 
+          # and podman transient systemd health check, it's gone for now
         };
-        Service.Restart = "always";
+        Service = {
+          Restart = "always";
+          RestartSec = "3s";
+        };
         Install.WantedBy = [ "multi-user.target" ];
       };
 
