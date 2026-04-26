@@ -21,6 +21,7 @@ in
         epkgs.doom-themes
         epkgs.doom-modeline
         epkgs.nerd-icons
+        epkgs.valign
         # tools
         epkgs.magit
         epkgs.colorful-mode
@@ -46,6 +47,7 @@ in
         epkgs.eca
         pkgsUnstable.emacsPackages.agent-shell
         # mode
+        epkgs.direnv
         epkgs.systemd
         epkgs.nix-mode
         epkgs.go-mode

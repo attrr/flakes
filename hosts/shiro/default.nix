@@ -62,6 +62,12 @@
       s3.bucketName = restic.bucket-name;
       environmentFile = restic.env.path;
       passwordFile = restic.password.path;
+
+      backups.infra = {
+        paths = [
+          "/var/lib/acme"
+        ];
+      };
     };
 
   services.tailscale.extraSetFlags = [

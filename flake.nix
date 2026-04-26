@@ -25,7 +25,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     dotfiles = {
-      url = "github:attrr/dotfiles";
+      url = "git+ssh://git@github.com/attrr/dotfiles.git";
       flake = false;
     };
   };
