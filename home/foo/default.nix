@@ -53,10 +53,16 @@ in
         recursive = true;
       };
 
-      allowUnfree.enable = true;
+      allowUnfree = {
+        enable = true;
+        packages = [
+        ];
+      };
       home.packages = with pkgs; [
         nerd-fonts.symbols-only
-        nerd-fonts.jetbrains-mono
+        nerd-fonts.adwaita-mono
+        adwaita-fonts
+        rictydiminished-with-firacode
         # misc
         zsh-completions
         nix-zsh-completions
@@ -64,6 +70,9 @@ in
         rclone-ssh
         google-cloud-sdk
       ];
+
+      programs.direnv.enable = true;
+      programs.direnv.nix-direnv.enable = true;
 
       # Home Manager is pretty good at managing dotfiles. The primary way to manage
       # plain files is through 'home.file'.
