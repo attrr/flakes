@@ -27,6 +27,9 @@
     "net.ipv4.tcp_mtu_probing" = 1;
   };
 
+  boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
+  boot.blacklistedKernelModules = [ "algif_aead" ];
+
   # enable zram regardless
   zramSwap.enable = lib.mkDefault true;
   zramSwap.algorithm = "zstd";
