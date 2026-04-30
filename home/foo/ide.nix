@@ -23,7 +23,7 @@
       userSettings = {
         # update
         "update.mode" = "none";
-        "extensions.autoUpdate"= false;
+        "extensions.autoUpdate" = false;
         # theme
         "workbench.colorTheme" = "Tokyo Night Light";
         # pranthese
@@ -35,6 +35,7 @@
         "nix.formatterPath" = "nixfmt";
         # python
         "python.analysis.typeCheckingMode" = "standard";
+        "redhat.telemetry.enabled" = false;
       };
     };
   };
