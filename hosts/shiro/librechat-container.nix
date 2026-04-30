@@ -75,7 +75,7 @@ in
         Container = {
           Pod = "librechat.pod";
           Image = images.meili;
-          Volume = "librechat-meili:/meili_data";
+          Volume = "librechat-meili:/meili_data:U";
           Environment = [
             "MEILI_HOST=http://127.0.0.1:7700"
             "MEILI_NO_ANALYTICS=true"
@@ -95,7 +95,7 @@ in
         Container = {
           Pod = "librechat.pod";
           Image = images.vector;
-          Volume = "librechat-pg:/var/lib/postgresql/data";
+          Volume = "librechat-pg:/var/lib/postgresql/data:U";
           EnvironmentFile = librechat.env.path;
         };
         Service.Restart = "always";
@@ -133,7 +133,7 @@ in
         Container = {
           Pod = "librechat.pod";
           Image = images.mongo;
-          Volume = "data-mongo:/data/db";
+          Volume = "data-mongo:/data/db:U";
           Exec = "mongod --noauth";
         };
         Service.Restart = "always";
@@ -179,9 +179,9 @@ in
           Image = images.api;
           Volume = [
             "${librechat.config-path}:/app/librechat.yaml:ro,idmap"
-            "librechat-images:/app/client/public/images"
-            "librechat-uploads:/app/uploads"
-            "librechat-logs:/app/api/logs"
+            "librechat-images:/app/client/public/images:U"
+            "librechat-uploads:/app/uploads:U"
+            "librechat-logs:/app/api/logs:U"
             "/run/librechat:/run/librechat:ro,idmap"
           ];
           Environment = [
