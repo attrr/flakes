@@ -63,6 +63,12 @@ in
         nerd-fonts.adwaita-mono
         adwaita-fonts
         rictydiminished-with-firacode
+        inconsolata
+        # maple mono
+        maple-mono.truetype
+        maple-mono.NF
+        maple-mono.NF-CN
+        plemoljp
         # misc
         zsh-completions
         nix-zsh-completions
