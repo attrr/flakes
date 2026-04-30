@@ -42,65 +42,18 @@ in
     reloadServices = [ "caddy.service" ];
   };
 
-  systemd.sockets.caddy = {
-    description = "Caddy Tailscale Sockets";
-    wantedBy = [ "sockets.target" ];
-
-    listenStreams = [
-      "80"
-      "443"
-    ];
-    listenDatagrams = [
-      "443"
-    ];
-
-    socketConfig = {
-      FreeBind = true;
-      BindToDevice = "tailscale0";
-      Service = "caddy.service";
-    };
-  };
-
-  # 2. Wire the Caddy service to wait for the socket and Tailscale
-  systemd.services.caddy = {
-    wants = [ "caddy.socket" ];
-    after = [
-      "caddy.socket"
-      "tailscaled.service"
-    ];
-  };
+  # Wire the Caddy service to wait for the socket and Tailscale
   services.caddy = {
     enable = true;
     virtualHosts."${bao.domain}" = {
-      # listenAddresses = ctx.tailscale.ips;
+      listenAddresses = ctx.tailscale.ips;
       extraConfig = ''
         tls /var/lib/acme/${bao.domain}/cert.pem /var/lib/acme/${bao.domain}/key.pem
         reverse_proxy 127.0.0.1:8200
       '';
     };
-    globalConfig = ''
-      default_bind fd/4 {
-        protocols h1 h2
-      }
-
-      # 3rd socket in the file caddy.socket
-      default_bind fdgram/5 {
-        protocols h3
-      }
-      admin localhost:2019
-      auto_https disable_redirects
-    '';
-    extraConfig = ''
-      http:// {
-        # 1st socket in the file caddy.socket
-        bind fd/3 {
-          protocols h1
-        }
-        redir https://{host}{uri}
-        log
-      }
-    '';
   };
+
   networking.firewall.interfaces.tailscale0 = {
     allowedTCPPorts = [
       80
