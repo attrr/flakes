@@ -12,6 +12,7 @@ in
   imports = [
     ./shadowsocks.nix
     ./hysteria2.nix
+    ./vless.nix
     ./warp.nix
     ./lowend.nix
   ];
@@ -90,7 +91,7 @@ in
         }
       ];
       route.final = if cfg.warp.enable then "warp" else "direct";
-      log.level = "error";
+      log.level = lib.mkDefault "error";
     };
 
     # to match permission inside/outside of container

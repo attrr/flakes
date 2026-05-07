@@ -1,8 +1,9 @@
-{ ctx, ... }:
+{ ctx, lib, ... }:
 
 let
-  ss = ctx.services.shadowsocks;
-  hy2 = ctx.services.hysteria2;
+  shadowsocks = ctx.services.shadowsocks;
+  hysteria2 = ctx.services.hysteria2;
+  vless = ctx.services.vless;
 in
 {
   imports = [
@@ -10,19 +11,27 @@ in
   ];
 
   core.server.sing-box = {
-    enable = true;
-    shadowsocks = {
-      enable = true;
-      passwordPath = ss.password.path;
-    };
-    hysteria2 = {
-      enable = true;
-      port = hy2.port;
-      passwordPath = hy2.password.path;
-      tlsCertificatePath = hy2.tls.cert;
-      tlsKeyPath = hy2.tls.key.path;
-      echKeyPath = hy2.tls.ech-key.path;
-    };
+    enable = lib.mkDefault true;
     warp.enable = true;
+    shadowsocks = lib.mkIf shadowsocks.enable {
+      enable = true;
+      port = shadowsocks.port;
+      passwordPath = shadowsocks.password.path;
+    };
+    hysteria2 = lib.mkIf hysteria2.enable {
+      enable = true;
+      port = hysteria2.port;
+      passwordPath = hysteria2.password.path;
+      tlsCertificatePath = hysteria2.tls.cert;
+      tlsKeyPath = hysteria2.tls.key.path;
+      echKeyPath = hysteria2.tls.ech-key.path;
+    };
+    vless = lib.mkIf vless.enable {
+      enable = true;
+      uuidPath = vless.uuid.path;
+      privateKey = vless.private-key.path;
+      shortIdPath = vless.short-id.path;
+      serverName = vless.server-name;
+    };
   };
 }
