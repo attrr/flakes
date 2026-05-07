@@ -23,6 +23,7 @@ in
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
     ../../modules/host/lowend
+    ../../modules/ctx/proxy.nix
   ];
 
   nixpkgs.hostPlatform = "x86_64-linux";

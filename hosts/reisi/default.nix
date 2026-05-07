@@ -77,6 +77,7 @@
           outbound = "direct";
         }
       ];
+      log.level = "debug";
     };
   };
 }

@@ -7,6 +7,7 @@
 let
   fn = {
     sing = import ./sing.nix args;
+    network = import ./network.nix args;
     general = import ./general.nix args;
   };
 in

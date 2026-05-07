@@ -1,8 +1,9 @@
 { lib, ... }:
 let
-  normalize = set: 
-    lib.mapAttrs' (name: value: 
-      lib.nameValuePair (builtins.replaceStrings ["-"] ["_"] name) value
+  normalize =
+    set:
+    lib.mapAttrs' (
+      name: value: lib.nameValuePair (builtins.replaceStrings [ "-" ] [ "_" ] name) value
     ) set;
 
   # Attr, Attr -> Attr
@@ -58,6 +59,24 @@ in
       alpn = [ "h3" ];
       ech = {
         enabled = true;
+      };
+    };
+  };
+
+  # -> tag, server, server_port, uuid
+  # -> tls.server_name tls.reality.public_key tls.reality.short_id
+  mkVless = mapMergeEntries {
+    type = "vless";
+    flow = "xtls-rprx-vision";
+    packet_encoding = "xudp";
+    tls = {
+      enabled = true;
+      reality = {
+        enabled = true;
+      };
+      utls = {
+        enabled = true;
+        fingerprint = "chrome";
       };
     };
   };
