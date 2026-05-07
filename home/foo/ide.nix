@@ -7,11 +7,11 @@
 {
   programs.vscode = {
     enable = true;
+    package = pkgs.vscodium;
     profiles.default.extensions = with pkgs.vscode-extensions; [
       jnoortheen.nix-ide
       enkia.tokyo-night
       ms-python.python
-      ms-python.vscode-pylance
       ms-python.black-formatter
       ms-pyright.pyright
       redhat.vscode-yaml
@@ -54,10 +54,10 @@
     ]);
 
   home.file.".antigravity/extensions".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.vscode/extensions";
+    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.vscode-oss/extensions";
 
   xdg.configFile."Antigravity/User/settings.json".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.xdg.configHome}/Code/User/settings.json";
+    config.lib.file.mkOutOfStoreSymlink "${config.xdg.configHome}/VSCodium/User/settings.json";
 
   allowUnfree.packages = with pkgs; [
     antigravity

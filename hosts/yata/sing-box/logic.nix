@@ -1,13 +1,24 @@
 {
   fn,
+  lib,
   ctx,
   pkgs,
   ...
 }:
 let
   sb = ctx.services.sing-box;
-  outTags = map (attr: attr.tag) sb.outbounds.shadowsocks;
-  hy2Tags = map (attr: attr.tag) sb.outbounds.hysteria2;
+  outTags = map (attr: "out-${attr.tag}") sb.outbounds.shadowsocks;
+  hy2Tags = map (attr: "hy2-${attr.tag}") sb.outbounds.hysteria2;
+  vlessTags = lib.concatMap (
+    outbound:
+    map (
+      address:
+      let
+        basetag = "vless-${outbound.tag}";
+      in
+      if (fn.network.isIPv4 address) then "${basetag}-ipv4" else "${basetag}-ipv6"
+    ) outbound.addresses
+  ) sb.outbounds.vless;
 in
 {
   logicConfig = {
@@ -17,6 +28,7 @@ in
         type = "selector";
         outbounds = [
           "out"
+          "out-all"
           "hy2-out"
           "out-sele"
           "upstream"
@@ -32,10 +44,17 @@ in
         interrupt_exist_connections = true;
       }
       {
+        tag = "out-all";
+        type = "urltest";
+        outbounds = outTags ++ hy2Tags ++ vlessTags;
+        interval = "2m";
+        interrupt_exist_connections = true;
+      }
+      {
         tag = "out-sele";
         type = "selector";
-        outbounds = outTags;
-        default = "out-us-lv";
+        outbounds = outTags ++ vlessTags;
+        default = "out-out-us-lv";
         interrupt_exist_connections = true;
       }
       {
@@ -61,7 +80,7 @@ in
         tag = "hy2-out";
         type = "selector";
         outbounds = hy2Tags;
-        default = "hy2-us-lv";
+        default = "hy2-hy2-us-lv";
         interrupt_exist_connections = true;
       }
     ];
