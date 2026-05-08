@@ -46,7 +46,6 @@
       ];
     };
   };
-  services.tailscale.enable = true;
 
   cloud.server = {
     hostname = ctx.metadata.hostname;
