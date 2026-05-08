@@ -24,6 +24,10 @@
       url = "github:attrr/stage1-dd";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    deploy-rs = {
+      url = "github:serokell/deploy-rs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     dotfiles = {
       url = "git+ssh://git@github.com/attrr/dotfiles.git";
       flake = false;
@@ -32,12 +36,14 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       disko,
       sops-nix,
       home-manager,
       ctx,
       stage1-dd,
+      deploy-rs,
       ...
     }@inputs:
     let
@@ -46,9 +52,6 @@
         let
           system = "x86_64-linux";
           pkgs = import nixpkgs { inherit system; };
-          # Directories whose default.nix returns an attrset rather than a
-          # single derivation must be excluded from the generic scan and
-          # merged manually below.
           excluded = [ "mediawiki-extensions" ];
           dirs = nixpkgs.lib.filterAttrs (name: _: !(builtins.elem name excluded)) (builtins.readDir path);
         in
@@ -110,6 +113,38 @@
             }
           )
         ) attrs;
+
+      mkDeployNodes =
+        let
+          lib = nixpkgs.lib;
+        in
+        attrs:
+        lib.mapAttrs (
+          name: value:
+          let
+            system = self.nixosConfigurations.${name}.config.nixpkgs.system;
+            pkgs = import nixpkgs { inherit system; };
+            deployPkgs = import nixpkgs {
+              inherit system;
+              overlays = [
+                deploy-rs.overlays.default
+                (self: super: {
+                  deploy-rs = {
+                    inherit (pkgs) deploy-rs;
+                    lib = super.deploy-rs.lib;
+                  };
+                })
+              ];
+            };
+          in
+          lib.recursiveUpdate {
+            sshUser = "sysadm";
+            profiles.system = {
+              user = "root";
+              path = deployPkgs.deploy-rs.lib.activate.nixos self.nixosConfigurations.${name};
+            };
+          } value
+        ) attrs;
     in
     {
       packages.x86_64-linux = mkPackages ./pkgs;
@@ -137,6 +172,25 @@
           };
         };
 
+      deploy.nodes = mkDeployNodes {
+        yata = {
+          hostname = "yata";
+          fastConnection = true;
+        };
+        shiro.hostname = "shiro-gfw";
+        reisi.hostname = "reisi-gfw";
+        iwa.hostname = "iwa";
+        neko = {
+          sshUser = "foo";
+          hostname = "neko";
+          fastConnection = true;
+        };
+        kamo.hostname = "kamo-gfw";
+        koto.hostname = "koto-gfw";
+        ren.hostname = "ren-gfw";
+        eric.hostname = "eric";
+      };
+
       homeConfigurations = mkHomes {
         "foo@fedora" = { };
         "foo@nixos" = { };
@@ -146,9 +200,11 @@
         let
           system = "x86_64-linux";
           pkgs = import nixpkgs { inherit system; };
+          tests = import ./tests/sing-box { inherit pkgs; };
+          deploy-tests = import ./tests/sing-box { inherit pkgs; };
         in
         {
-          ${system} = import ./tests/sing-box { inherit pkgs; };
+          ${system} = tests // deploy-tests;
         };
     };
 }
