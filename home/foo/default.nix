@@ -70,6 +70,7 @@ in
         maple-mono.NF-CN
         plemoljp
         # misc
+        deploy-rs
         zsh-completions
         nix-zsh-completions
         autossh

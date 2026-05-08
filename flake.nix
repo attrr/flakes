@@ -46,8 +46,13 @@
         let
           system = "x86_64-linux";
           pkgs = import nixpkgs { inherit system; };
+          # Directories whose default.nix returns an attrset rather than a
+          # single derivation must be excluded from the generic scan and
+          # merged manually below.
+          excluded = [ "mediawiki-extensions" ];
+          dirs = nixpkgs.lib.filterAttrs (name: _: !(builtins.elem name excluded)) (builtins.readDir path);
         in
-        nixpkgs.lib.mapAttrs (name: _: pkgs.callPackage (path + "/${name}") { }) (builtins.readDir path);
+        nixpkgs.lib.mapAttrs (name: _: pkgs.callPackage (path + "/${name}") { }) dirs;
 
       commonModules = [
         sops-nix.nixosModules.sops

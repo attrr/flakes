@@ -6,7 +6,7 @@ in
   options.core.server.sing-box.vless = {
     enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "enable vless inbound";
     };
 
@@ -50,7 +50,7 @@ in
   config = lib.mkIf (config.core.server.sing-box.enable && cfg.enable) {
     assertions = [
       {
-        assertion = cfg.enable -> (cfg.uuidPath != "" && cfg.privateKey != "" && cfg.shortIdPath != "");
+        assertion = cfg.uuidPath != "" && cfg.privateKey != "" && cfg.shortIdPath != "";
         message = "Error: vless is enable, but required field is missing";
       }
     ];
