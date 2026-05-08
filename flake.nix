@@ -164,6 +164,7 @@
           ren.modules = stardustModules;
           # lowend
           eric.modules = commonModules;
+          nerine.modules = commonModules;
         }
         // {
           yata-bootstrap = nixpkgs.lib.nixosSystem {
@@ -189,6 +190,7 @@
         koto.hostname = "koto-gfw";
         ren.hostname = "ren-gfw";
         eric.hostname = "eric";
+        nerine.hostname = "nerine";
       };
 
       homeConfigurations = mkHomes {
