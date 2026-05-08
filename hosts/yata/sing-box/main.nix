@@ -71,10 +71,6 @@ in
         type = "direct";
       }
       {
-        tag = "block";
-        type = "block";
-      }
-      {
         type = "socks";
         tag = "upstream";
         server = "127.0.0.1";

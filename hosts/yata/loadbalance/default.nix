@@ -43,6 +43,7 @@ in
     sops.templates."loadbalance.json" = {
       content = builtins.toJSON loadbalanceConfig;
       owner = "loadbalance";
+      restartUnits = [ "loadbalance.service" ];
     };
 
     # from nixpkgs

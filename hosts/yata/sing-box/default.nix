@@ -49,6 +49,7 @@ in
     sops.templates."sing-box.json" = {
       content = builtins.toJSON finalSettings;
       owner = "sing-box";
+      restartUnits = [ "sing-box.service" ];
     };
 
     systemd.services.sing-box.serviceConfig.ExecStart = [
