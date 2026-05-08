@@ -54,7 +54,6 @@ in
         tag = "out-sele";
         type = "selector";
         outbounds = outTags ++ vlessTags;
-        default = "out-out-us-lv";
         interrupt_exist_connections = true;
       }
       {
@@ -80,7 +79,6 @@ in
         tag = "hy2-out";
         type = "selector";
         outbounds = hy2Tags;
-        default = "hy2-hy2-us-lv";
         interrupt_exist_connections = true;
       }
     ];
@@ -139,13 +137,6 @@ in
             "gazellegames.net"
           ];
           outbound = "trackers";
-        }
-        {
-          # no age verification
-          domain_suffix = [
-            "xvideos.com"
-          ];
-          outbound = "out-us-lv";
         }
         {
           domain_suffix = [
