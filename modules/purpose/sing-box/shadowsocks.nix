@@ -9,6 +9,11 @@ in
       default = true;
       description = "enable shadowsocks inbound";
     };
+    tag = lib.mkOption {
+      type = lib.types.str;
+      default = "ss";
+      description = "shadowsocks inbound tag";
+    };
 
     port = lib.mkOption {
       type = lib.types.port;
@@ -33,11 +38,12 @@ in
       secrets = [ cfg.passwordPath ];
       tcpPorts = [ cfg.port ];
       udpPorts = [ cfg.port ];
+      inbounds = [ cfg.tag ];
     };
     core.server.sing-box.settings.inbounds = [
       {
         type = "shadowsocks";
-        tag = "ss";
+        tag = cfg.tag;
         method = "2022-blake3-aes-128-gcm";
         password._secret = cfg.passwordPath;
         listen = "0.0.0.0";
