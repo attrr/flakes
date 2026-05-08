@@ -9,6 +9,11 @@ in
       default = false;
       description = "enable vless inbound";
     };
+    tag = lib.mkOption {
+      type = lib.types.str;
+      default = "vls";
+      description = "vless inbound tag";
+    };
 
     port = lib.mkOption {
       type = lib.types.port;
@@ -62,11 +67,12 @@ in
         cfg.uuidPath
       ];
       tcpPorts = [ cfg.port ];
+      inbounds = [ cfg.tag ];
     };
     core.server.sing-box.settings.inbounds = [
       {
         type = "vless";
-        tag = "vls";
+        tag = cfg.tag;
         listen = "::";
         listen_port = cfg.port;
         tcp_fast_open = true;

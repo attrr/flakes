@@ -5,6 +5,11 @@ in
 {
   options.core.server.sing-box.hysteria2 = {
     enable = lib.mkEnableOption "enable hysteria2 inbound";
+    tag = lib.mkOption {
+      type = lib.types.str;
+      default = "hy2";
+      description = "hysteria2 inbound tag";
+    };
     port = lib.mkOption {
       type = lib.types.port;
       default = 0;
@@ -36,7 +41,8 @@ in
       }
       {
         assertion =
-          cfg.enable -> (
+          cfg.enable
+          -> (
             cfg.passwordPath != ""
             && cfg.tlsKeyPath != ""
             && cfg.tlsCertificatePath != ""
@@ -53,12 +59,13 @@ in
         cfg.tlsCertificatePath
         cfg.echKeyPath
       ];
+      inbounds = [ cfg.tag ];
       udpPorts = [ cfg.port ];
     };
     core.server.sing-box.settings.inbounds = [
       {
         type = "hysteria2";
-        tag = "hy2";
+        tag = cfg.tag;
         # ipv6 only
         listen = "::";
         listen_port = cfg.port;

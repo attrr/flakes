@@ -37,6 +37,11 @@ in
     };
 
     # internal only
+    inbounds = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      internal = true;
+    };
     secrets = lib.mkOption {
       type = lib.types.listOf (lib.types.either lib.types.path lib.types.str);
       default = [ ];
@@ -90,7 +95,37 @@ in
           server_port = 1080;
         }
       ];
-      route.final = if cfg.warp.enable then "warp" else "direct";
+      route = {
+        rules = lib.mkBefore [
+          {
+            inbound = cfg.inbounds;
+            action = "sniff";
+            timeout = "1s";
+          }
+          {
+            protocol = [ "bittorrent" ];
+            action = "reject";
+          }
+          {
+            ip_is_private = true;
+            action = "reject";
+          }
+          {
+            port = [
+              # unenrypted mail
+              25
+              # smb/netbios
+              135
+              137
+              138
+              139
+              445
+            ];
+            action = "reject";
+          }
+        ];
+        final = if cfg.warp.enable then "warp" else "direct";
+      };
       log.level = lib.mkDefault "error";
     };
 
