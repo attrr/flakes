@@ -28,7 +28,18 @@
   };
 
   boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
-  boot.blacklistedKernelModules = [ "algif_aead" ];
+  boot.blacklistedKernelModules = [
+    "algif_aead"
+    "esp4"
+    "esp6"
+    "rxrpc"
+  ];
+  boot.extraModprobeConfig = "
+    install algif_aead /run/current-system/sw/bin/false
+    install esp4 /run/current-system/sw/bin/false
+    install esp6 /run/current-system/sw/bin/false
+    install rxrpc /run/current-system/sw/bin/false
+  ";
 
   # enable zram regardless
   zramSwap.enable = lib.mkDefault true;
