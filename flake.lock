@@ -7,11 +7,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1778339283,
-        "narHash": "sha256-eOtOfQw1W3M0AxlNSHizBLpPy2Q4dr+MOgfFT+V/ZSQ=",
+        "lastModified": 1778353878,
+        "narHash": "sha256-8PuAFUCB4lRYYS9YW8Quj1+CvrsPjSB29Oi9BIWmE6k=",
         "ref": "refs/heads/main",
-        "rev": "82376b8b8bfc7d6cf2cdf354a004bd6845754b34",
-        "revCount": 33,
+        "rev": "0e9697137aabcc2f6a33c5febfab10f953ad1c07",
+        "revCount": 34,
         "type": "git",
         "url": "ssh://git@github.com/attrr/ctx.git"
       },
