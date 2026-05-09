@@ -93,7 +93,7 @@ let
 
 in
 {
-  core.client.sing-box.settings = {
+  infra.sing-box.settings = {
     endpoints = [
       {
         type = "wireguard";
@@ -108,7 +108,7 @@ in
     outbounds = lib.mkOrder 300 (shadowsocks ++ hysteria2 ++ vless);
   };
 
-  core.client.sing-box.tags = {
+  infra.sing-box.tags = {
     shadowsocks = map (o: o.tag) shadowsocks;
     hysteria2 = map (o: o.tag) hysteria2;
     vless = map (o: o.tag) vless;

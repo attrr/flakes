@@ -15,7 +15,7 @@
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
 
-  cloud.server = {
+  core.server = {
     hostname = ctx.metadata.hostname;
     ssh-ports = ctx.ssh.ports;
     ssh-keys = ctx.ssh.auth-keys;
@@ -25,7 +25,7 @@
   users.users.root.hashedPassword = ctx.ssh.hashed-password;
   services.tailscale.enable = true;
 
-  core.acme = {
+  infra.acme = {
     enable = true;
     api = registry.acme-dns.url;
   };

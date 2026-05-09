@@ -5,10 +5,10 @@
   ...
 }:
 let
-  cfg = config.core.acme;
+  cfg = config.infra.acme;
 in
 {
-  options.core.acme = {
+  options.infra.acme = {
     enable = lib.mkEnableOption "Enable acme services over acme-dns server";
     api = lib.mkOption {
       type = lib.types.str;

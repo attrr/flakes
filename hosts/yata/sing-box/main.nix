@@ -9,7 +9,7 @@ let
   wg = ctx.services.wireguard;
 in
 {
-  core.client.sing-box.settings = {
+  infra.sing-box.settings = {
     log = {
       level = "debug";
       # redundant with systemd

@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.core.server.sing-box;
+  cfg = config.infra.sing-box;
   jsonFormat = pkgs.formats.json { };
 in
 {
@@ -17,7 +17,7 @@ in
     ./lowend.nix
   ];
 
-  options.core.server.sing-box = {
+  options.infra.sing-box = {
     enable = lib.mkEnableOption "enable sing-box server setup";
     uid = lib.mkOption {
       type = lib.types.int;
@@ -70,7 +70,7 @@ in
     ];
 
     # default settings
-    core.server.sing-box.settings = {
+    infra.sing-box.settings = {
       dns = {
         servers = [
           {

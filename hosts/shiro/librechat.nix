@@ -61,7 +61,7 @@ in
     };
   };
 
-  core.acme.certs."${librechat.domain}" = {
+  infra.acme.certs."${librechat.domain}" = {
     reloadServices = [ "caddy.service" ];
   };
   services.caddy = {
@@ -87,7 +87,7 @@ in
     };
   };
 
-  core.restic.backups.librechat =
+  infra.restic.backups.librechat =
     let
       target = "/var/backup/librechat";
     in

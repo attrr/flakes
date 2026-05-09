@@ -5,11 +5,11 @@
   ...
 }:
 let
-  cfg = config.core.restic;
+  cfg = config.infra.restic;
   repository = "s3:${cfg.s3.base}/${cfg.s3.bucketName}/${cfg.s3.namespace}";
 in
 {
-  options.core.restic = {
+  options.infra.restic = {
     enable = lib.mkEnableOption "restic services";
     s3 = {
       base = lib.mkOption {

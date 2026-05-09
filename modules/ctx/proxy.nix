@@ -10,14 +10,16 @@ in
     ../../modules/purpose/sing-box
   ];
 
-  core.server.sing-box = {
+  infra.sing-box = {
     enable = lib.mkDefault true;
     warp.enable = true;
+
     shadowsocks = lib.mkIf shadowsocks.enable {
       enable = true;
       port = shadowsocks.port;
       passwordPath = shadowsocks.password.path;
     };
+
     hysteria2 = lib.mkIf hysteria2.enable {
       enable = true;
       port = hysteria2.port;
@@ -26,6 +28,7 @@ in
       tlsKeyPath = hysteria2.tls.key.path;
       echKeyPath = hysteria2.tls.ech-key.path;
     };
+
     vless = lib.mkIf vless.enable {
       enable = true;
       uuidPath = vless.uuid.path;

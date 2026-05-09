@@ -38,7 +38,7 @@ in
     };
   };
 
-  core.acme.certs."${bao.domain}" = {
+  infra.acme.certs."${bao.domain}" = {
     reloadServices = [ "caddy.service" ];
   };
 

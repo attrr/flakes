@@ -1,9 +1,9 @@
 { config, lib, ... }:
 let
-  cfg = config.core.server.sing-box.hysteria2;
+  cfg = config.infra.sing-box.hysteria2;
 in
 {
-  options.core.server.sing-box.hysteria2 = {
+  options.infra.sing-box.hysteria2 = {
     enable = lib.mkEnableOption "enable hysteria2 inbound";
     tag = lib.mkOption {
       type = lib.types.str;
@@ -33,7 +33,7 @@ in
     };
   };
 
-  config = lib.mkIf (config.core.server.sing-box.enable && cfg.enable) {
+  config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
     assertions = [
       {
         assertion = cfg.enable -> (cfg.port != 0);
@@ -52,7 +52,7 @@ in
       }
     ];
 
-    core.server.sing-box = {
+    infra.sing-box = {
       secrets = [
         cfg.passwordPath
         cfg.tlsKeyPath
@@ -62,7 +62,7 @@ in
       inbounds = [ cfg.tag ];
       udpPorts = [ cfg.port ];
     };
-    core.server.sing-box.settings.inbounds = [
+    infra.sing-box.settings.inbounds = [
       {
         type = "hysteria2";
         tag = cfg.tag;

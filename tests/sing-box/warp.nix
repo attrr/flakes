@@ -9,7 +9,7 @@ let
       ./stub.nix
       ../../modules/purpose/sing-box/default.nix
       {
-        core.server.sing-box = {
+        infra.sing-box = {
           enable = true;
           shadowsocks.passwordPath = "/dummy";
           lowend = true;
@@ -20,7 +20,7 @@ let
     specialArgs = { inherit pkgs; };
   };
 
-  cfg = eval.config.core.server.sing-box;
+  cfg = eval.config.infra.sing-box;
 
   failedAssertions = builtins.filter (x: !x.assertion) eval.config.assertions;
 

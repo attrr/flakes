@@ -13,7 +13,7 @@ in
   ];
 
   # get hostname wildcard certs
-  core.acme = {
+  infra.acme = {
     enable = true;
     api = registry.acme-dns.url;
     certs."${ctx.metadata.fdqn}" = {

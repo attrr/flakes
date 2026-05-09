@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.cloud.server;
+  cfg = config.core.server;
 in
 {
   imports = [
@@ -15,7 +15,7 @@ in
     (modulesPath + "/profiles/headless.nix")
   ];
 
-  options.cloud.server = {
+  options.core.server = {
     hostname = lib.mkOption {
       type = lib.types.str;
     };
