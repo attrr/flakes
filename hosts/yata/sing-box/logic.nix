@@ -1,28 +1,17 @@
 {
   fn,
   lib,
-  ctx,
+  config,
   pkgs,
   ...
 }:
 let
-  sb = ctx.services.sing-box;
-  outTags = map (attr: "out-${attr.tag}") sb.outbounds.shadowsocks;
-  hy2Tags = map (attr: "hy2-${attr.tag}") sb.outbounds.hysteria2;
-  vlessTags = lib.concatMap (
-    outbound:
-    map (
-      address:
-      let
-        basetag = "vless-${outbound.tag}";
-      in
-      if (fn.network.isIPv4 address) then "${basetag}-ipv4" else "${basetag}-ipv6"
-    ) outbound.addresses
-  ) sb.outbounds.vless;
+  cfg = config.core.client.sing-box;
+  tags = cfg.tags;
 in
 {
-  logicConfig = {
-    outbounds = [
+  config.core.client.sing-box.settings = {
+    outbounds = lib.mkOrder 200 [
       {
         tag = "sele";
         type = "selector";
@@ -39,21 +28,21 @@ in
       {
         tag = "out";
         type = "urltest";
-        outbounds = outTags;
+        outbounds = tags.shadowsocks;
         interval = "2m";
         interrupt_exist_connections = true;
       }
       {
         tag = "out-all";
         type = "urltest";
-        outbounds = outTags ++ hy2Tags ++ vlessTags;
+        outbounds = tags.shadowsocks ++ tags.hysteria2 ++ tags.vless;
         interval = "2m";
         interrupt_exist_connections = true;
       }
       {
         tag = "out-sele";
         type = "selector";
-        outbounds = outTags ++ vlessTags;
+        outbounds = tags.shadowsocks ++ tags.vless;
         interrupt_exist_connections = true;
       }
       {
@@ -72,13 +61,13 @@ in
           "out"
           "direct"
         ]
-        ++ outTags;
+        ++ tags.shadowsocks;
         default = "out";
       }
       {
         tag = "hy2-out";
         type = "selector";
-        outbounds = hy2Tags;
+        outbounds = tags.hysteria2;
         interrupt_exist_connections = true;
       }
     ];

@@ -38,7 +38,7 @@
     enable = true;
     doh_url = "https://223.5.5.5/resolve";
   };
-  services.sing-box.enable = true;
+  core.client.sing-box.enable = true;
   services.loadbalance.enable = true;
 
   # Pi specific hardware config

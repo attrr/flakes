@@ -28,7 +28,9 @@ in
       default = 992;
     };
     settings = lib.mkOption {
-      type = jsonFormat.type;
+      type = lib.types.submodule {
+        freeformType = jsonFormat.type;
+      };
       default = { };
     };
     openFirewall = lib.mkOption {
