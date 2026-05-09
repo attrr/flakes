@@ -26,7 +26,25 @@
   };
 
   networking.hostName = "yata";
-  networking.useDHCP = true;
+  networking.useNetworkd = true;
+  systemd.network.networks."10-default" = {
+    matchConfig.Name = "e*";
+    address = ctx.network.ipv4.cidr;
+    gateway = [ ctx.network.ipv4.gateway ];
+    dns = [ ctx.network.ipv4.gateway ];
+
+    networkConfig = {
+      IPv6AcceptRA = true;
+      IPv6PrivacyExtensions = "yes";
+    };
+
+    ipv6AcceptRAConfig = {
+      UseAutonomousPrefix = true;
+      UseGateway = true;
+      Token = "prefixstable";
+    };
+  };
+
   networking.firewall = {
     enable = true;
     trustedInterfaces = [ "wg0" ];
