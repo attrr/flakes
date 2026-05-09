@@ -41,7 +41,7 @@ in
   };
 
   # reverse proxy
-  core.acme.certs."${domain}" = {
+  infra.acme.certs."${domain}" = {
     inherit domain;
     extraDomainNames = [
       "*.${domain}"
@@ -251,7 +251,7 @@ in
       ];
 
   # backups
-  core.restic.backups.mediawiki =
+  infra.restic.backups.mediawiki =
     let
       mysql-backup-dir = "/var/backup/mysql";
       mysql-backup-paths = [

@@ -1,9 +1,9 @@
 { config, lib, ... }:
 let
-  cfg = config.core.server.sing-box.vless;
+  cfg = config.infra.sing-box.vless;
 in
 {
-  options.core.server.sing-box.vless = {
+  options.infra.sing-box.vless = {
     enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -52,7 +52,7 @@ in
     };
   };
 
-  config = lib.mkIf (config.core.server.sing-box.enable && cfg.enable) {
+  config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
     assertions = [
       {
         assertion = cfg.uuidPath != "" && cfg.privateKey != "" && cfg.shortIdPath != "";
@@ -60,7 +60,7 @@ in
       }
     ];
 
-    core.server.sing-box = {
+    infra.sing-box = {
       secrets = [
         cfg.privateKey
         cfg.shortIdPath
@@ -69,7 +69,7 @@ in
       tcpPorts = [ cfg.port ];
       inbounds = [ cfg.tag ];
     };
-    core.server.sing-box.settings.inbounds = [
+    infra.sing-box.settings.inbounds = [
       {
         type = "vless";
         tag = cfg.tag;

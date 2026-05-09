@@ -1,4 +1,6 @@
-{ pkgs ? import <nixpkgs> {} }:
+{
+  pkgs ? import <nixpkgs> { },
+}:
 let
   lib = pkgs.lib;
   eval = lib.evalModules {
@@ -7,7 +9,7 @@ let
       ./stub.nix
       ../../modules/purpose/sing-box/default.nix
       {
-        core.server.sing-box = {
+        infra.sing-box = {
           enable = true;
           # Disable shadowsocks to isolate hysteria2
           shadowsocks.enable = false;
@@ -24,15 +26,17 @@ let
     ];
     specialArgs = { inherit pkgs; };
   };
-  
-  cfg = eval.config.core.server.sing-box;
-  
+
+  cfg = eval.config.infra.sing-box;
+
   failedAssertions = builtins.filter (x: !x.assertion) eval.config.assertions;
 
   tests = [
     {
       assertion = builtins.length failedAssertions == 0;
-      message = "Module assertions failed: ${builtins.toJSON (builtins.map (x: x.message) failedAssertions)}";
+      message = "Module assertions failed: ${
+        builtins.toJSON (builtins.map (x: x.message) failedAssertions)
+      }";
     }
     {
       assertion = builtins.elem "/secrets/hy2_pw" cfg.secrets;
@@ -47,7 +51,7 @@ let
       message = "UDP ports missing 5678";
     }
     {
-      assertion = ! builtins.elem 5678 cfg.tcpPorts;
+      assertion = !builtins.elem 5678 cfg.tcpPorts;
       message = "TCP ports should not have hy2 port";
     }
     {
@@ -55,7 +59,7 @@ let
       message = "Firewall UDP ports missing 5678";
     }
     {
-      assertion = ! builtins.elem 5678 eval.config.networking.firewall.allowedTCPPorts;
+      assertion = !builtins.elem 5678 eval.config.networking.firewall.allowedTCPPorts;
       message = "Firewall TCP ports should not have hy2 port";
     }
     {
@@ -88,9 +92,9 @@ let
   ];
 
   failedTests = builtins.filter (x: !x.assertion) tests;
-  
+
 in
 if builtins.length failedTests > 0 then
   abort (builtins.head failedTests).message
 else
-  pkgs.runCommand "eval-sing-box-hysteria2-test" {} "touch $out"
+  pkgs.runCommand "eval-sing-box-hysteria2-test" { } "touch $out"

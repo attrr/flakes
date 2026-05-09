@@ -13,7 +13,7 @@
     ../../modules/purpose/pooper-scooper
   ];
 
-  cloud.server = {
+  core.server = {
     hostname = ctx.metadata.hostname;
     ssh-ports = ctx.ssh.ports;
     ssh-keys = ctx.ssh.auth-keys;
@@ -38,7 +38,8 @@
     enable = true;
     doh_url = "https://223.5.5.5/resolve";
   };
-  core.client.sing-box.enable = true;
+
+  infra.sing-box.enable = true;
   services.loadbalance.enable = true;
 
   # Pi specific hardware config

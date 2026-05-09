@@ -35,7 +35,7 @@ in
     };
   };
 
-  core.acme = {
+  infra.acme = {
     enable = true;
     # use local url to avoid chicken egg problem
     api = local-url;

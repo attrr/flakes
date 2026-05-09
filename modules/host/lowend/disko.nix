@@ -1,9 +1,9 @@
 { lib, config, ... }:
 let
-  cfg = config.cloud.server.disko;
+  cfg = config.core.server.disko;
 in
 {
-  options.cloud.server.disko = {
+  options.core.server.disko = {
     efi = lib.mkEnableOption "boot mode";
     device = lib.mkOption {
       type = lib.types.str;

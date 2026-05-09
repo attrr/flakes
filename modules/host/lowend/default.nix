@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.cloud.server;
+  cfg = config.core.server;
 in
 {
   imports = [
@@ -14,7 +14,7 @@ in
     failoverModule
   ];
 
-  options.cloud.server = {
+  options.core.server = {
     zram-percent = lib.mkOption {
       type = lib.types.int;
       default = 100;
@@ -24,7 +24,7 @@ in
   config = lib.mkMerge [
     {
       zramSwap.memoryPercent = cfg.zram-percent;
-      cloud.server.auto-resize = true;
+      core.server.auto-resize = true;
 
       services.failover = {
         enable = true;

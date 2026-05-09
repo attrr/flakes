@@ -47,7 +47,7 @@
     };
   };
 
-  cloud.server = {
+  core.server = {
     hostname = ctx.metadata.hostname;
     ssh-ports = ctx.ssh.ports;
     ssh-keys = ctx.ssh.auth-keys;
@@ -60,7 +60,7 @@
     MemoryHigh = "120M";
   };
 
-  core.server.sing-box = {
+  infra.sing-box = {
     lowend = true;
     settings = {
       route.rules = [

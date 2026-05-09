@@ -5,15 +5,15 @@
   ...
 }:
 let
-  cfg = config.core.server.sing-box.warp;
+  cfg = config.infra.sing-box.warp;
   warp-podman = pkgs.callPackage ../../../pkgs/warp-podman/default.nix { };
 in
 {
-  options.core.server.sing-box.warp = {
+  options.infra.sing-box.warp = {
     enable = lib.mkEnableOption "enable warp container";
   };
 
-  config = lib.mkIf (config.core.server.sing-box.enable && cfg.enable) {
+  config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
     systemd.services.podman-warp = {
       serviceConfig = {
         Type = lib.mkForce "exec";

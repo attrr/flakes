@@ -29,7 +29,7 @@ in
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
 
-  cloud.server = {
+  core.server = {
     inherit (ctx.metadata) hostname;
     ssh-ports = ctx.ssh.ports;
     ssh-keys = ctx.ssh.auth-keys;

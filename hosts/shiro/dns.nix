@@ -105,7 +105,7 @@ in
   };
 
   # backups
-  core.restic.backups.knot =
+  infra.restic.backups.knot =
     let
       # probably systemd restriction
       path = "/var/lib/knot/backup";

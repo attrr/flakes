@@ -1,9 +1,9 @@
 { config, lib, ... }:
 let
-  cfg = config.core.server.sing-box.shadowsocks;
+  cfg = config.infra.sing-box.shadowsocks;
 in
 {
-  options.core.server.sing-box.shadowsocks = {
+  options.infra.sing-box.shadowsocks = {
     enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -26,7 +26,7 @@ in
     };
   };
 
-  config = lib.mkIf (config.core.server.sing-box.enable && cfg.enable) {
+  config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
     assertions = [
       {
         assertion = cfg.enable -> (cfg.passwordPath != "");
@@ -34,13 +34,13 @@ in
       }
     ];
 
-    core.server.sing-box = {
+    infra.sing-box = {
       secrets = [ cfg.passwordPath ];
       tcpPorts = [ cfg.port ];
       udpPorts = [ cfg.port ];
       inbounds = [ cfg.tag ];
     };
-    core.server.sing-box.settings.inbounds = [
+    infra.sing-box.settings.inbounds = [
       {
         type = "shadowsocks";
         tag = cfg.tag;

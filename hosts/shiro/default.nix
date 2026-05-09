@@ -24,7 +24,7 @@
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
 
-  cloud.server = {
+  core.server = {
     hostname = ctx.metadata.hostname;
     ssh-ports = ctx.ssh.ports;
     ssh-keys = ctx.ssh.auth-keys;
@@ -40,9 +40,9 @@
     routes = [ { Gateway = "fe80::1"; } ];
   };
   services.tailscale.enable = true;
-  core.server.sing-box.uid = 994;
+  infra.sing-box.uid = 994;
 
-  core.acme = {
+  infra.acme = {
     enable = true;
     api = registry.acme-dns.url;
     certs."${ctx.metadata.fdqn}" = {
@@ -53,7 +53,7 @@
     };
   };
 
-  core.restic =
+  infra.restic =
     let
       restic = ctx.services.restic;
     in

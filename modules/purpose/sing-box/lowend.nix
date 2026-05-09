@@ -4,11 +4,11 @@
   ...
 }:
 let
-  cfg = config.core.server.sing-box;
+  cfg = config.infra.sing-box;
   warp = cfg.warp;
 in
 {
-  options.core.server.sing-box = {
+  options.infra.sing-box = {
     lowend = lib.mkEnableOption "enable lowend machine limitation";
   };
 
