@@ -1,6 +1,7 @@
 {
   pkgs,
   ctx,
+  lib,
   global,
   ...
 }:
@@ -8,7 +9,7 @@ let
   wg = ctx.services.wireguard;
 in
 {
-  mainConfig = {
+  core.client.sing-box.settings = {
     log = {
       level = "debug";
       # redundant with systemd
@@ -65,7 +66,7 @@ in
         override_port = 53;
       }
     ];
-    outbounds = [
+    outbounds = lib.mkOrder 100 [
       {
         tag = "direct";
         type = "direct";
@@ -82,7 +83,7 @@ in
       clash_api = {
         external_controller = "127.0.0.1:9091";
         external_ui = "${pkgs.metacubexd}";
-        secret = ctx.services.sing-box.password.ph;
+        secret._secret = ctx.services.sing-box.password.path;
       };
       cache_file = {
         enabled = true;

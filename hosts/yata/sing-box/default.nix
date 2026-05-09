@@ -2,61 +2,57 @@
   config,
   lib,
   pkgs,
-  ctx,
-  global,
-  fn,
   ...
-}@args:
+}:
 let
+  cfg = config.core.client.sing-box;
+  jsonFormat = pkgs.formats.json { };
 
-  # 1. Main Infrastructure Config
-  mainConfig = (import ./main.nix args).mainConfig;
-  # 2. Concrete Outbounds Config (Nodes)
-  outboundConfig = (import ./outbounds.nix args).outboundConfig;
-  # 3. Routing Logic Config (Selectors, Rules)
-  logicConfig = (import ./logic.nix args).logicConfig;
-
-  # 4. Final Merge
-  finalSettings = {
-    inherit (mainConfig)
-      log
-      dns
-      inbounds
-      experimental
-      ;
-
-    # Merge endpoints (WireGuard)
-    endpoints = outboundConfig.endpoints or [ ];
-
-    # Merge Logic:
-    # Outbounds = Main(Infra) + Outbounds(Nodes) + Logic(Selectors)
-    outbounds =
-      (mainConfig.outbounds or [ ])
-      ++ (outboundConfig.outbounds or [ ])
-      ++ (logicConfig.outbounds or [ ]);
-
-    # Route:
-    # Rules = Logic.Rules
-    # RuleSet = Logic.RuleSet
-    route = {
-      inherit (logicConfig.route) rules rule_set final;
-    };
-  };
 in
 {
-  config = lib.mkIf config.services.sing-box.enable {
-    # Use sops templates to inject secrets
-    sops.templates."sing-box.json" = {
-      content = builtins.toJSON finalSettings;
-      owner = "sing-box";
-      restartUnits = [ "sing-box.service" ];
+  imports = [
+    ./main.nix
+    ./outbounds.nix
+    ./logic.nix
+  ];
+
+  options.core.client.sing-box = {
+    enable = lib.mkEnableOption "enable sing-box client";
+    settings = lib.mkOption {
+      type = lib.types.submodule {
+        freeformType = jsonFormat.type;
+      };
+      default = { };
     };
 
-    systemd.services.sing-box.serviceConfig.ExecStart = [
-      ""
-      "${lib.getExe config.services.sing-box.package} run -c ${
-        config.sops.templates."sing-box.json".path
-      }"
-    ];
+    # internal
+    tags = lib.mkOption {
+      description = "outbound tags per groups";
+      internal = true;
+      type = lib.types.submodule {
+        freeformType = lib.types.attrsOf (lib.types.listOf lib.types.str);
+        options = {
+          shadowsocks = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+          };
+          hysteria2 = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+          };
+          vless = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+          };
+        };
+      };
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    services.sing-box = {
+      enable = true;
+      settings = cfg.settings;
+    };
   };
 }
