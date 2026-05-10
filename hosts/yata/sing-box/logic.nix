@@ -19,7 +19,6 @@ in
           "out"
           "out-all"
           "hy2-out"
-          "out-sele"
           "upstream"
         ];
         default = "out";
@@ -34,15 +33,8 @@ in
       }
       {
         tag = "out-all";
-        type = "urltest";
-        outbounds = tags.shadowsocks ++ tags.hysteria2 ++ tags.vless;
-        interval = "2m";
-        interrupt_exist_connections = true;
-      }
-      {
-        tag = "out-sele";
         type = "selector";
-        outbounds = tags.shadowsocks ++ tags.vless;
+        outbounds = tags.shadowsocks ++ tags.hysteria2 ++ tags.vless;
         interrupt_exist_connections = true;
       }
       {

@@ -105,7 +105,7 @@ in
       splits = splitWithPrefixEntries "_" l;
       names = map (attrs: {
         tag = attrs._name;
-        cache_file = "/var/lib/loadbalance/providers/${attrs._name}";
+        cache_file = "providers/${attrs._name}";
       }) splits._true;
       value = combineEntries splits._false names;
     in

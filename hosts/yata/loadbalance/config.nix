@@ -7,46 +7,9 @@
 }:
 let
   lb = ctx.services.loadbalance;
-  ctxToSing = n: v: v // { url = v.url.ph; _name = n;} ;
-  providers = builtins.attrNames lb.providers;
 in
 {
-  providerConfig = {
-    providers = fn.sing.mkProviders (lib.mapAttrsToList ctxToSing lb.providers);
-    outbounds = [
-      {
-        type = "selector";
-        tag = "select";
-        providers = providers;
-      }
-      {
-        type = "loadbalance";
-        tag = "auto";
-        providers = providers;
-        check = {
-          interval = "2m";
-        };
-        pick = {
-          objective = "leastload";
-          strategy = "random";
-          max_fail = 0;
-          max_rtt = "3000ms";
-          expected = 3;
-          baselines = [
-            "30ms"
-            "50ms"
-            "100ms"
-            "150ms"
-            "200ms"
-            "250ms"
-            "350ms"
-          ];
-        };
-      }
-    ];
-  };
-
-  mainConfig = {
+  infra.loadbalance.settings = {
     log = {
       level = "debug";
       timestamp = false;
@@ -55,23 +18,17 @@ in
       servers = [
         {
           tag = "bootstrap";
-          address = "https://223.5.5.5/dns-query";
-          detour = "direct";
+          type = "https";
+          server = "223.5.5.5";
         }
         {
           tag = "local";
-          address = "https://1.1.1.1/dns-query";
+          type = "https";
+          server = "1.1.1.1";
           detour = "auto";
         }
       ];
       rules = [
-        {
-          outbound = [
-            "any"
-            "direct"
-          ];
-          server = "bootstrap";
-        }
         {
           rule_set = [ "geosite:cn" ];
           server = "bootstrap";
@@ -98,17 +55,17 @@ in
         listen_port = 2088;
       }
     ];
-    outbounds = [
-      {
-        type = "block";
-        tag = "block";
-      }
+    outbounds = lib.mkBefore [
       {
         type = "direct";
         tag = "direct";
       }
     ];
     route = {
+      default_domain_resolver = {
+        server = "bootstrap";
+        rewrite_ttl = 60;
+      };
       rule_set = fn.sing.mkLocalRuleSets [
         {
           tag = "geosite:cn";
@@ -146,20 +103,26 @@ in
           ];
           outbound = "direct";
         }
+        {
+          action = "reject";
+          method = "drop";
+        }
       ];
-      final = "block";
     };
     experimental = {
       clash_api = {
         external_controller = "127.0.0.1:9090";
         external_ui = "${pkgs.metacubexd}";
-        secret = "${lb.password.ph}";
+        secret._secret = "${lb.password.path}";
       };
       cache_file = {
         enabled = true;
-        # StateDirectory = /var/lib/sing-box should be used, base on nixpkgs
         path = "cache.db";
       };
     };
   };
+
+  infra.loadbalance.secrets = [
+    lb.password.path
+  ];
 }

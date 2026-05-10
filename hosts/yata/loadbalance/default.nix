@@ -2,81 +2,81 @@
   config,
   lib,
   pkgs,
-  ctx,
-  fn,
   ...
-}@args:
+}:
 let
-  cfg = config.services.loadbalance;
-
-  loadbalanceConfigFile = import ./config.nix args;
-
-  # Merge providerConfig and mainConfig into a single loadbalanceConfig
-  loadbalanceConfig = {
-    inherit (loadbalanceConfigFile.mainConfig)
-      log
-      dns
-      inbounds
-      route
-      experimental
-      ;
-    inherit (loadbalanceConfigFile.providerConfig)
-      providers
-      ;
-    outbounds =
-      loadbalanceConfigFile.mainConfig.outbounds ++ loadbalanceConfigFile.providerConfig.outbounds;
-  };
+  cfg = config.infra.loadbalance;
+  jsonFormat = pkgs.formats.json { };
+  package = pkgs.callPackage ../../../pkgs/loadbalance/default.nix { };
 in
 {
-  options.services.loadbalance = {
-    enable = lib.mkEnableOption "loadbalance service (qjebbs sing-box fork)";
+  imports = [
+    ./config.nix
+    ./providers.nix
+  ];
 
-    package = lib.mkOption {
-      type = lib.types.package;
-      default = pkgs.callPackage ../../../pkgs/loadbalance/default.nix { };
-      description = "The loadbalance package to use.";
+  options.infra.loadbalance = {
+    enable = lib.mkEnableOption "enable loadbalance service";
+
+    settings = lib.mkOption {
+      type = lib.types.submodule {
+        freeformType = jsonFormat.type;
+      };
+      default = { };
+    };
+
+    # internal
+    secrets = lib.mkOption {
+      type = lib.types.listOf (lib.types.either lib.types.path lib.types.str);
+      default = [ ];
+      internal = true;
+    };
+    providers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      internal = true;
     };
   };
 
   config = lib.mkIf cfg.enable {
-    # Use sops templates to inject secrets
-    sops.templates."loadbalance.json" = {
-      content = builtins.toJSON loadbalanceConfig;
-      owner = "loadbalance";
-      restartUnits = [ "loadbalance.service" ];
+    systemd.tmpfiles.rules = [
+      "d /var/lib/loadbalance 0750 root root -"
+    ];
+
+    containers.loadbalance = {
+      autoStart = true;
+      ephemeral = true;
+      privateNetwork = false;
+
+      bindMounts = {
+        "/var/lib/sing-box" = {
+          hostPath = "/var/lib/loadbalance";
+          isReadOnly = false;
+        };
+      }
+      //
+        lib.genAttrs
+          (builtins.filter (path: path != "" && !(lib.hasPrefix builtins.storeDir path)) cfg.secrets)
+          (path: {
+            hostPath = path;
+            isReadOnly = true;
+          });
+      config =
+        { ... }:
+        {
+          services.sing-box = {
+            enable = true;
+            package = package;
+            settings = cfg.settings;
+          };
+
+          systemd.services.sing-box = {
+            serviceConfig = {
+              ExecStartPre = [ "${pkgs.coreutils}/bin/mkdir -p /var/lib/sing-box/providers" ];
+            };
+          };
+          system.stateVersion = config.system.stateVersion;
+        };
     };
-
-    # from nixpkgs
-    environment.systemPackages = [ cfg.package ];
-    services.dbus.packages = [ cfg.package ];
-    systemd.packages = [ cfg.package ];
-
-    systemd.services.loadbalance = {
-      description = "Loadbalance Service (qjebbs sing-box fork)";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" ];
-
-      serviceConfig = {
-        User = "loadbalance";
-        Group = "loadbalance";
-        StateDirectory = "loadbalance";
-        StateDirectoryMode = "0700";
-        RuntimeDirectory = "loadbalance";
-        RuntimeDirectoryMode = "0700";
-        ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p /var/lib/loadbalance/providers";
-        ExecStart = "${lib.getExe cfg.package} -D \${STATE_DIRECTORY} -C \${RUNTIME_DIRECTORY} run -c ${
-          config.sops.templates."loadbalance.json".path
-        }";
-        Restart = "on-failure";
-        RestartSec = "5s";
-      };
-    };
-
-    users.users.loadbalance = {
-      isSystemUser = true;
-      group = "loadbalance";
-      home = "/var/lib/loadbalance";
-    };
-    users.groups.loadbalance = { };
   };
 }

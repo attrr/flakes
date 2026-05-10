@@ -58,7 +58,7 @@
   };
 
   infra.sing-box.enable = true;
-  services.loadbalance.enable = true;
+  infra.loadbalance.enable = true;
 
   # Pi specific hardware config
   boot.kernelPackages = pkgs.linuxPackages_latest;
