@@ -164,7 +164,7 @@ in
             enable = true;
             settings = cfg.settings;
           };
-          system.stateVersion = "25.11";
+          system.stateVersion = config.system.stateVersion;
         };
     };
 
