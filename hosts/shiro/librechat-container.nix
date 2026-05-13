@@ -15,19 +15,23 @@ let
     litellm = "ghcr.io/berriai/litellm:main-stable";
   };
   litellmConfig = (pkgs.formats.yaml { }).generate "litellm-config.yaml" {
-    model_list = lib.mapAttrsToList (name: cfg: {
-      model_name = name;
-      litellm_params = {
-        model = "vertex_ai/${name}";
-      } // cfg;
-    }) {
-      "gemini-3.1-pro-preview".reasoning_effort = "high";
-      "gemini-3-flash-preview".reasoning_effort = "medium";
-      "gemini-3.1-flash-lite-preview".reasoning_effort = "medium";
-      "gemini-2.5-pro".reasoning_effort = "high";
-      "gemini-2.5-flash".reasoning_effort = "medium";
-      "gemini-2.5-flash-lite" = { };
-    };
+    model_list =
+      lib.mapAttrsToList
+        (name: cfg: {
+          model_name = name;
+          litellm_params = {
+            model = "vertex_ai/${name}";
+          }
+          // cfg;
+        })
+        {
+          "gemini-3.1-pro-preview".reasoning_effort = "high";
+          "gemini-3-flash-preview".reasoning_effort = "medium";
+          "gemini-3.1-flash-lite-preview".reasoning_effort = "medium";
+          "gemini-2.5-pro".reasoning_effort = "high";
+          "gemini-2.5-flash".reasoning_effort = "medium";
+          "gemini-2.5-flash-lite" = { };
+        };
 
     litellm_settings = {
       drop_params = false;
@@ -35,16 +39,19 @@ let
       timeout = 300;
       request_timeout = 300;
       stream_timeout = 60;
-      vertex_ai_safety_settings = map (category: {
-        inherit category;
-        threshold = "BLOCK_ONLY_HIGH";
-      }) [
-        "HARM_CATEGORY_SEXUALLY_EXPLICIT"
-        "HARM_CATEGORY_HATE_SPEECH"
-        "HARM_CATEGORY_HARASSMENT"
-        "HARM_CATEGORY_DANGEROUS_CONTENT"
-        "HARM_CATEGORY_CIVIC_INTEGRITY"
-      ];
+      vertex_ai_safety_settings =
+        map
+          (category: {
+            inherit category;
+            threshold = "BLOCK_ONLY_HIGH";
+          })
+          [
+            "HARM_CATEGORY_SEXUALLY_EXPLICIT"
+            "HARM_CATEGORY_HATE_SPEECH"
+            "HARM_CATEGORY_HARASSMENT"
+            "HARM_CATEGORY_DANGEROUS_CONTENT"
+            "HARM_CATEGORY_CIVIC_INTEGRITY"
+          ];
     };
   };
 in
@@ -158,7 +165,7 @@ in
           EnvironmentFile = librechat.env.path;
           Exec = "--config /app/config.yaml --port 4000";
           # FIXME: there should be a health check here
-          # but do to fundamentally incompatible between nixos 
+          # but due to fundamentally incompatible between nixos
           # and podman transient systemd health check, it's gone for now
         };
         Service = {

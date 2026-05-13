@@ -69,6 +69,28 @@ in
       }
     ];
 
+    boot.kernel.sysctl = {
+      "net.ipv4.ip_local_port_range" = lib.mkDefault "1024 65535";
+      # enable tcp socket reuse
+      "net.ipv4.tcp_timestamps" = lib.mkDefault 1;
+      "net.ipv4.tcp_tw_reuse" = lib.mkDefault 1;
+      # increase tcp conn limit
+      "net.core.somaxconn" = lib.mkDefault 4096;
+      "net.ipv4.tcp_max_syn_backlog" = lib.mkDefault 4096;
+      # quicken tcp conn recycle
+      "net.ipv4.tcp_fin_timeout" = 30;
+      "net.ipv4.tcp_keepalive_time" = 1800;
+      # conserve nf_conntrack
+      "net.netfilter.nf_conntrack_max" = lib.mkDefault 1048576;
+      "net.netfilter.nf_conntrack_tcp_timeout_established" = 86400;
+      "net.netfilter.nf_conntrack_udp_timeout_stream" = 60;
+      "net.netfilter.nf_conntrack_tcp_timeout_time_wait" = 60;
+      "net.netfilter.nf_conntrack_tcp_timeout_fin_wait" = 60;
+      # for quic-go
+      "net.core.rmem_max" = 16777216;
+      "net.core.wmem_max" = 16777216;
+    };
+
     # default settings
     infra.sing-box.settings = {
       dns = {
