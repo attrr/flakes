@@ -38,6 +38,7 @@ in
     disko.efi = false;
     disko.device = "/dev/sda";
   };
+  infra.sing-box.lowend = true;
 
   # networking
   networking.useNetworkd = true;

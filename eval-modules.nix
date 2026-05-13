@@ -13,7 +13,7 @@ let
   specialArgs = {
     inherit lib pkgs;
     modulesPath = nixpkgs + "/nixos/modules";
-    failoverModule = {};
+    failoverModule = { };
   };
 
   filterModules = file: lib.hasSuffix ".nix" (toString file) && baseNameOf file != "default.nix";
@@ -61,6 +61,6 @@ in
         ./lib/default.nix
         { _module.check = false; }
       ];
-      inherit specialArgs;      
+      inherit specialArgs;
     }).options;
 }

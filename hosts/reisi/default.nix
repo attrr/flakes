@@ -12,12 +12,6 @@
     ../../modules/ctx/proxy.nix
   ];
 
-  boot.kernel.sysctl = {
-    "net.ipv4.tcp_tw_reuse" = 1;
-    "net.core.somaxconn" = 1024;
-    "net.ipv4.tcp_fastopen" = 3;
-  };
-
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
 

@@ -37,17 +37,5 @@ in
         "--sysctl=net.ipv6.conf.all.disable_ipv6=0"
       ];
     };
-
-    systemd.services.podman-network-restore = {
-      description = "Restore Podman networking after sysctl overwrites";
-      # Bind directly to the sysctl service
-      partOf = [ "systemd-sysctl.service" ];
-      wantedBy = [ "systemd-sysctl.service" ];
-      after = [ "systemd-sysctl.service" ];
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.podman}/bin/podman network reload --all";
-      };
-    };
   };
 }

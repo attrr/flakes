@@ -10,49 +10,47 @@ in
   programs.emacs = {
     enable = true;
     package = pkgs.emacs-pgtk;
-    extraPackages =
-      epkgs:
-      [
-        # default
-        epkgs.rainbow-delimiters
-        # basic mode
-        epkgs.yaml-mode
-        # ui
-        epkgs.doom-themes
-        epkgs.doom-modeline
-        epkgs.nerd-icons
-        epkgs.valign
-        # tools
-        epkgs.magit
-        epkgs.colorful-mode
-        epkgs.indent-bars
-        epkgs.vterm
-        epkgs.eat
-        epkgs.multi-vterm
-        # comeplete
-        epkgs.corfu
-        epkgs.corfu-terminal
-        epkgs.kind-icon
-        epkgs.orderless
-        epkgs.vertico
-        epkgs.marginalia
-        epkgs.consult
-        epkgs.yasnippet
-        # org
-        epkgs.org-bullets
-        # lsp
-        epkgs.eglot
-        epkgs.consult-eglot
-        epkgs.apheleia
-        epkgs.eca
-        pkgsUnstable.emacsPackages.agent-shell
-        # mode
-        epkgs.direnv
-        epkgs.systemd
-        epkgs.nix-mode
-        epkgs.go-mode
-        epkgs.python
-      ];
+    extraPackages = epkgs: [
+      # default
+      epkgs.rainbow-delimiters
+      # basic mode
+      epkgs.yaml-mode
+      # ui
+      epkgs.doom-themes
+      epkgs.doom-modeline
+      epkgs.nerd-icons
+      epkgs.valign
+      # tools
+      epkgs.magit
+      epkgs.colorful-mode
+      epkgs.indent-bars
+      epkgs.vterm
+      epkgs.eat
+      epkgs.multi-vterm
+      # comeplete
+      epkgs.corfu
+      epkgs.corfu-terminal
+      epkgs.kind-icon
+      epkgs.orderless
+      epkgs.vertico
+      epkgs.marginalia
+      epkgs.consult
+      epkgs.yasnippet
+      # org
+      epkgs.org-bullets
+      # lsp
+      epkgs.eglot
+      epkgs.consult-eglot
+      epkgs.apheleia
+      epkgs.eca
+      pkgsUnstable.emacsPackages.agent-shell
+      # mode
+      epkgs.direnv
+      epkgs.systemd
+      epkgs.nix-mode
+      epkgs.go-mode
+      epkgs.python
+    ];
   };
 
   services.emacs = {

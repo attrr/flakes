@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   modulesPath,
   ...
 }:
@@ -107,6 +108,24 @@ in
           ];
         };
         groups.containers = { };
+      };
+
+      # restore network on sysctl change
+      boot.kernel.sysctl = {
+        "net.ipv4.ip_forward" = 1;
+        "net.ipv4.conf.all.forwarding" = 1;
+      };
+      systemd.services.podman-network-restore = {
+        description = "Restore Podman networking after sysctl overwrites";
+        # Bind directly to the sysctl service
+        partOf = [ "systemd-sysctl.service" ];
+        wantedBy = [ "systemd-sysctl.service" ];
+        after = [ "systemd-sysctl.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${pkgs.podman}/bin/podman network reload --all";
+        };
       };
     })
   ];

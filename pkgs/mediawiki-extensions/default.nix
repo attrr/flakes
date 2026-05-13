@@ -8,7 +8,11 @@
 let
   # Fetch an extension mirrored on GitHub (wikimedia/mediawiki-extensions-<name>).
   mkMWExtensionGithub =
-    { name, rev, hash }:
+    {
+      name,
+      rev,
+      hash,
+    }:
     fetchFromGitHub {
       owner = "wikimedia";
       repo = "mediawiki-extensions-${name}";
