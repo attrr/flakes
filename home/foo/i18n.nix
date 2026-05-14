@@ -21,8 +21,9 @@
         "Hotkey/EnumerateGroupBackwardKeys"."0" = "Shift+Super+space";
       };
       addons.pinyin.globalSection = {
-        CloudPinyinEnabled = false;
-        KeepCloudPinyinPlaceHolder = false;
+        CloudPinyinEnabled = "False";
+        KeepCloudPinyinPlaceHolder = "False";
+        FirstRun = "False";
       };
     };
     addons = with pkgs; [
