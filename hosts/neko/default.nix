@@ -11,7 +11,7 @@ let
 in
 {
   imports = [
-    "${self}/hardware/kled.nix"
+    "${self}/modules/hardware/kled.nix"
     "${self}/modules/services/ssh.nix"
     "${self}/modules/profiles/desktop.nix"
     ./hardware.nix
