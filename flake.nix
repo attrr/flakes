@@ -47,15 +47,11 @@
       ...
     }@inputs:
     let
-      mkPackages =
-        path:
-        let
-          system = "x86_64-linux";
-          pkgs = import nixpkgs { inherit system; };
-          excluded = [ "mediawiki-extensions" ];
-          dirs = nixpkgs.lib.filterAttrs (name: _: !(builtins.elem name excluded)) (builtins.readDir path);
-        in
-        nixpkgs.lib.mapAttrs (name: _: pkgs.callPackage (path + "/${name}") { }) dirs;
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
 
       commonModules = [
         sops-nix.nixosModules.sops
@@ -64,25 +60,32 @@
       stardustModules = commonModules ++ [
         ./modules/ctx/stardust.nix
       ];
+
       mkSystem =
-        host: attr:
+        n: v:
         let
           lib = nixpkgs.lib;
         in
         lib.nixosSystem (
           let
-            defaultPath = ./hosts + "/${host}/default.nix";
+            defaultPath = ./hosts + "/${n}/default.nix";
+            modules = v.modules or [ ];
           in
-          lib.recursiveUpdate attr {
-            system = attr.system or "x86_64-linux";
-            modules =
-              (attr.modules or [ ])
-              ++ [
-                self.nixosModules.default
-                ctx.nixosModules.${host}
-                ./lib/default.nix
-              ]
-              ++ lib.optional (builtins.pathExists defaultPath) defaultPath;
+          lib.recursiveUpdate v {
+            system = v.system or "x86_64-linux";
+            modules = [
+              self.nixosModules.default
+              ctx.nixosModules.${n}
+              ./lib/default.nix
+              (
+                { ... }:
+                {
+                  nixpkgs.overlays = [ self.overlays.default ];
+                }
+              )
+            ]
+            ++ modules
+            ++ lib.optional (builtins.pathExists defaultPath) defaultPath;
             specialArgs = {
               inherit inputs self;
             };
@@ -101,15 +104,25 @@
             parts = lib.splitString "@" tag;
             user = builtins.elemAt parts 0;
             host = builtins.elemAt parts 1;
+            modules = value.modules or [ ];
           in
           home-manager.lib.homeManagerConfiguration (
             lib.recursiveUpdate value {
               pkgs = value.pkgs or nixpkgs.legacyPackages.x86_64-linux;
               extraSpecialArgs = {
-                inherit inputs host;
+                inherit inputs host self;
               }
               // (value.extraSpecialArgs or { });
-              modules = [ (./home + "/${user}/default.nix") ] ++ (value.modules or [ ]);
+              modules = [
+                (./home + "/${user}/default.nix")
+                (
+                  { ... }:
+                  {
+                    nixpkgs.overlays = [ self.overlays.default ];
+                  }
+                )
+              ]
+              ++ modules;
             }
           )
         ) attrs;
@@ -147,8 +160,6 @@
         ) attrs;
     in
     {
-      packages.x86_64-linux = mkPackages ./pkgs;
-      nixosModules = import ./modules;
       nixosConfigurations =
         mkSystems {
           yata = {
@@ -198,6 +209,26 @@
         "foo@fedora" = { };
         "foo@nixos" = { };
       };
+
+      overlays.default =
+        final: prev:
+        prev.lib.packagesFromDirectoryRecursive {
+          inherit (prev) callPackage;
+          directory = ./pkgs;
+        };
+
+      legacyPackages = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        pkgs.lib.packagesFromDirectoryRecursive {
+          inherit (pkgs) callPackage;
+          directory = ./pkgs;
+        }
+      );
+
+      nixosModules = import ./modules;
 
       checks =
         let

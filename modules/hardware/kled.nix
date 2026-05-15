@@ -1,11 +1,7 @@
 {
   pkgs,
-  self,
   ...
 }:
-let
-  alsa-kled-ucm = pkgs.callPackage "${self}/pkgs/alsa-ucm-conf-kled-full/default.nix" { };
-in
 {
   # For Hibernation
   systemd.sleep.extraConfig = ''
@@ -41,7 +37,7 @@ in
   '';
 
   # alsa
-  environment.variables.ALSA_CONFIG_UCM2 = "${alsa-kled-ucm}/share/alsa/ucm2";
+  environment.variables.ALSA_CONFIG_UCM2 = "${pkgs.alsa-ucm-conf-kled-full}/share/alsa/ucm2";
   environment.systemPackages = [ pkgs.alsa-utils ];
 
   # pipewire

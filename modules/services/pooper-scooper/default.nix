@@ -14,7 +14,7 @@ in
 
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ../../../pkgs/pooper-scooper/default.nix { };
+      default = pkgs.pooper-scooper;
       description = "The pooper-scooper package to use.";
     };
 
