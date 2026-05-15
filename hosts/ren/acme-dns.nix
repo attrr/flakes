@@ -1,14 +1,10 @@
-{ ctx, self, ... }:
+{ ctx, ... }:
 let
   acme = ctx.services.acme-dns;
   local-port = 8080;
   local-url = "http://127.0.0.1:${toString local-port}";
 in
 {
-  imports = [
-    "${self}/modules/purpose/acme.nix"
-  ];
-
   # acme-dns for DNS-01
   services.acme-dns = {
     enable = true;

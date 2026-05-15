@@ -1,5 +1,6 @@
 {
   pkgs,
+  self,
   ctx,
   ...
 }:
@@ -9,8 +10,7 @@
     ./loadbalance
     ./caddy.nix
     ./dns.nix
-    ../../modules/host/server.nix
-    ../../modules/purpose/pooper-scooper
+    "${self}/modules/profiles/server.nix"
   ];
 
   core.server = {

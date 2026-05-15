@@ -37,6 +37,7 @@ in
 
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
+  boot.loader.grub = true;
 
   core.server = {
     inherit (ctx.metadata) hostname;
@@ -44,7 +45,6 @@ in
     ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
     serial = true;
-    disko.efi = false;
   };
   infra.sing-box.lowend = true;
 
