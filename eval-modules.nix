@@ -15,6 +15,7 @@ let
     modulesPath = nixpkgs + "/nixos/modules";
     self = ./.;
   };
+
   profileModules =
     let
       dir = ./modules/profiles;
@@ -52,9 +53,6 @@ in
     (lib.evalModules {
       modules = [
         flake.nixosModules.default
-      ]
-      ++ profileModules
-      ++ [
         flake.inputs.disko.nixosModules.disko
         flake.inputs.sops-nix.nixosModules.sops
         (
@@ -70,7 +68,8 @@ in
         )
         ./lib/default.nix
         { _module.check = false; }
-      ];
+      ]
+      ++ profileModules;
       inherit specialArgs;
     }).options;
 }

@@ -6,7 +6,6 @@
 }:
 let
   mountOptions = [
-
     "noatime"
     "discard=async"
   ]
