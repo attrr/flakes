@@ -1,9 +1,10 @@
 {
   pkgs,
+  self,
   ...
 }:
 let
-  alsa-kled-ucm = pkgs.callPackage ../pkgs/alsa-ucm-conf-kled-full/default.nix { };
+  alsa-kled-ucm = pkgs.callPackage "${self}/pkgs/alsa-ucm-conf-kled-full/default.nix" { };
 in
 {
   # For Hibernation
