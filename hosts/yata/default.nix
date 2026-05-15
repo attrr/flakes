@@ -10,7 +10,7 @@
     ./loadbalance
     ./caddy.nix
     ./dns.nix
-    "${self}/modules/profiles/server.nix"
+    "${self}/modules/profiles/server"
   ];
 
   core.server = {
@@ -62,8 +62,8 @@
     doh_url = "https://223.5.5.5/resolve";
   };
 
-  infra.sing-box.enable = true;
-  infra.loadbalance.enable = true;
+  local.sing-box.enable = true;
+  local.loadbalance.enable = true;
 
   # Pi specific hardware config
   boot.kernelPackages = pkgs.linuxPackages_latest;

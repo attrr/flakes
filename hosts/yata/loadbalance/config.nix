@@ -9,7 +9,7 @@ let
   lb = ctx.services.loadbalance;
 in
 {
-  infra.loadbalance.settings = {
+  local.loadbalance.settings = {
     log = {
       level = "debug";
       timestamp = false;
@@ -122,7 +122,7 @@ in
     };
   };
 
-  infra.loadbalance.secrets = [
+  local.loadbalance.secrets = [
     lb.password.path
   ];
 }

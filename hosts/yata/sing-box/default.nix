@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.infra.sing-box;
+  cfg = config.local.sing-box;
   jsonFormat = pkgs.formats.json { };
 
 in
@@ -16,7 +16,7 @@ in
     ./logic.nix
   ];
 
-  options.infra.sing-box = {
+  options.local.sing-box = {
     enable = lib.mkEnableOption "enable sing-box client";
     settings = lib.mkOption {
       type = lib.types.submodule {

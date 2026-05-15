@@ -6,11 +6,11 @@
   ...
 }:
 let
-  cfg = config.infra.sing-box;
+  cfg = config.local.sing-box;
   tags = cfg.tags;
 in
 {
-  infra.sing-box.settings = {
+  local.sing-box.settings = {
     outbounds = lib.mkOrder 200 [
       {
         tag = "sele";
