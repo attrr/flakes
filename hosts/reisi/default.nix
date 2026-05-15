@@ -19,7 +19,7 @@
 
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
-  boot.loader.grub = true;
+  boot.loader.grub.enable = true;
 
   # Networking
   networking.useNetworkd = true;

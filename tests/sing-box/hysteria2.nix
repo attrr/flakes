@@ -7,7 +7,7 @@ let
     modules = [
       (pkgs.path + "/nixos/modules/misc/assertions.nix")
       ./stub.nix
-      ../../modules/purpose/sing-box/default.nix
+      ../../modules/services/sing-box/default.nix
       {
         infra.sing-box = {
           enable = true;

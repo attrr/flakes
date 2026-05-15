@@ -19,7 +19,6 @@ in
   config = lib.mkIf cfg.is (
     lib.mkMerge [
       {
-        core.server.is = true;
         zramSwap.memoryPercent = cfg.zram-percent;
         core.server.auto-resize = true;
       }

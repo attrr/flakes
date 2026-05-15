@@ -1,6 +1,6 @@
 { pkgs, ... }@args:
 let
-  base = import ../../modules/host/base args;
+  base = import ../../modules/profiles/base args;
   settings = base.programs.htop.settings;
 in
 {

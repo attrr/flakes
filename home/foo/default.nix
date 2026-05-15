@@ -1,5 +1,6 @@
 {
   lib,
+  self,
   pkgs,
   host,
   inputs,
@@ -13,7 +14,7 @@ in
 {
   imports = [
     ./emacs.nix
-    ../../modules/purpose/unfree.nix
+    ../../modules/services/unfree.nix
     ./i18n.nix
     ./ide.nix
     ./ssh.nix

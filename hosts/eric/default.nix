@@ -27,17 +27,16 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
+    "${self}/modules/profiles/server"
     (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
       device = "/dev/sda";
       espSize = "500M";
     })
-    "${self}/modules/host/lowend"
-    "${self}/modules/ctx/proxy.nix"
   ];
 
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
-  boot.loader.grub = true;
+  boot.loader.grub.enable = true;
 
   core.server = {
     inherit (ctx.metadata) hostname;
@@ -45,11 +44,11 @@ in
     ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
     serial = true;
+    lowend.is = true;
   };
   infra.sing-box.lowend = true;
 
   # networking
   networking.useNetworkd = true;
-  services.failover.rescue.networkConfig.networks."10-default" = stable-network;
   systemd.network.networks."10-default" = stable-network;
 }

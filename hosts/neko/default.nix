@@ -12,8 +12,8 @@ in
 {
   imports = [
     "${self}/hardware/kled.nix"
-    "${self}/modules/purpose/ssh.nix"
-    "${self}/modules/host/desktop.nix"
+    "${self}/modules/services/ssh.nix"
+    "${self}/modules/profiles/desktop.nix"
     ./hardware.nix
     ./disko.nix
   ];
