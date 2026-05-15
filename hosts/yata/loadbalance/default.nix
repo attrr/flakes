@@ -7,7 +7,6 @@
 let
   cfg = config.local.loadbalance;
   jsonFormat = pkgs.formats.json { };
-  package = pkgs.callPackage ../../../pkgs/loadbalance/default.nix { };
 in
 {
   imports = [
@@ -66,7 +65,7 @@ in
         {
           services.sing-box = {
             enable = true;
-            package = package;
+            package = pkgs.loadbalance;
             settings = cfg.settings;
           };
 

@@ -7,14 +7,10 @@
   config,
   ...
 }:
-
-let
-  rclone-ssh = pkgs.callPackage ../../pkgs/rclone-ssh { };
-in
 {
   imports = [
     ./emacs.nix
-    ../../modules/services/unfree.nix
+    "${self}/modules/services/unfree.nix"
     ./i18n.nix
     ./ide.nix
     ./ssh.nix

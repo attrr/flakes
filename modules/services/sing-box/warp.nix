@@ -6,7 +6,6 @@
 }:
 let
   cfg = config.infra.sing-box.warp;
-  warp-podman = pkgs.callPackage ../../../pkgs/warp-podman/default.nix { };
 in
 {
   options.infra.sing-box.warp = {
@@ -21,7 +20,7 @@ in
     };
     virtualisation.oci-containers.containers.warp = {
       image = "warp:latest";
-      imageStream = warp-podman;
+      imageStream = pkgs.warp-podman;
       autoStart = true;
 
       ports = [

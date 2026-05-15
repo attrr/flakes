@@ -10,7 +10,7 @@ let
   wiki = ctx.services.mediawiki;
   domain = "wiki." + global.domain.main;
   domain-lobba = "lobba." + domain;
-  extensions = pkgs.callPackage ../../pkgs/mediawiki-extensions { };
+  extensions = pkgs.mediawiki-extensions;
 
   user = "mediawiki";
   group = config.services.httpd.group;

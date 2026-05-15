@@ -61,6 +61,7 @@ in
   ];
 
   virtualisation.quadlet = {
+    enable = true;
     pods.librechat = {
       Unit.Description = "LibreChat Pod";
       Pod = {
