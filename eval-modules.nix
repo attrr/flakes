@@ -15,16 +15,19 @@ let
     modulesPath = nixpkgs + "/nixos/modules";
     failoverModule = { };
   };
-
-  filterModules = file: lib.hasSuffix ".nix" (toString file) && baseNameOf file != "default.nix";
-  moduleFiles =
+  profileModules =
     let
-      dir = ./modules;
+      dir = ./modules/profiles;
+      entries = builtins.readDir dir;
+      isProfile = name: type:
+        (type == "regular" && lib.hasSuffix ".nix" name) ||
+        (type == "directory" && builtins.pathExists (dir + "/${name}/default.nix"));
     in
     if builtins.pathExists dir then
-      lib.filter filterModules (lib.filesystem.listFilesRecursive dir)
+      map (name: dir + "/${name}") (builtins.attrNames (lib.filterAttrs isProfile entries))
     else
       [ ];
+
 in
 {
   nixos =
@@ -46,7 +49,9 @@ in
 
   custom =
     (lib.evalModules {
-      modules = moduleFiles ++ [
+      modules = [
+        flake.nixosModules.default
+      ] ++ profileModules ++ [
         flake.inputs.disko.nixosModules.disko
         flake.inputs.sops-nix.nixosModules.sops
         (

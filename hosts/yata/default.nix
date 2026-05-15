@@ -67,10 +67,13 @@
 
   # Pi specific hardware config
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  hardware.deviceTree.name = "allwinner/sun50i-h618-orangepi-zero3.dtb";
+  hardware.deviceTree = {
+    enable = true;
+    name = "allwinner/sun50i-h618-orangepi-zero3.dtb";
+  };
   boot.kernelParams = [ "console=ttyS0,115200n8" ];
+
   boot.loader.grub.enable = false;
-  hardware.deviceTree.enable = true;
   boot.loader.generic-extlinux-compatible.enable = true;
   fileSystems."/" = {
     device = "/dev/disk/by-label/NIXOS_SD";

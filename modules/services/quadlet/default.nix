@@ -55,6 +55,7 @@ let
 in
 {
   options.virtualisation.quadlet = {
+    enable = lib.mkEnableOption "enable quadlet";
     containers = lib.mkOption {
       type = lib.types.attrsOf (lib.types.attrsOf lib.types.unspecified);
       default = { };
@@ -86,7 +87,7 @@ in
         "volume"
       ];
     in
-    {
+    lib.mkIf cfg.enable {
       environment.etc = lib.pipe kinds [
         (map (kind: mkQuadletKind kind cfg."${kind}s"))
         (lib.foldl' lib.recursiveUpdate { })
