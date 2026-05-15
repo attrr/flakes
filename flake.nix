@@ -83,7 +83,7 @@
               ]
               ++ lib.optional (builtins.pathExists defaultPath) defaultPath;
             specialArgs = {
-              inherit inputs;
+              inherit inputs self;
               failoverModule = stage1-dd.nixosModules.failover;
             };
           }

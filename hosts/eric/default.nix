@@ -1,4 +1,9 @@
-{ modulesPath, ctx, ... }:
+{
+  self,
+  modulesPath,
+  ctx,
+  ...
+}:
 let
   stable-network = {
     matchConfig.Name = "en*";
@@ -22,8 +27,12 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
-    ../../modules/host/lowend
-    ../../modules/ctx/proxy.nix
+    (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
+      device = "/dev/sda";
+      espSize = "500M";
+    })
+    "${self}/modules/host/lowend"
+    "${self}/modules/ctx/proxy.nix"
   ];
 
   nixpkgs.hostPlatform = "x86_64-linux";
@@ -36,7 +45,6 @@ in
     auto-resize = true;
     serial = true;
     disko.efi = false;
-    disko.device = "/dev/sda";
   };
   infra.sing-box.lowend = true;
 

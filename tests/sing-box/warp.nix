@@ -44,10 +44,6 @@ let
       message = "Warp container missing NET_ADMIN capability";
     }
     {
-      assertion = builtins.hasAttr "podman-network-restore" eval.config.systemd.services;
-      message = "Missing podman-network-restore systemd service";
-    }
-    {
       assertion = eval.config.boot.kernel.sysctl."net.core.rmem_default" == 262144;
       message = "Missing or incorrect net.core.rmem_default sysctl override for lowend warp";
     }

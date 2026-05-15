@@ -47,6 +47,8 @@ in
   custom =
     (lib.evalModules {
       modules = moduleFiles ++ [
+        flake.inputs.disko.nixosModules.disko
+        flake.inputs.sops-nix.nixosModules.sops
         (
           { lib, ... }:
           {

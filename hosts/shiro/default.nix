@@ -1,4 +1,5 @@
 {
+  self,
   modulesPath,
   config,
   ctx,
@@ -9,11 +10,11 @@
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
-    ../../modules/host/server.nix
-    ../../modules/ctx/proxy.nix
-    ../../modules/purpose/acme.nix
-    ../../modules/purpose/restic.nix
-    ./disko.nix
+    (import "${self}/modules/disko/ext4-plain.nix" { device = "/dev/sda"; })
+    "${self}/modules/host/server.nix"
+    "${self}/modules/ctx/proxy.nix"
+    "${self}/modules/purpose/acme.nix"
+    "${self}/modules/purpose/restic.nix"
     ./dns.nix
     ./librechat.nix
     ./wiki.nix

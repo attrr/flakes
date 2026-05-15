@@ -1,4 +1,4 @@
-{ ctx, ... }:
+{ ctx, self, ... }:
 let
   acme = ctx.services.acme-dns;
   local-port = 8080;
@@ -6,7 +6,7 @@ let
 in
 {
   imports = [
-    ../../modules/purpose/acme.nix
+    "${self}/modules/purpose/acme.nix"
   ];
 
   # acme-dns for DNS-01
