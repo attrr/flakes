@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.infra.loadbalance;
+  cfg = config.local.loadbalance;
   jsonFormat = pkgs.formats.json { };
   package = pkgs.callPackage ../../../pkgs/loadbalance/default.nix { };
 in
@@ -15,7 +15,7 @@ in
     ./providers.nix
   ];
 
-  options.infra.loadbalance = {
+  options.local.loadbalance = {
     enable = lib.mkEnableOption "enable loadbalance service";
 
     settings = lib.mkOption {

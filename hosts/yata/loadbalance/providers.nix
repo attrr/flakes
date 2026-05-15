@@ -6,7 +6,7 @@
   ...
 }:
 let
-  cfg = config.infra.loadbalance;
+  cfg = config.local.loadbalance;
   lb = ctx.services.loadbalance;
   providerAdapter =
     name: value:
@@ -17,7 +17,7 @@ let
     };
 in
 {
-  infra.loadbalance.settings = {
+  local.loadbalance.settings = {
     providers = fn.sing.mkProviders (lib.mapAttrsToList providerAdapter lb.providers);
     outbounds = lib.mkAfter [
       {
@@ -52,6 +52,6 @@ in
     ];
   };
 
-  infra.loadbalance.providers = map (p: p.tag) cfg.settings.providers;
-  infra.loadbalance.secrets = lib.mapAttrsToList (n: v: v.url.path) lb.providers;
+  local.loadbalance.providers = map (p: p.tag) cfg.settings.providers;
+  local.loadbalance.secrets = lib.mapAttrsToList (n: v: v.url.path) lb.providers;
 }
