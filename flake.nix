@@ -78,6 +78,7 @@
             modules =
               (attr.modules or [ ])
               ++ [
+                self.nixosModules.default
                 ctx.nixosModules.${host}
                 ./lib/default.nix
               ]
@@ -148,6 +149,7 @@
     in
     {
       packages.x86_64-linux = mkPackages ./pkgs;
+      nixosModules = import ./modules;
       nixosConfigurations =
         mkSystems {
           yata = {

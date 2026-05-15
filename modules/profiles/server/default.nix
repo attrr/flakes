@@ -10,7 +10,6 @@ in
 {
   imports = [
     ./disko.nix
-    ../server.nix
     failoverModule
   ];
 
