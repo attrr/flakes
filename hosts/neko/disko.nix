@@ -45,17 +45,26 @@
               subvolumes = {
                 "@" = {
                   mountpoint = "/";
-                  mountOptions = [ "compress=zstd" ];
+                  mountOptions = [
+                    "compress=zstd"
+                    "noatime"
+                    "discard=async"
+                  ];
                 };
                 "@home" = {
                   mountpoint = "/home";
-                  mountOptions = [ "compress=zstd" ];
+                  mountOptions = [
+                    "compress=zstd"
+                    "noatime"
+                    "discard=async"
+                  ];
                 };
                 "@nix" = {
                   mountpoint = "/nix";
                   mountOptions = [
                     "compress=zstd"
                     "noatime"
+                    "discard=async"
                   ];
                 };
               };

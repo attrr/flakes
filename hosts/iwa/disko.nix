@@ -39,7 +39,7 @@
                     "/root" = {
                       mountpoint = "/";
                       mountOptions = [
-                        "compress-force=zstd"
+                        "compress=zstd"
                         "noatime"
                         "discard=async"
                       ];
@@ -48,7 +48,7 @@
                     "/nix" = {
                       mountpoint = "/nix";
                       mountOptions = [
-                        "compress-force=zstd"
+                        "compress=zstd"
                         "noatime"
                         "discard=async"
                       ];

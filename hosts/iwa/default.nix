@@ -1,12 +1,13 @@
 {
+  self,
   ctx,
   registry,
   ...
 }:
 {
   imports = [
-    ../../modules/host/server.nix
-    ../../modules/purpose/acme.nix
+    "${self}/modules/host/server.nix"
+    "${self}/modules/purpose/acme.nix"
     ./hardware.nix
     ./disko.nix
     ./bao.nix

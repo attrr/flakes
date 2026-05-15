@@ -1,8 +1,12 @@
-{ modulesPath, ctx, ... }:
+{ self, modulesPath, ctx, ... }:
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    ../host/lowend
+    (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
+      device = "/dev/vda";
+      espSize = "500M";
+    })
+    "${self}/modules/host/lowend"
   ];
 
   nixpkgs.hostPlatform = "x86_64-linux";

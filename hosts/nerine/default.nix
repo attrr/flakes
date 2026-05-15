@@ -1,11 +1,20 @@
-{ modulesPath, ctx, ... }:
+{
+  self,
+  modulesPath,
+  ctx,
+  ...
+}:
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
-    ../../modules/host/lowend
-    ../../modules/ctx/proxy.nix
+    (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
+      device = "/dev/vda";
+      espSize = "500M";
+    })
+    "${self}/modules/host/lowend"
+    "${self}/modules/ctx/proxy.nix"
   ];
 
   nixpkgs.hostPlatform = "x86_64-linux";
@@ -19,7 +28,6 @@
     serial = true;
     zram-percent = 50;
     disko.efi = false;
-    disko.device = "/dev/vda";
   };
 
   # networking
