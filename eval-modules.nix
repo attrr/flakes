@@ -13,15 +13,16 @@ let
   specialArgs = {
     inherit lib pkgs;
     modulesPath = nixpkgs + "/nixos/modules";
-    failoverModule = { };
+    self = ./.;
   };
   profileModules =
     let
       dir = ./modules/profiles;
       entries = builtins.readDir dir;
-      isProfile = name: type:
-        (type == "regular" && lib.hasSuffix ".nix" name) ||
-        (type == "directory" && builtins.pathExists (dir + "/${name}/default.nix"));
+      isProfile =
+        name: type:
+        (type == "regular" && lib.hasSuffix ".nix" name)
+        || (type == "directory" && builtins.pathExists (dir + "/${name}/default.nix"));
     in
     if builtins.pathExists dir then
       map (name: dir + "/${name}") (builtins.attrNames (lib.filterAttrs isProfile entries))
@@ -51,7 +52,9 @@ in
     (lib.evalModules {
       modules = [
         flake.nixosModules.default
-      ] ++ profileModules ++ [
+      ]
+      ++ profileModules
+      ++ [
         flake.inputs.disko.nixosModules.disko
         flake.inputs.sops-nix.nixosModules.sops
         (

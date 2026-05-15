@@ -11,7 +11,7 @@
       device = "/dev/vda";
       espSize = "500M";
     })
-    "${self}/modules/host/lowend"
+    "${self}/modules/profiles/server"
   ];
 
   nixpkgs.hostPlatform = "x86_64-linux";
@@ -23,6 +23,7 @@
     ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
     serial = true;
+    lowend.is = true;
   };
 
   boot.loader.efi.canTouchEfiVariables = true;

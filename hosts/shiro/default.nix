@@ -11,10 +11,8 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (import "${self}/modules/disko/ext4-plain.nix" { device = "/dev/sda"; })
-    "${self}/modules/host/server.nix"
+    "${self}/modules/profiles/server"
     "${self}/modules/ctx/proxy.nix"
-    "${self}/modules/purpose/acme.nix"
-    "${self}/modules/purpose/restic.nix"
     ./dns.nix
     ./librechat.nix
     ./wiki.nix

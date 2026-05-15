@@ -1,4 +1,9 @@
-{ ctx, lib, ... }:
+{
+  ctx,
+  lib,
+  self,
+  ...
+}:
 
 let
   shadowsocks = ctx.services.shadowsocks;
@@ -7,7 +12,7 @@ let
 in
 {
   imports = [
-    ../../modules/purpose/sing-box
+    "${self}/modules/services/sing-box"
   ];
 
   infra.sing-box = {

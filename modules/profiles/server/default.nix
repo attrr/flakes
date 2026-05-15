@@ -13,7 +13,7 @@ in
   imports = [
     (modulesPath + "/profiles/minimal.nix")
     (modulesPath + "/profiles/headless.nix")
-    "${self}/modules/profile/base"
+    "${self}/modules/profiles/base"
     "${self}/modules/services/ssh.nix"
     ./lowend.nix
   ];

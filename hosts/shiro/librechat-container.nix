@@ -56,8 +56,6 @@ let
   };
 in
 {
-  imports = [ ../../modules/purpose/quadlet ];
-
   systemd.tmpfiles.rules = [
     "C+ /run/librechat/account.json 0640 librechat librechat - ${librechat.wif.vertex-service-account}"
   ];

@@ -6,8 +6,7 @@
 }:
 {
   imports = [
-    "${self}/modules/host/server.nix"
-    "${self}/modules/purpose/acme.nix"
+    "${self}/modules/profiles/server"
     ./hardware.nix
     ./disko.nix
     ./bao.nix
@@ -15,7 +14,7 @@
 
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
-  boot.loader.grub = true;
+  boot.loader.grub.enable = true;
 
   core.server = {
     hostname = ctx.metadata.hostname;
