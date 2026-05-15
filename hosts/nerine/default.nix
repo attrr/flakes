@@ -19,6 +19,7 @@
 
   nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
+  boot.loader.grub = true;
 
   core.server = {
     inherit (ctx.metadata) hostname;
@@ -27,7 +28,6 @@
     auto-resize = true;
     serial = true;
     zram-percent = 50;
-    disko.efi = false;
   };
 
   # networking

@@ -8,10 +8,6 @@ let
   wg = ctx.services.wireguard;
 in
 {
-  imports = [
-    ../../modules/purpose/acme.nix
-  ];
-
   # get hostname wildcard certs
   infra.acme = {
     enable = true;

@@ -1,4 +1,9 @@
-{ self, modulesPath, ctx, ... }:
+{
+  self,
+  modulesPath,
+  ctx,
+  ...
+}:
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
@@ -18,8 +23,10 @@
     ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
     serial = true;
-    disko.efi = true;
   };
+
+  boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader.systemd-boot.enable = true;
 
   # networking
   networking.useNetworkd = true;
