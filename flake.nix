@@ -65,17 +65,16 @@
         n: v:
         let
           lib = nixpkgs.lib;
+          defaultPath = ./hosts + "/${n}/default.nix";
+          modules = v.modules or [ ];
+          hostname = v.hostname or n;
         in
         lib.nixosSystem (
-          let
-            defaultPath = ./hosts + "/${n}/default.nix";
-            modules = v.modules or [ ];
-          in
-          lib.recursiveUpdate v {
+          lib.recursiveUpdate (builtins.removeAttrs v [ "hostname" ]) {
             system = v.system or "x86_64-linux";
             modules = [
               self.nixosModules.default
-              ctx.nixosModules.${n}
+              ctx.nixosModules.${hostname}
               ./lib/default.nix
               (
                 { ... }:
@@ -160,30 +159,31 @@
         ) attrs;
     in
     {
-      nixosConfigurations =
-        mkSystems {
-          yata = {
-            system = "aarch64-linux";
-            modules = [ sops-nix.nixosModules.sops ];
-          };
-          shiro.modules = commonModules;
-          reisi.modules = commonModules;
-          iwa.modules = commonModules;
-          neko.modules = commonModules;
-          # stardust
-          kamo.modules = stardustModules;
-          koto.modules = stardustModules;
-          ren.modules = stardustModules;
-          # lowend
-          eric.modules = commonModules;
-          nerine.modules = commonModules;
-        }
-        // {
-          yata-bootstrap = nixpkgs.lib.nixosSystem {
-            system = "aarch64-linux";
-            modules = [ ./bootstrap/sd-image.nix ];
-          };
+      nixosConfigurations = mkSystems {
+        yata = {
+          system = "aarch64-linux";
+          modules = [ sops-nix.nixosModules.sops ];
         };
+        gateway = {
+          hostname = "yata";
+          modules = [
+            ./hosts/yata/default-vm.nix
+          ]
+          ++ commonModules;
+        };
+
+        shiro.modules = commonModules;
+        reisi.modules = commonModules;
+        iwa.modules = commonModules;
+        neko.modules = commonModules;
+        # stardust
+        kamo.modules = stardustModules;
+        koto.modules = stardustModules;
+        ren.modules = stardustModules;
+        # lowend
+        eric.modules = commonModules;
+        nerine.modules = commonModules;
+      };
 
       deploy.nodes = mkDeployNodes {
         yata = {
@@ -225,6 +225,18 @@
         pkgs.lib.packagesFromDirectoryRecursive {
           inherit (pkgs) callPackage;
           directory = ./pkgs;
+        }
+        // {
+          sdimages.yata =
+            (nixpkgs.lib.nixosSystem {
+              system = "aarch64-linux";
+              modules = [
+                ./hosts/yata/init.nix
+                ctx.nixosModules.yata
+                self.nixosModules.default      
+              ];
+              specialArgs = { inherit self; };
+            }).config.system.build.sdImage;
         }
       );
 

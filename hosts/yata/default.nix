@@ -1,84 +1,15 @@
-{
-  pkgs,
-  self,
-  ctx,
-  ...
-}:
+/*
+  To init:
+  - nix build .\#sdimages.$hostname
+  - flash sdcard image:
+  -> sudo dd if=result/sd-image/nixos-image-sd-card-*-aarch64-linux.img of=/dev/path-to-usb bs=4M status=progress
+  - generate age keys from living system's ssh public key
+  -> ssh $hostname cat /etc/ssh/ssh_host_ed25519_key.pub | nix-shell -p ssh-to-age --run ssh-to-age
+  - deploy full config again
+*/
 {
   imports = [
-    ./sing-box
-    ./loadbalance
-    ./caddy.nix
-    ./dns.nix
-    "${self}/modules/profiles/server"
+    ./profiles/full.nix
+    ./hardware/arm.nix
   ];
-
-  core.server = {
-    hostname = ctx.metadata.hostname;
-    ssh-ports = ctx.ssh.ports;
-    ssh-keys = ctx.ssh.auth-keys;
-  };
-
-  boot.kernel.sysctl = {
-    # ip forwarding for wg peers
-    "net.ipv4.ip_forward" = 1;
-    "net.ipv6.conf.all.forwarding" = 1;
-    # network
-    "net.ipv4.tcp_timestamps" = 1;
-    "net.ipv4.tcp_tw_reuse" = 1;
-    "net.core.rmem_max" = 16777216;
-    "net.core.wmem_max" = 16777216;
-  };
-
-  networking.hostName = "yata";
-  networking.useNetworkd = true;
-  systemd.network.networks."10-default" = {
-    matchConfig.Name = "e*";
-    address = ctx.network.ipv4.cidr;
-    gateway = [ ctx.network.ipv4.gateway ];
-    dns = [ ctx.network.ipv4.gateway ];
-
-    networkConfig = {
-      IPv6AcceptRA = true;
-      IPv6PrivacyExtensions = "yes";
-    };
-
-    ipv6AcceptRAConfig = {
-      UseAutonomousPrefix = true;
-      UseGateway = true;
-      Token = "prefixstable";
-    };
-  };
-
-  networking.firewall = {
-    enable = true;
-    trustedInterfaces = [ "wg0" ];
-    allowedUDPPorts = [ 51820 ];
-  };
-  services.tailscale.enable = true;
-
-  services.pooper-scooper = {
-    enable = true;
-    doh_url = "https://223.5.5.5/resolve";
-  };
-
-  local.sing-box.enable = true;
-  local.loadbalance.enable = true;
-
-  # Pi specific hardware config
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-  hardware.deviceTree = {
-    enable = true;
-    name = "allwinner/sun50i-h618-orangepi-zero3.dtb";
-  };
-  boot.kernelParams = [ "console=ttyS0,115200n8" ];
-
-  boot.loader.grub.enable = false;
-  boot.loader.generic-extlinux-compatible.enable = true;
-  fileSystems."/" = {
-    device = "/dev/disk/by-label/NIXOS_SD";
-    fsType = "ext4";
-  };
-
-  system.stateVersion = "25.11";
 }

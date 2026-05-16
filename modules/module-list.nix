@@ -6,5 +6,4 @@
   ./services/sing-box
   ./services/pooper-scooper
   ./services/quadlet
-  ./services/systemd-network
 ]
