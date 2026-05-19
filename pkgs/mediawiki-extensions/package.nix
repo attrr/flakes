@@ -4,7 +4,10 @@
 #   1. For each entry, find the latest commit on the new REL branch:
 #        git ls-remote <repo-url> refs/heads/REL1_XX
 #   2. Update `rev` and set `hash`/`sha256` to `lib.fakeHash`; Nix will report the correct value
-{ fetchFromGitHub, fetchgit }:
+{
+  fetchFromGitHub,
+  fetchgit,
+}:
 let
   # Fetch an extension mirrored on GitHub (wikimedia/mediawiki-extensions-<name>).
   mkMWExtensionGithub =
@@ -71,6 +74,13 @@ in
     name = "Popups";
     rev = "6d3dabed4ca0d4a29788feab9f61d4533a3ce6e1"; # REL1_44 @ 2026-04-15
     sha256 = "sha256-RYE4OCp//hpJpYbWrWCOeIpfn7yASyNoFfdCaS5qEpQ=";
+  };
+
+  Mermaid = fetchFromGitHub {
+    owner = "SemanticMediaWiki";
+    repo = "Mermaid";
+    rev = "bc7363f003057888b2f0087f350fd63c172afb05"; # v6.0.2
+    sha256 = "sha256-ZGNkq7CblfAcCcuZwO2W/HCF4dHF+ryiZkLHtF6L9P8=";
   };
 
   MobileFrontend = mkMWExtension {

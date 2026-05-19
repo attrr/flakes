@@ -230,6 +230,7 @@ in
         CSS
         NoTitle
         Popups
+        Mermaid
         MobileFrontend
         ;
     };

@@ -122,16 +122,12 @@ in
         {
           domain_suffix = [
             "real-debrid.com"
+            "torbox.app"
+            "tb-cdn.st"
+            "tb-cdn.pw"
+            "strem.fun"
           ];
           outbound = "direct";
-        }
-        {
-          domain_suffix = [
-            "strem.fun"
-            "strem.io"
-            "archive.org"
-          ];
-          outbound = "upstream";
         }
         {
           # high volume traffic
@@ -139,11 +135,6 @@ in
             "easynews.com"
             "news.eweka.nl"
           ];
-          outbound = "hy2-out";
-        }
-        {
-          # obosolate usage for socks5 in torrent client
-          port = 1080;
           outbound = "hy2-out";
         }
         {
