@@ -3,6 +3,17 @@
   pkgs,
   ...
 }:
+let
+  disableModules = [
+    "algif_aead"
+    "esp4"
+    "esp6"
+    "rxrpc"
+    "rds"
+    "rds_tcp"
+    "rds_rdma"
+  ];
+in
 {
   imports = [
     ./override.nix
@@ -28,18 +39,10 @@
   };
 
   boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
-  boot.blacklistedKernelModules = [
-    "algif_aead"
-    "esp4"
-    "esp6"
-    "rxrpc"
-  ];
-  boot.extraModprobeConfig = "
-    install algif_aead /run/current-system/sw/bin/false
-    install esp4 /run/current-system/sw/bin/false
-    install esp6 /run/current-system/sw/bin/false
-    install rxrpc /run/current-system/sw/bin/false
-  ";
+  boot.blacklistedKernelModules = disableModules;
+  boot.extraModprobeConfig = lib.concatMapStringsSep "\n" (
+    mod: "install ${mod} /run/current-system/sw/bin/false"
+  ) disableModules;
 
   # enable zram regardless
   zramSwap.enable = lib.mkDefault true;
