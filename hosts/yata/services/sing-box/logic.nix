@@ -71,6 +71,14 @@ in
           path = "${pkgs.sing-geosite}/share/sing-box/rule-set/geosite-google.srs";
         }
         {
+          tag = "geosite:google-gemini";
+          path = "${pkgs.sing-geosite}/share/sing-box/rule-set/geosite-google-gemini.srs";
+        }
+        {
+          tag = "geosite:openai";
+          path = "${pkgs.sing-geosite}/share/sing-box/rule-set/geosite-openai.srs";
+        }
+        {
           tag = "geosite:ehentai";
           path = "${pkgs.sing-geosite}/share/sing-box/rule-set/geosite-ehentai.srs";
         }
