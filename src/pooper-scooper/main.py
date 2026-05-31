@@ -43,15 +43,15 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             # Correctly fix missing padding
             padding = len(content) % 4
             if padding:
-                content += b'=' * (4 - padding)
-            
+                content += b"=" * (4 - padding)
+
             try:
                 urls = base64.b64decode(content).decode()
             except Exception as e:
                 print(f"Error decoding base64 content: {e}")
                 self.send_error(500, "Failed to decode subscription content")
                 return
-        
+
         urls = urls.splitlines()
 
         for idx, url in enumerate(urls):
@@ -68,8 +68,8 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
                 query = parse_qs(parse.query)
                 if not "peer" in query:
                     continue
-                
-                query["sni"] =  query["peer"]
+
+                query["sni"] = query["peer"]
                 query.pop("peer")
                 new_url = parse._replace(query=urlencode(query, doseq=True)).geturl()
                 urls[idx] = "trojan://" + new_url

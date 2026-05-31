@@ -1,65 +1,117 @@
 #!/usr/bin/env python
-import base64
-import json
-import logging
-import time
-import re
-from datetime import datetime
-from urllib.parse import urlparse, parse_qs, urlencode, quote_plus
+"""pooper-scooper: A proxy subscription cleaner and normalizer.
+
+Fetches upstream proxy subscriptions, fixes malformed URLs produced by
+broken airport generators, injects usage statistics, and serves the
+cleaned result.  Supports Shadowsocks, Trojan, VMess, and VLESS.
+
+Endpoints
+---------
+GET /cleaner?url=<encoded_url>
+    Fetch, clean, and return a normalized subscription.
+GET /helper?url=<raw_url>
+    Generate the /cleaner URL for a given raw airport URL.
+"""
 import argparse
 import asyncio
+import base64
 import ipaddress
+import json
+import logging
+import re
+import time
+from datetime import datetime
+from urllib.parse import urlparse, parse_qs, urlencode, quote_plus
 
 import httpx
+import uvicorn
+import uvicorn.logging
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import HttpUrl
 
-# Set up colored logging using Uvicorn's formatter
-import uvicorn.logging
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
 
-console_formatter = uvicorn.logging.DefaultFormatter("%(levelprefix)s %(message)s")
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(console_formatter)
-logging.basicConfig(level=logging.INFO, handlers=[console_handler])
+_console_formatter = uvicorn.logging.DefaultFormatter("%(levelprefix)s %(message)s")
+_console_handler = logging.StreamHandler()
+_console_handler.setFormatter(_console_formatter)
+logging.basicConfig(level=logging.INFO, handlers=[_console_handler])
 logger = logging.getLogger(__name__)
-
-# Suppress detailed logs from libraries
 logging.getLogger("httpx").setLevel(logging.WARNING)
+
+# ---------------------------------------------------------------------------
+# Application & configuration
+# ---------------------------------------------------------------------------
 
 app = FastAPI()
 
-HEADERS = {"User-Agent": "ProxySubscriber/0.6.0 Shadowrocket/2070"}
-PROXY_URL = "http://127.0.0.1:2080"
-DOH_URL = None  # Will be set from args
-CACHE_TTL = 30  # Seconds, 0 to disable
-SUBSCRIPTION_CACHE = {}  # {url: (timestamp, content)}
+#: HTTP headers sent when fetching upstream subscriptions.
+HEADERS: dict[str, str] = {"User-Agent": "ProxySubscriber/0.6.0 Shadowrocket/2070"}
+#: Local HTTP proxy used as fallback when direct access fails.
+PROXY_URL: str = "http://127.0.0.1:2080"
+#: DNS-over-HTTPS resolver URL; populated at startup via ``--doh_url``.
+DOH_URL: str | None = None
+#: Subscription cache TTL in seconds; 0 disables caching.
+CACHE_TTL: int = 30
+
+# Protocols whose subscriptions arrive as plain text (not base64-encoded).
+# Any response whose first line starts with one of these prefixes is used
+# verbatim; everything else is assumed to be a base64-encoded blob.
+_PLAIN_PREFIXES: tuple[str, ...] = (
+    "vmess://",
+    "vless://",
+    "trojan://",
+    "ss://",
+    "STATUS=",
+)
+
+
+# ---------------------------------------------------------------------------
+# Cache
+# ---------------------------------------------------------------------------
 
 
 class SimpleTTLCache:
-    def get(self, key):
-        if key not in SUBSCRIPTION_CACHE:
+    """In-memory TTL cache for subscription responses.
+
+    Each entry expires after *ttl* seconds and is evicted lazily on the
+    next :py:meth:`get` for the same key.
+    """
+
+    def __init__(self, ttl: int) -> None:
+        self._ttl = ttl
+        self._store: dict[str, tuple[float, str]] = {}
+
+    def get(self, key: str) -> str | None:
+        """Return the cached value for *key*, or ``None`` if absent/expired."""
+        entry = self._store.get(key)
+        if entry is None:
             return None
-        timestamp, content = SUBSCRIPTION_CACHE[key]
-        if time.time() - timestamp > CACHE_TTL:
-            del SUBSCRIPTION_CACHE[key]
+        timestamp, content = entry
+        if time.time() - timestamp > self._ttl:
+            del self._store[key]
             return None
         return content
 
-    def set(self, key, content):
-        SUBSCRIPTION_CACHE[key] = (time.time(), content)
+    def set(self, key: str, content: str) -> None:
+        """Store *content* under *key* with the current timestamp."""
+        self._store[key] = (time.time(), content)
 
 
-cache = SimpleTTLCache()
+cache = SimpleTTLCache(ttl=CACHE_TTL)
 
 
 class CustomSNITransport(httpx.AsyncHTTPTransport):
-    """
-    A transport that allows manually setting the SNI hostname,
-    enabling connection to a specific IP while verifying the SSL certificate against the original hostname.
+    """Async transport that overrides the TLS SNI hostname.
+
+    Allows connecting to a specific IP while verifying the server's SSL
+    certificate against the original domain name — useful when using
+    DoH-resolved IPs directly.
     """
 
-    def __init__(self, sni, **kwargs):
+    def __init__(self, sni: str, **kwargs) -> None:
         self.sni = sni
         super().__init__(**kwargs)
 
@@ -68,46 +120,133 @@ class CustomSNITransport(httpx.AsyncHTTPTransport):
         return await super().handle_async_request(request)
 
 
+# ---------------------------------------------------------------------------
+# HTTP helpers
+# ---------------------------------------------------------------------------
+
+
 async def resolve_doh(hostname: str, doh_url: str) -> str | None:
-    """
-    Resolves a hostname to an IP address using DNS-over-HTTPS.
-    Returns the first A record found.
+    """Resolve *hostname* to an IPv4 address via DNS-over-HTTPS.
+
+    Uses the Google/Cloudflare JSON DoH API.  Returns the first A record
+    found, or ``None`` on failure or when no A record exists.
     """
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            # Using Google/Cloudflare style DoH JSON API
             resp = await client.get(
                 doh_url,
                 params={"name": hostname, "type": "A"},
                 headers={"Accept": "application/dns-json"},
             )
             resp.raise_for_status()
-            data = resp.json()
-
-            if "Answer" in data:
-                for answer in data["Answer"]:
-                    if answer["type"] == 1:  # A record
-                        return answer["data"]
-
-            # If no A record, maybe CNAME? But we usually want IP.
-            # Allow fallback if no A record found.
-            logger.warning(f"No A record found for {hostname} via DoH")
-            return None
+            for answer in resp.json().get("Answer", []):
+                if answer["type"] == 1:  # A record
+                    return answer["data"]
+        logger.warning(f"No A record found for {hostname} via DoH")
+        return None
     except Exception as e:
         logger.error(f"DoH resolution failed for {hostname}: {e}")
         return None
 
 
 def robust_base64_decode(content: bytes) -> str:
-    """Decodes base64 content with robust padding handling."""
+    """Decode *content* as base64, auto-correcting missing ``=`` padding."""
     padding = len(content) % 4
     if padding:
         content += b"=" * (4 - padding)
     return base64.b64decode(content).decode("utf-8")
 
 
+async def _fetch_with_retry(
+    target_url: str,
+    resolved_ip: str | None,
+    hostname: str | None,
+) -> httpx.Response:
+    """Fetch *target_url* with up to 3 attempts, falling back to a local proxy.
+
+    Per attempt:
+
+    1. **Direct** — via DoH-resolved IP + :class:`CustomSNITransport` when
+       *resolved_ip* is available, or a plain direct request otherwise.
+    2. **Proxy fallback** — on network failure, retries through
+       :data:`PROXY_URL`.
+
+    Raises :class:`~fastapi.HTTPException` (500) when all attempts fail.
+    """
+    _NETWORK_ERRORS = (
+        httpx.TimeoutException,
+        httpx.ConnectError,
+        httpx.ReadTimeout,
+        httpx.ConnectTimeout,
+    )
+    parsed_url = urlparse(target_url)
+    last_exception: Exception | None = None
+    resp: httpx.Response | None = None
+
+    for attempt in range(3):
+        try:
+            if resolved_ip and hostname:
+                # Direct via DoH-resolved IP, preserving SNI for TLS verification.
+                netloc = resolved_ip
+                if parsed_url.port:
+                    netloc += f":{parsed_url.port}"
+                direct_url = parsed_url._replace(netloc=netloc).geturl()
+                async with httpx.AsyncClient(
+                    transport=CustomSNITransport(sni=hostname),
+                    headers={**HEADERS, "Host": hostname},
+                    timeout=3.0,
+                    follow_redirects=True,
+                    verify=True,
+                ) as client:
+                    try:
+                        resp = await client.get(direct_url)
+                    except _NETWORK_ERRORS as e:
+                        logger.warning(
+                            f"Direct (DoH) failed (attempt {attempt + 1}/3): {e}, trying proxy…"
+                        )
+                        raise
+            else:
+                async with httpx.AsyncClient(
+                    headers=HEADERS, timeout=3.0, follow_redirects=True
+                ) as client:
+                    resp = await client.get(target_url)
+
+        except _NETWORK_ERRORS:
+            try:
+                async with httpx.AsyncClient(
+                    headers=HEADERS,
+                    proxy=PROXY_URL,
+                    timeout=10.0,
+                    follow_redirects=True,
+                ) as proxy_client:
+                    resp = await proxy_client.get(target_url)
+            except Exception as e:
+                logger.warning(f"Proxy fallback failed (attempt {attempt + 1}/3): {e}")
+                last_exception = e
+
+        except Exception as e:
+            logger.warning(f"Attempt {attempt + 1}/3 failed: {e}")
+            last_exception = e
+
+        if resp is not None:
+            return resp
+
+        if attempt < 2:
+            await asyncio.sleep(1)
+
+    if last_exception:
+        logger.error(f"All retries exhausted. Last error: {last_exception}")
+        raise HTTPException(status_code=500, detail=str(last_exception))
+    raise HTTPException(status_code=500, detail="Unknown fetch failure")
+
+
 def process_ss_url(url: str) -> str:
-    """Standardizes SS URLs."""
+    """Decode the base64-encoded section of a Shadowsocks URL.
+
+    Legacy SS URLs encode ``method:password@host:port`` as a single base64
+    blob directly after ``ss://``.  This decodes that blob so downstream
+    clients can parse the individual fields.
+    """
     content = url.removeprefix("ss://")
     if "#" in content:
         content, comment = content.split("#", 1)
@@ -116,23 +255,123 @@ def process_ss_url(url: str) -> str:
 
 
 def process_trojan_url(url: str) -> str:
-    """Fixes Trojan URLs by moving 'peer' to 'sni'."""
+    """Fix Trojan URLs that use the non-standard ``peer`` param for SNI.
+
+    Some generators write ``?peer=example.com`` instead of the standard
+    ``?sni=example.com``.  This renames the parameter so Xray can find it.
+    """
     content = url.removeprefix("trojan://")
-    parse = urlparse(content)
-    # parse_qs returns a dictionary where values are lists
-    query = parse_qs(parse.query)
+    parsed = urlparse(content)
+    qs = parse_qs(parsed.query)
 
-    if "peer" in query:
-        # Move peer[0] to sni
-        query["sni"] = query["peer"]
-        query.pop("peer")
-
-        # Re-encode query ensuring lists are handled correctly (doseq=True)
-        # Note: parse_qs values are lists, so we use doseq=True to encode them back properly
-        new_query = urlencode(query, doseq=True)
-        new_url = parse._replace(query=new_query).geturl()
+    if "peer" in qs:
+        qs["sni"] = qs.pop("peer")
+        new_url = parsed._replace(query=urlencode(qs, doseq=True)).geturl()
         return "trojan://" + new_url
     return url
+
+
+def process_vless_url(url: str) -> str:
+    """Sanitizes VLESS URLs from broken airport generators.
+
+    Fixes two known patterns:
+    1. Base64-encoded userinfo: some generators encode the entire
+       ``user@host:port`` block as base64 and stuff it in the URL authority,
+       leaving no ``@host:port`` suffix for Xray to parse — causing
+       ``invalid port: parsing "": invalid syntax``.
+    2. ``headerType`` on TCP transport: ``headerType`` is only meaningful for
+       HTTP transport; passing it with ``type=tcp`` (or no type) makes Xray
+       reject the node with ``headerType is not supported in tcp``.
+    """
+    content = url.removeprefix("vless://")
+    # Split off fragment (#remark) early so it doesn't confuse urlparse
+    fragment = ""
+    if "#" in content:
+        content, fragment = content.split("#", 1)
+
+    parsed = urlparse("vless://" + content)
+
+    # --- Fix 1: base64-encoded userinfo with no host/port ---
+    # Symptom: the netloc has no '@' because the whole auth section is a bare
+    # base64 blob (urlparse treats it as hostname, so parsed.hostname is NOT
+    # None — the only reliable signal is the absence of '@' in netloc).
+    if "@" not in parsed.netloc:
+        # The authority is the raw base64 string; query is already separated.
+        b64_part = parsed.netloc  # everything between // and ?
+        try:
+            decoded = robust_base64_decode(b64_part.encode())
+            # Expected format after decode: "flow:uuid@host:port"
+            # or just "uuid@host:port"
+            if "@" in decoded:
+                userinfo, hostport = decoded.rsplit("@", 1)
+                # userinfo may be "flow:uuid" or just "uuid"
+                if ":" in userinfo:
+                    _flow, uuid = userinfo.split(":", 1)
+                else:
+                    uuid = userinfo
+                logger.info(
+                    f"vless: decoded base64 userinfo → uuid={uuid[:8]}… host={hostport}"
+                )
+                # Rebuild a clean URL and re-parse
+                clean = f"vless://{uuid}@{hostport}"
+                if parsed.query:
+                    clean += "?" + parsed.query
+                parsed = urlparse(clean)
+            else:
+                logger.warning(
+                    "vless: base64 userinfo decoded but no '@' found; skipping fix"
+                )
+                return url + ("#" + fragment if fragment else "")
+        except Exception as e:
+            logger.warning(f"vless: base64 userinfo decode failed: {e}")
+            return url + ("#" + fragment if fragment else "")
+
+    # --- Fix 2, 3 & 4: query-string cleanup ---
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    changed = False
+
+    # Fix 2: headerType not supported on TCP transport
+    transport = qs.get("type", ["tcp"])[0].lower()
+    if transport == "tcp" and "headerType" in qs:
+        logger.info("vless: removing unsupported 'headerType' from TCP transport")
+        qs.pop("headerType")
+        changed = True
+
+    # Fix 3: 'remark' in query params → move to #fragment
+    # Some airport generators put the node name in ?remark= instead of #fragment.
+    if not fragment and "remark" in qs:
+        fragment = qs.pop("remark")[0]
+        logger.info(f"vless: promoted 'remark' param to fragment: {fragment}")
+        changed = True
+
+    # Fix 4: Reality param normalization
+    # If 'pbk' (public key) is present this is definitively a VLESS-Reality node.
+    # Set canonical params and strip legacy/conflicting ones that Xray rejects.
+    if "pbk" in qs:
+        # Required Reality params
+        if qs.get("security", [""])[0] != "reality":
+            qs["security"] = ["reality"]
+            changed = True
+        if not qs.get("flow"):
+            qs["flow"] = ["xtls-rprx-vision"]
+            changed = True
+        if not qs.get("type"):
+            qs["type"] = ["tcp"]
+            changed = True
+        # Strip params that conflict with or are meaningless for Reality
+        for junk in ("xtls", "tls", "alterId", "tfo"):
+            if junk in qs:
+                logger.info(f"vless: stripping junk Reality param '{junk}'")
+                qs.pop(junk)
+                changed = True
+
+    if changed:
+        parsed = parsed._replace(query=urlencode(qs, doseq=True))
+
+    result = parsed.geturl()
+    if fragment:
+        result += "#" + fragment
+    return result
 
 
 def normalize_status_line(line: str) -> str:
@@ -189,92 +428,120 @@ def normalize_status_line(line: str) -> str:
 
 
 def process_vmess_url(url: str) -> str:
-    """Standardizes VMess URLs."""
+    """Normalize a VMess URL to a form Xray/qjebbs-sing-box can consume.
+
+    Handles three sub-formats:
+
+    - **Shadowrocket** (``vmess://BASE64(method:uuid@host:port)?remark=…``):
+      Renames the ``remark`` query param to ``remarks`` (the spelling
+      expected by qjebbs/sing-box).
+    - **TCP JSON**: Converts to the compact Xray URI
+      ``vmess://uuid@host:port?encryption=auto``.
+    - **gRPC JSON**: Swaps ``host``/``path`` fields to match the fork's
+      convention (``host`` = service name, ``sni`` = TLS SNI).
+    - **Other JSON** (WS, h2, …): Ensures ``host`` is set and forces
+      ``scy=auto``.
+    """
     content = url.removeprefix("vmess://")
 
-    # Detect Shadowrocket format: vmess://B64(method:uuid@host:port)?remark=...&alterId=...
-    # The base64 part decodes to a plain string, NOT JSON.
-    # qjebbs/sing-box supports this format but expects `remarks` (plural).
-    # Many airports incorrectly write `remark` (singular), so rename it.
+    # Shadowrocket format: base64 decodes to a plain string, not JSON.
+    # qjebbs/sing-box expects `remarks` (plural); many airports write `remark`.
     b64_part, sep, query_part = content.partition("?")
     if sep:
         try:
             decoded = robust_base64_decode(b64_part.encode())
             json.loads(decoded)
-            # It IS valid JSON — fall through to normal processing below
+            # Valid JSON — fall through to standard JSON processing.
         except (ValueError, UnicodeDecodeError):
-            # Not JSON: it's Shadowrocket format (method:uuid@host:port)
-            # Just fix the remark → remarks typo and leave everything else alone
-            from urllib.parse import parse_qs, urlencode
-
+            # Not JSON → Shadowrocket format.  Fix remark → remarks typo.
             qs = parse_qs(query_part, keep_blank_values=True)
             if "remark" in qs and "remarks" not in qs:
                 logger.info("Shadowrocket vmess: renaming 'remark' → 'remarks'")
                 qs["remarks"] = qs.pop("remark")
-            fixed_query = urlencode(qs, doseq=True)
-            return f"vmess://{b64_part}?{fixed_query}"
+            return f"vmess://{b64_part}?{urlencode(qs, doseq=True)}"
 
     try:
-        content = robust_base64_decode(content.encode())
-        data = json.loads(content)
+        data = json.loads(robust_base64_decode(content.encode()))
     except Exception as e:
         logger.error(f"Failed to parse vmess content: {e}")
         return url
 
-    if data.get("net") == "tcp":
-        # Convert TCP vmess to Xray scheme
-        uuid = data.get("id", "")
-        domain = data.get("add", "")
-        port = data.get("port", "")
-        comment = data.get("ps", "")
-        return f"vmess://{uuid}@{domain}:{port}?encryption=auto#{comment}"
-    elif data.get("net") == "grpc":
-        # This fork reads `host` as gRPC service_name, `sni` as TLS SNI.
-        # Standard vmess JSON is the opposite: path=service_name, host=SNI.
-        # Swap them so the fork gets what it needs.
-        sni = data.get("host", data.get("add", ""))
-        service_name = data.get("path", "")
-        data["sni"] = sni
-        data["host"] = service_name
-        data["alpn"] = "h2"
-        data["scy"] = "auto"
+    net = data.get("net")
+    if net == "tcp":
+        return (
+            f"vmess://{data.get('id', '')}@{data.get('add', '')}:"
+            f"{data.get('port', '')}?encryption=auto#{data.get('ps', '')}"
+        )
 
-        updated_content = json.dumps(data).encode()
-        return "vmess://" + base64.b64encode(updated_content).decode()
+    if net == "grpc":
+        # Standard vmess JSON: path=service_name, host=SNI.
+        # This fork expects the reverse: host=service_name, sni=SNI.
+        data["sni"] = data.get("host", data.get("add", ""))
+        data["host"] = data.get("path", "")
+        data["alpn"] = "h2"
     else:
-        # Standardize other vmess (WS, h2, etc.)
+        # WS, h2, and other transports.
         if not data.get("host"):
             data["host"] = data.get("add", "")
-        data["scy"] = "auto"
 
-        updated_content = json.dumps(data).encode()
-        return "vmess://" + base64.b64encode(updated_content).decode()
+    data["scy"] = "auto"
+    return "vmess://" + base64.b64encode(json.dumps(data).encode()).decode()
+
+
+# ---------------------------------------------------------------------------
+# Usage stats injection
+# ---------------------------------------------------------------------------
+
+
+def _extract_node_name(line: str) -> str:
+    """Extract the display name from a single proxy URL line.
+
+    Returns an empty string when the name cannot be determined.
+    """
+    try:
+        if line.startswith(("ss://", "trojan://", "vless://")):
+            return line.split("#", 1)[-1] if "#" in line else ""
+        if line.startswith("vmess://"):
+            body = line.removeprefix("vmess://")
+            if body.startswith("ey"):  # base64-JSON; name is in the "ps" field
+                try:
+                    return json.loads(robust_base64_decode(body.encode())).get("ps", "")
+                except Exception:
+                    return ""
+            return body.split("#", 1)[-1] if "#" in body else ""
+    except Exception:
+        pass
+    return ""
 
 
 def inject_usage_stats(
     processed_urls: list[str],
     resp_headers: httpx.Headers,
     total_gb_param: int | None = None,
-):
+) -> None:
+    """Prepend a ``STATUS=…`` traffic line to *processed_urls* if data is available.
+
+    Data sources, in priority order:
+
+    1. ``Subscription-Userinfo`` HTTP response header (most accurate).
+    2. Traffic/expiry info scraped from individual node names, combined with
+       the *total_gb_param* hint provided by the caller.
+
+    No-op when a ``STATUS=`` line is already present.
     """
-    Injects a fake VMess node "STATUS=..." if traffic info is found
-    in headers or node names.
-    """
-    # Check if status line already exists to avoid duplication and extra work
     if any("STATUS=" in u for u in processed_urls):
         return
 
-    # Try to get info from headers first
+    # --- Source 1: Subscription-Userinfo header ---
+    # Format: "upload=<bytes>; download=<bytes>; total=<bytes>; expire=<unix_ts>"
+    info_data: dict[str, int] = {}
     user_info = resp_headers.get("Subscription-Userinfo")
-    info_data = {}
     if user_info:
         try:
-            # Parse upload=11; download=22; total=33; expire=44
-            pairs = user_info.split(";")
-            for pair in pairs:
+            for pair in user_info.split(";"):
                 if "=" in pair:
-                    k, v = pair.strip().split("=")
-                    info_data[k] = int(v)
+                    k, v = pair.strip().split("=", 1)
+                    info_data[k.strip()] = int(v.strip())
         except Exception:
             pass
 
@@ -282,117 +549,60 @@ def inject_usage_stats(
     total_gb = 0.0
     expire_str = "Unknown"
 
-    # Logics to fallback to node scraping if header is empty
-    extracted_expire = None
-    extracted_remain = None
-    extracted_used = None
-
-    # Helper regexes for node names
-    # Common patterns: "剩余流量: 50.5G", "Expire: 2024-01-01", "到期: 2024"
+    # --- Source 2: Scrape node names ---
     re_remain = re.compile(
         r"(?:剩余|Remai|Lef)(?:.*?)(\d+(?:\.\d+)?)\s*(G|M|T)", re.IGNORECASE
     )
-    re_used = re.compile(
+    re_used_pat = re.compile(
         r"(?:已用|Used)(?:.*?)(\d+(?:\.\d+)?)\s*(G|M|T)", re.IGNORECASE
     )
     re_expire = re.compile(
         r"(?:到期|过期|Exp)(?:.*?)(\d{4}[-./]\d{1,2}[-./]\d{1,2})", re.IGNORECASE
     )
 
-    # Scan processed urls for info nodes
-    # We don't remove them, just read them
-    for line in processed_urls:
-        name = ""
-        try:
-            if line.startswith("ss://"):
-                if "#" in line:
-                    name = line.split("#")[-1]
-            elif line.startswith("vmess://"):
-                # Check if it's a standard link (contains @ or # not at end, or just not base64)
-                # Simple heuristic: JSON usually starts with ey
-                clean_line = line.removeprefix("vmess://")
-                if not clean_line.startswith("ey"):
-                    # Assume standard link format: vmess://...#remark
-                    if "#" in clean_line:
-                        name = clean_line.split("#")[-1]
-                else:
-                    # Legacy Base64 JSON
-                    try:
-                        meta = json.loads(robust_base64_decode(clean_line.encode()))
-                        name = meta.get("ps", "")
-                    except Exception:
-                        pass
-            elif line.startswith("trojan://"):
-                if "#" in line:
-                    name = line.split("#")[-1]
-        except:
-            continue
+    extracted_remain: float | None = None
+    extracted_used: float | None = None
+    extracted_expire: str | None = None
 
+    def _to_gb(val: float, unit: str) -> float:
+        u = unit.upper()
+        return val / 1024 if u == "M" else val * 1024 if u == "T" else val
+
+    for line in processed_urls:
+        name = _extract_node_name(line)
         if not name:
             continue
+        m = re_remain.search(name)
+        if m:
+            extracted_remain = _to_gb(float(m.group(1)), m.group(2))
+        m = re_used_pat.search(name)
+        if m:
+            extracted_used = _to_gb(float(m.group(1)), m.group(2))
+        m = re_expire.search(name)
+        if m:
+            extracted_expire = m.group(1)
 
-        # Check for Remainder
-        m_remain = re_remain.search(name)
-        if m_remain:
-            val = float(m_remain.group(1))
-            unit = m_remain.group(2).upper()
-            if unit == "M":
-                val /= 1024
-            elif unit == "T":
-                val *= 1024
-            extracted_remain = val
-
-        # Check for Used
-        m_used = re_used.search(name)
-        if m_used:
-            val = float(m_used.group(1))
-            unit = m_used.group(2).upper()
-            if unit == "M":
-                val /= 1024
-            elif unit == "T":
-                val *= 1024
-            extracted_used = val
-
-        # Check for Date
-        m_expire = re_expire.search(name)
-        if m_expire:
-            extracted_expire = m_expire.group(1)
-
-    # Final Calculation
+    # --- Aggregate ---
     if info_data:
-        # Use Header if available (Most accurate)
-        upload = info_data.get("upload", 0)
-        download = info_data.get("download", 0)
-        total_bytes = info_data.get("total", 0)
-        expire_ts = info_data.get("expire", 0)
-
-        used_gb = (upload + download) / 1073741824
-        total_gb = total_bytes / 1073741824
-        if expire_ts:
-            expire_str = datetime.fromtimestamp(expire_ts).strftime("%Y-%m-%d")
+        used_gb = (
+            info_data.get("upload", 0) + info_data.get("download", 0)
+        ) / 1073741824
+        total_gb = info_data.get("total", 0) / 1073741824
+        if ts := info_data.get("expire"):
+            expire_str = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
     else:
-        # Fallback to scraped data
         if total_gb_param:
             total_gb = float(total_gb_param)
             if extracted_remain is not None:
                 used_gb = total_gb - extracted_remain
             elif extracted_used is not None:
                 used_gb = extracted_used
-
-            # If we only found "Remaining", and user provided Total, we derive Used
-
         if extracted_expire:
             expire_str = extracted_expire
 
-    # Construct Status Line if we have at least Total or Expire info
-    # STATUS=🚀↑:0GB,↓:12.3GB,TOT:50GB💡Expires:2026-04-06
-    # Note: We don't distinguish Up/Down in scrape mode, so we put all in Down
-
     if total_gb > 0 or expire_str != "Unknown":
-        # Construct
-        status_line = f"STATUS=🚀↑:0GB,↓:{used_gb:.2f}GB,TOT:{total_gb:.2f}GB💡Expires:{expire_str}"
-        # Use plain text as requested by user
-        processed_urls.insert(0, status_line)
+        status = f"STATUS=🚀↑:0GB,↓:{used_gb:.2f}GB,TOT:{total_gb:.2f}GB💡Expires:{expire_str}"
+        processed_urls.insert(0, status)
 
 
 @app.get("/cleaner", response_class=PlainTextResponse)
@@ -418,122 +628,24 @@ async def cleaner(
 
     logger.info(f"Fetching subscription from: {target_url}")
 
-    resp = None
-    last_exception = None
-
-    # DoH Resolution logic
+    # --- DoH pre-resolution ---
     parsed_url = urlparse(target_url)
-    resolved_ip = None
     hostname = parsed_url.hostname
-
+    resolved_ip: str | None = None
     if DOH_URL and hostname:
-        # Simple check if host is IP
         try:
-            ipaddress.ip_address(hostname)
+            ipaddress.ip_address(hostname)  # raises if not already an IP
         except ValueError:
-            # Hostname is not an IP, try DoH
-            # logger.info(f"Resolving {hostname} via DoH...")
             resolved_ip = await resolve_doh(hostname, DOH_URL)
             if resolved_ip:
-                logger.info(f"Resolved {hostname} to {resolved_ip}")
+                logger.info(f"Resolved {hostname} → {resolved_ip}")
 
-    # Retry loop: 3 attempts total
-    # Each attempt tries Direct first, then Proxy.
-    for attempt in range(3):
-        try:
-            # Direct Access Attempt
-            if resolved_ip and hostname:
-                # Use CustomSNITransport to perform DoH-based direct access
-                transport = CustomSNITransport(sni=hostname)
-
-                # Reconstruct URL with IP
-                # We need to preserve path, query, scheme, port, etc.
-                # Just replace netloc with resolved_ip:port
-                netloc = resolved_ip
-                if parsed_url.port:
-                    netloc += f":{parsed_url.port}"
-
-                direct_url = parsed_url._replace(netloc=netloc).geturl()
-
-                async with httpx.AsyncClient(
-                    transport=transport,
-                    headers={**HEADERS, "Host": hostname},
-                    timeout=3.0,
-                    follow_redirects=True,
-                    verify=True,  # Explicitly verify SSL
-                ) as client:
-                    try:
-                        resp = await client.get(direct_url)
-                    except (
-                        httpx.TimeoutException,
-                        httpx.ConnectError,
-                        httpx.ReadTimeout,
-                        httpx.ConnectTimeout,
-                    ) as e:
-                        logger.warning(
-                            f"Direct connection (DoH) failed (attempt {attempt+1}/3): {e}, trying proxy..."
-                        )
-                        # Fallback to local proxy below
-                        raise e
-            else:
-                # Standard Direct Access
-                async with httpx.AsyncClient(
-                    headers=HEADERS, timeout=3.0, follow_redirects=True
-                ) as client:
-                    try:
-                        resp = await client.get(target_url)
-                    except (
-                        httpx.TimeoutException,
-                        httpx.ConnectError,
-                        httpx.ReadTimeout,
-                        httpx.ConnectTimeout,
-                    ) as e:
-                        # Fallback to local proxy below
-                        raise e
-
-        # Catch specific httpx exclusions to trigger proxy fallback
-        except (
-            httpx.TimeoutException,
-            httpx.ConnectError,
-            httpx.ReadTimeout,
-            httpx.ConnectTimeout,
-        ):
-            # Proxy Access Attempt (Fallback)
-            try:
-                async with httpx.AsyncClient(
-                    headers=HEADERS,
-                    proxy=PROXY_URL,
-                    timeout=10.0,
-                    follow_redirects=True,
-                ) as proxy_client:
-                    resp = await proxy_client.get(target_url)
-            except Exception as e:
-                logger.warning(f"Proxy connection failed (attempt {attempt+1}/3): {e}")
-                last_exception = e
-
-        except Exception as e:
-            logger.warning(f"Attempt {attempt+1}/3 failed completely: {e}")
-            last_exception = e
-
-        # Check if we got a valid response
-        if resp is not None:
-            break
-
-        # Retry logic
-        if attempt < 2:
-            await asyncio.sleep(1)
-
-    if resp is None:
-        if last_exception:
-            logger.error(f"All retries failed. Last error: {last_exception}")
-            raise HTTPException(status_code=500, detail=str(last_exception))
-        else:
-            raise HTTPException(status_code=500, detail="Unknown failure")
+    resp = await _fetch_with_retry(target_url, resolved_ip, hostname)
 
     try:
         resp.raise_for_status()
 
-        if resp.text.startswith("vmess://"):
+        if resp.text.startswith(_PLAIN_PREFIXES):
             text_content = resp.text
         else:
             text_content = robust_base64_decode(resp.content)
@@ -547,13 +659,14 @@ async def cleaner(
                 continue
 
             try:
-                line = line.strip()
                 if line.startswith("ss://"):
                     line = process_ss_url(line)
                 elif line.startswith("trojan://"):
                     line = process_trojan_url(line)
                 elif line.startswith("vmess://"):
                     line = process_vmess_url(line)
+                elif line.startswith("vless://"):
+                    line = process_vless_url(line)
                 elif line.startswith("STATUS="):
                     line = normalize_status_line(line)
 
@@ -630,10 +743,7 @@ async def helper(
 
 
 if __name__ == "__main__":
-    import uvicorn
-    import argparse
-
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="pooper-scooper subscription cleaner")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument(
