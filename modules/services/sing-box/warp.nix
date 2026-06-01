@@ -10,6 +10,12 @@ in
 {
   options.infra.sing-box.warp = {
     enable = lib.mkEnableOption "enable warp container";
+
+    port = lib.mkOption {
+      type = lib.types.port;
+      default = 1080;
+      description = "Port the warp container's Shadowsocks inbound listens on.";
+    };
   };
 
   config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
@@ -24,8 +30,8 @@ in
       autoStart = true;
 
       ports = [
-        "127.0.0.1:1080:1080/tcp"
-        "127.0.0.1:1080:1080/udp"
+        "127.0.0.1:${toString cfg.port}:1080/tcp"
+        "127.0.0.1:${toString cfg.port}:1080/udp"
       ];
 
       extraOptions = [
@@ -36,5 +42,16 @@ in
         "--sysctl=net.ipv6.conf.all.disable_ipv6=0"
       ];
     };
+
+    # Shadowsocks outbound to the warp container's sing-box SS inbound.
+    infra.sing-box.settings.outbounds = lib.mkAfter [
+      {
+        type = "shadowsocks";
+        tag = "warp";
+        method = "none";
+        server = "127.0.0.1";
+        server_port = cfg.port;
+      }
+    ];
   };
 }

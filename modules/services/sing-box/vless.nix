@@ -4,11 +4,7 @@ let
 in
 {
   options.infra.sing-box.vless = {
-    enable = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "enable vless inbound";
-    };
+    enable = lib.mkEnableOption "vless inbound";
     tag = lib.mkOption {
       type = lib.types.str;
       default = "vls";
@@ -55,8 +51,8 @@ in
   config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
     assertions = [
       {
-        assertion = cfg.uuidPath != "" && cfg.privateKey != "" && cfg.shortIdPath != "";
-        message = "Error: vless is enable, but required field is missing";
+        assertion = cfg.enable -> (cfg.uuidPath != "" && cfg.privateKey != "" && cfg.shortIdPath != "");
+        message = "Error: vless is enabled, but a required field (uuidPath, privateKey, or shortIdPath) is missing";
       }
     ];
 

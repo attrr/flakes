@@ -18,18 +18,32 @@ in
     passwordPath = lib.mkOption {
       type = lib.types.str;
       default = "";
+      description = "Path to the file containing the Hysteria2 password.";
     };
     tlsKeyPath = lib.mkOption {
       type = lib.types.str;
       default = "";
+      description = "Path to the TLS private key file.";
     };
     tlsCertificatePath = lib.mkOption {
       type = lib.types.either lib.types.path lib.types.str;
       default = "";
+      description = "Path to the TLS certificate file.";
     };
     echKeyPath = lib.mkOption {
       type = lib.types.str;
       default = "";
+      description = "Path to the ECH (Encrypted Client Hello) key file.";
+    };
+    upMbps = lib.mkOption {
+      type = lib.types.int;
+      default = 100;
+      description = "Upload bandwidth limit in Mbps.";
+    };
+    downMbps = lib.mkOption {
+      type = lib.types.int;
+      default = 100;
+      description = "Download bandwidth limit in Mbps.";
     };
   };
 
@@ -69,8 +83,8 @@ in
         # ipv6 only
         listen = "::";
         listen_port = cfg.port;
-        up_mbps = 100;
-        down_mbps = 100;
+        up_mbps = cfg.upMbps;
+        down_mbps = cfg.downMbps;
         users = [
           {
             name = "whoami";
