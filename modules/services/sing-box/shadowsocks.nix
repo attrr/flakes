@@ -23,6 +23,7 @@ in
     passwordPath = lib.mkOption {
       type = lib.types.str;
       default = "";
+      description = "Path to the file containing the Shadowsocks password.";
     };
   };
 

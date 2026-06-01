@@ -5,7 +5,6 @@
 }:
 let
   cfg = config.infra.sing-box;
-  warp = cfg.warp;
 in
 {
   options.infra.sing-box = {
@@ -29,7 +28,7 @@ in
           "net.netfilter.nf_conntrack_max" = lib.mkForce 65536;
         };
       }
-      (lib.mkIf warp.enable {
+      (lib.mkIf cfg.warp.enable {
         systemd.services.podman-warp = {
           serviceConfig = {
             MemoryMax = "120M";
@@ -38,6 +37,15 @@ in
         };
         boot.kernel.sysctl = {
           "net.core.rmem_default" = lib.mkForce 262144;
+        };
+      })
+      (lib.mkIf cfg.usque.enable {
+        # usque is a lightweight Go binary — a soft cap is enough
+        systemd.services.usque = {
+          serviceConfig = {
+            MemoryMax = "64M";
+            MemoryHigh = "48M";
+          };
         };
       })
     ]

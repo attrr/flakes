@@ -14,6 +14,7 @@ in
     ./hysteria2.nix
     ./vless.nix
     ./warp.nix
+    ./usque.nix
     ./lowend.nix
   ];
 
@@ -22,10 +23,12 @@ in
     uid = lib.mkOption {
       type = lib.types.int;
       default = 992;
+      description = "UID for the sing-box system user (must match inside the container).";
     };
     gid = lib.mkOption {
       type = lib.types.int;
       default = 992;
+      description = "GID for the sing-box system group (must match inside the container).";
     };
     settings = lib.mkOption {
       type = lib.types.submodule {
@@ -64,8 +67,8 @@ in
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = cfg.shadowsocks.enable || cfg.hysteria2.enable;
-        message = "Error: one of shadowsocks or hysteria2 inbound has to be enabled";
+        assertion = cfg.shadowsocks.enable || cfg.hysteria2.enable || cfg.vless.enable;
+        message = "Error: at least one inbound (shadowsocks, hysteria2, or vless) must be enabled";
       }
     ];
 
@@ -78,17 +81,17 @@ in
       "net.core.somaxconn" = lib.mkDefault 4096;
       "net.ipv4.tcp_max_syn_backlog" = lib.mkDefault 4096;
       # quicken tcp conn recycle
-      "net.ipv4.tcp_fin_timeout" = 30;
-      "net.ipv4.tcp_keepalive_time" = 1800;
+      "net.ipv4.tcp_fin_timeout" = lib.mkDefault 30;
+      "net.ipv4.tcp_keepalive_time" = lib.mkDefault 1800;
       # conserve nf_conntrack
       "net.netfilter.nf_conntrack_max" = lib.mkDefault 1048576;
-      "net.netfilter.nf_conntrack_tcp_timeout_established" = 86400;
-      "net.netfilter.nf_conntrack_udp_timeout_stream" = 60;
-      "net.netfilter.nf_conntrack_tcp_timeout_time_wait" = 60;
-      "net.netfilter.nf_conntrack_tcp_timeout_fin_wait" = 60;
+      "net.netfilter.nf_conntrack_tcp_timeout_established" = lib.mkDefault 86400;
+      "net.netfilter.nf_conntrack_udp_timeout_stream" = lib.mkDefault 60;
+      "net.netfilter.nf_conntrack_tcp_timeout_time_wait" = lib.mkDefault 60;
+      "net.netfilter.nf_conntrack_tcp_timeout_fin_wait" = lib.mkDefault 60;
       # for quic-go
-      "net.core.rmem_max" = 16777216;
-      "net.core.wmem_max" = 16777216;
+      "net.core.rmem_max" = lib.mkDefault 16777216;
+      "net.core.wmem_max" = lib.mkDefault 16777216;
     };
 
     # default settings
@@ -111,13 +114,6 @@ in
           tag = "direct";
           domain_resolver = "local";
         }
-        {
-          type = "shadowsocks";
-          tag = "warp";
-          method = "none";
-          server = "127.0.0.1";
-          server_port = 1080;
-        }
       ];
       route = {
         rules = lib.mkBefore [
@@ -136,7 +132,7 @@ in
           }
           {
             port = [
-              # unenrypted mail
+              # unencrypted mail
               25
               # smb/netbios
               135
@@ -148,7 +144,7 @@ in
             action = "reject";
           }
         ];
-        final = if cfg.warp.enable then "warp" else "direct";
+        final = if (cfg.warp.enable || cfg.usque.enable) then "warp" else "direct";
       };
       log.level = lib.mkDefault "error";
     };
