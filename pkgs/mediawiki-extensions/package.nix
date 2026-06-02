@@ -56,24 +56,24 @@ in
 
   Cargo = mkMWExtensionGithub {
     name = "Cargo";
-    rev = "5f87d10602a2504c6a0e34c86a4955110b7ed49b"; # REL1_44 @ 2026-04-14
-    hash = "sha256-F1vPo9Tmb+D4AMU77CTm7w3jfJ8Ra2U0133XODWpEjI=";
+    rev = "7bee551c62f5b4dba57a65fe7413987bcd7c8fef"; # REL1_45
+    hash = "sha256-97r5AVkg/vZsgDmjHkKbOOLrlOQeN41Q6k+Oh4FONtU=";
   };
   CSS = mkMWExtensionGithub {
     name = "CSS";
-    rev = "0fbcf5e12c6472cda53b9947b68dfbce273fc4be"; # REL1_44 @ 2026-04-14
-    hash = "sha256-+Jjt5c1cEObQN9/s1ipPxviAfGeoq2vSHSjwzbiR5PI=";
+    rev = "b3019ffcf40a3d54c1e5e0ec9989139037114a2a"; # REL1_45
+    hash = "sha256-FxfgtmHI0ElXAdxMBF6B3Qn3/UqwRkF+uyoa/sFeesM=";
   };
   NoTitle = mkMWExtensionGithub {
     name = "NoTitle";
-    rev = "af73305d20a6c7708e6e749ef2ead2db342f3ea6"; # REL1_44 @ 2026-04-14
-    hash = "sha256-7DAFNTJWthas5n2haUEzKu/nNsEGuFbaFCgTHFg9UkQ=";
+    rev = "378edc1713e4ae5e427c979cbd465dcd4c946b78"; # REL1_45
+    hash = "sha256-N1oKT4Ywbg9uC1gMilGH+T3YyDIZCtiRzx3laU4N2kw=";
   };
 
   Popups = mkMWExtension {
     name = "Popups";
-    rev = "6d3dabed4ca0d4a29788feab9f61d4533a3ce6e1"; # REL1_44 @ 2026-04-15
-    sha256 = "sha256-RYE4OCp//hpJpYbWrWCOeIpfn7yASyNoFfdCaS5qEpQ=";
+    rev = "2464e75f87b7ad7e2bc46b94b30f99ade4da8e82"; # REL1_45
+    sha256 = "sha256-99fzbC0pA+GGyYYzKZB+IcT/kU0vJSkjZ8r1Xszm4SQ=";
   };
 
   Mermaid = fetchFromGitHub {
@@ -85,8 +85,8 @@ in
 
   MobileFrontend = mkMWExtension {
     name = "MobileFrontend";
-    rev = "9452affdab5703d6b2c2ce3a6575505a8d90bd62"; # REL1_44 @ 2026-04-14
-    sha256 = "sha256-GCgvM4y+uP+0IycKe+3hA3FZyY2/BLdT8Y7uI6EbJeA=";
+    rev = "ad2231f03b224633e8a2c82d689e61609b895dbb"; # REL1_45
+    sha256 = "sha256-hYT+5OzqX9K9ZJznJoTfM/1RuHlrLBmvAK+47iaznlc=";
   };
 
   # ── Skins ───────────────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ in
   MinervaNeue = mkMWExtension {
     name = "MinervaNeue";
     skin = true;
-    rev = "7ca7bf4076cb9151b37dbaf267b025a588386413"; # REL1_44 @ 2026-04-14
-    sha256 = "sha256-CgxQ7kWvtZ2s8HoBM/xY+0O+xmbb/WpsAsNObJc70JE=";
+    rev = "80632db20d84db602f35ca9c90d6a7f277ef11a8"; # REL1_45
+    sha256 = "sha256-7ticKolLNO0mozHWcfMkhAwenFHnyq9kd7Sf3FQBrJk=";
   };
 }

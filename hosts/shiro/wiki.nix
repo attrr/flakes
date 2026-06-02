@@ -208,7 +208,6 @@ in
       SyntaxHighlight_GeSHi = null;
 
       # ref
-      Interwiki = null;
       Cite = null;
       CiteThisPage = null;
 
