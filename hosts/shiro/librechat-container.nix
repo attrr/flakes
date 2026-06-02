@@ -7,9 +7,9 @@
 let
   librechat = ctx.services.librechat;
   images = {
-    api = "ghcr.io/danny-avila/librechat-dev-api:latest";
-    rag = "ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest";
-    mongo = "docker.io/library/mongo:8.0.17";
+    api = "registry.librechat.ai/danny-avila/librechat-dev-api:latest";
+    rag = "registry.librechat.ai/danny-avila/librechat-rag-api-dev-lite:latest";
+    mongo = "docker.io/library/mongo:8.0.20";
     meili = "docker.io/getmeili/meilisearch:v1.35.1";
     vector = "docker.io/pgvector/pgvector:0.8.0-pg15-trixie";
     litellm = "ghcr.io/berriai/litellm:main-stable";
@@ -79,6 +79,7 @@ in
           After = "librechat-pod.service";
         };
         Container = {
+          AutoUpdate = "registry";
           Pod = "librechat.pod";
           Image = images.meili;
           Volume = "librechat-meili:/meili_data:U";
@@ -99,6 +100,7 @@ in
           After = "librechat-pod.service";
         };
         Container = {
+          AutoUpdate = "registry";
           Pod = "librechat.pod";
           Image = images.vector;
           Volume = "librechat-pg:/var/lib/postgresql/data:U";
@@ -115,6 +117,7 @@ in
           After = "librechat-pod.service lc-vector.service";
         };
         Container = {
+          AutoUpdate = "registry";
           Pod = "librechat.pod";
           Image = images.rag;
           Volume = "/run/librechat:/run/librechat:ro,idmap";
@@ -137,6 +140,7 @@ in
           After = "librechat-pod.service";
         };
         Container = {
+          AutoUpdate = "registry";
           Pod = "librechat.pod";
           Image = images.mongo;
           Volume = "data-mongo:/data/db:U";
@@ -154,6 +158,7 @@ in
           After = "librechat-pod.service";
         };
         Container = {
+          AutoUpdate = "registry";
           Pod = "librechat.pod";
           Image = images.litellm;
           Volume = [
@@ -181,6 +186,7 @@ in
           After = "librechat-pod.service lc-mongodb.service lc-rag.service lc-litellm.service";
         };
         Container = {
+          AutoUpdate = "registry";
           Pod = "librechat.pod";
           Image = images.api;
           Volume = [
