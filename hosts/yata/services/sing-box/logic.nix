@@ -93,13 +93,6 @@ in
       ];
       rules = [
         {
-          action = "sniff";
-        }
-        {
-          protocol = "dns";
-          action = "hijack-dns";
-        }
-        {
           inbound = "hy2";
           outbound = "hy2-out";
         }
