@@ -242,15 +242,6 @@
 
       nixosModules = import ./modules;
 
-      checks =
-        let
-          system = "x86_64-linux";
-          pkgs = import nixpkgs { inherit system; };
-          tests = import ./tests/sing-box { inherit pkgs; };
-          deploy-tests = import ./tests/sing-box { inherit pkgs; };
-        in
-        {
-          ${system} = tests // deploy-tests;
-        };
+      checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
     };
 }
