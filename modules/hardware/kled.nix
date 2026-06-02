@@ -4,10 +4,10 @@
 }:
 {
   # For Hibernation
-  systemd.sleep.extraConfig = ''
-    HibernateDelaySec=1m
-    SuspendState=mem
-  '';
+  systemd.sleep.settings.Sleep = {
+    HibernateDelaySec = "1m";
+    SuspendState = "mem";
+  };
   boot.kernelParams = [
     "mem_sleep_default=deep"
     "i915.enable_guc=3"
