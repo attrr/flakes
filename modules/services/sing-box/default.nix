@@ -13,7 +13,7 @@ in
     ./shadowsocks.nix
     ./hysteria2.nix
     ./vless.nix
-    ./warp.nix
+    ./warp-svc.nix
     ./usque.nix
     ./lowend.nix
   ];
@@ -144,7 +144,7 @@ in
             action = "reject";
           }
         ];
-        final = if (cfg.warp.enable || cfg.usque.enable) then "warp" else "direct";
+        final = if (cfg.warp-svc.enable || cfg.usque.enable) then "warp" else "direct";
       };
       log.level = lib.mkDefault "error";
     };

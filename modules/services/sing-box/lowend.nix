@@ -28,7 +28,7 @@ in
           "net.netfilter.nf_conntrack_max" = lib.mkForce 65536;
         };
       }
-      (lib.mkIf cfg.warp.enable {
+      (lib.mkIf cfg.warp-svc.enable {
         systemd.services.podman-warp = {
           serviceConfig = {
             MemoryMax = "120M";
