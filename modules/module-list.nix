@@ -6,4 +6,5 @@
   ./services/sing-box
   ./services/pooper-scooper
   ./services/quadlet
+  ./services/tgu
 ]

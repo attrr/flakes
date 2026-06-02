@@ -15,6 +15,7 @@
     })
     "${self}/modules/profiles/server"
     "${self}/modules/ctx/proxy.nix"
+    ./tgu.nix
   ];
 
   nixpkgs.hostPlatform = "x86_64-linux";
