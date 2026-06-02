@@ -53,8 +53,6 @@ in
         type = "mixed";
         listen = "${wg.ipv4}";
         listen_port = 3080;
-        sniff = true;
-        sniff_override_destination = false;
       }
       {
         type = "direct";
@@ -62,10 +60,29 @@ in
         network = "udp";
         listen = "${wg.ipv4}";
         listen_port = 53;
-        override_address = "1.0.0.1";
-        override_port = 53;
       }
     ];
+    route = {
+      default_domain_resolver = {
+        server = "bootstrap";
+        rewrite_ttl = 60;
+      };
+      rules = lib.mkBefore [
+        {
+          action = "sniff";
+        }
+        {
+          protocol = "dns";
+          action = "hijack-dns";
+        }
+        {
+          action = "route-options";
+          inbound = "wg-dns";
+          override_address = "1.0.0.1";
+          override_port = 53;
+        }
+      ];
+    };
     outbounds = lib.mkOrder 100 [
       {
         tag = "direct";
