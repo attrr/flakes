@@ -5,10 +5,10 @@
   ...
 }:
 let
-  cfg = config.infra.sing-box.warp;
+  cfg = config.infra.sing-box.warp-svc;
 in
 {
-  options.infra.sing-box.warp = {
+  options.infra.sing-box.warp-svc = {
     enable = lib.mkEnableOption "enable warp container";
 
     port = lib.mkOption {

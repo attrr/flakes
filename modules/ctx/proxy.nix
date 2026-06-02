@@ -17,7 +17,7 @@ in
 
   infra.sing-box = {
     enable = lib.mkDefault true;
-    warp.enable = true;
+    usque.enable = lib.mkDefault true;
 
     shadowsocks = lib.mkIf shadowsocks.enable {
       enable = true;

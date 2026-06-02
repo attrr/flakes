@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.infra.sing-box.usque;
   socksAddr = "127.0.0.1";
@@ -18,8 +23,8 @@ in
   config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
     assertions = [
       {
-        assertion = !(config.infra.sing-box.warp.enable && cfg.enable);
-        message = "infra.sing-box.usque and infra.sing-box.warp cannot both be enabled.";
+        assertion = !(config.infra.sing-box.warp-svc.enable && cfg.enable);
+        message = "infra.sing-box.usque and infra.sing-box.warp-svc cannot both be enabled.";
       }
     ];
 
@@ -63,7 +68,7 @@ in
           fi
         '';
 
-        ExecStart = "${lib.getExe pkgs.usque} socks -b ${socksAddr} -p ${toString socksPort}";
+        ExecStart = "${lib.getExe pkgs.usque} socks -b ${socksAddr} -p ${toString socksPort} --always-reconnect";
 
         Restart = "on-failure";
         RestartSec = "5s";

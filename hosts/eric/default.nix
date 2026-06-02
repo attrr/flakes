@@ -28,6 +28,7 @@ in
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
     "${self}/modules/profiles/server"
+    "${self}/modules/ctx/proxy.nix"
     (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
       device = "/dev/sda";
       espSize = "500M";
