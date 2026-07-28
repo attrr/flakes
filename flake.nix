@@ -28,6 +28,10 @@
       url = "github:serokell/deploy-rs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    nixgl = {
+      url = "github:nix-community/nixGL";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     dotfiles = {
       url = "git+ssh://git@github.com/attrr/dotfiles.git";
       flake = false;
@@ -42,6 +46,7 @@
       sops-nix,
       home-manager,
       ctx,
+      nixgl,
       stage1-dd,
       deploy-rs,
       ...
@@ -79,7 +84,9 @@
               (
                 { ... }:
                 {
-                  nixpkgs.overlays = [ self.overlays.default ];
+                  nixpkgs.overlays = [
+                    self.overlays.default
+                  ];
                 }
               )
             ]
@@ -117,7 +124,10 @@
                 (
                   { ... }:
                   {
-                    nixpkgs.overlays = [ self.overlays.default ];
+                    nixpkgs.overlays = [
+                      self.overlays.default
+                      nixgl.overlay
+                    ];
                   }
                 )
               ]
