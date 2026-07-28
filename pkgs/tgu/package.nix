@@ -9,9 +9,9 @@ python3Packages.buildPythonApplication {
   version = "0.1.0";
   pyproject = true;
 
-  src = builtins.fetchGit {
+  src = fetchGit {
     url = "git+ssh://git@github.com/attrr/tgu.git";
-    rev = "d551fa554f9209ae421e3dcad06a03ebf9c5c06c";
+    rev = "0f11bf694f2dae09bbd9f62f44e0ae51e8756462";
   };
 
   build-system = with python3Packages; [
@@ -19,16 +19,20 @@ python3Packages.buildPythonApplication {
   ];
 
   propagatedBuildInputs = with python3Packages; [
+    rich
     httpx
+    socksio
     telethon
+    tenacity
     click
     pillow
+    imagehash
   ];
 
   makeWrapperArgs = [
     "--prefix PATH : ${lib.makeBinPath [ gallery-dl ]}"
   ];
 
-  pythonImportsCheck = [ "cli" ];
+  pythonImportsCheck = [ "tgu" ];
   meta.mainProgram = "tgu";
 }
