@@ -16,6 +16,7 @@ in
     ./warp-svc.nix
     ./usque.nix
     ./lowend.nix
+    ./route.nix
   ];
 
   options.infra.sing-box = {
@@ -115,37 +116,6 @@ in
           domain_resolver = "local";
         }
       ];
-      route = {
-        rules = lib.mkBefore [
-          {
-            inbound = cfg.inbounds;
-            action = "sniff";
-            timeout = "1s";
-          }
-          {
-            protocol = [ "bittorrent" ];
-            action = "reject";
-          }
-          {
-            ip_is_private = true;
-            action = "reject";
-          }
-          {
-            port = [
-              # unencrypted mail
-              25
-              # smb/netbios
-              135
-              137
-              138
-              139
-              445
-            ];
-            action = "reject";
-          }
-        ];
-        final = if (cfg.warp-svc.enable || cfg.usque.enable) then "warp" else "direct";
-      };
       log.level = lib.mkDefault "error";
     };
 
