@@ -24,16 +24,16 @@ in
     };
   };
 
-  systemd.services.caddy = {
-    requires = [
-      "sing-box.service"
-      "sys-devices-virtual-net-wg0.device"
-    ];
-    after = [
-      "sing-box.service"
-      "sys-devices-virtual-net-wg0.device"
-    ];
-  };
+  # systemd.services.caddy = {
+  #   requires = [
+  #     "sing-box.service"
+  #     "sys-devices-virtual-net-wg0.device"
+  #   ];
+  #   after = [
+  #     "sing-box.service"
+  #     "sys-devices-virtual-net-wg0.device"
+  #   ];
+  # };
   services.caddy =
     let
       listenAddrs = map (s: builtins.head (lib.splitString "/" s)) wg.addresses;
@@ -45,7 +45,6 @@ in
       enable = true;
       # to loadbalance
       virtualHosts."loadbalance.${ctx.metadata.fdqn}" = {
-        listenAddresses = listenAddrs;
         extraConfig = ''
           ${tlsConfig}
           reverse_proxy 127.0.0.1:9090
@@ -53,7 +52,6 @@ in
       };
       # to sing-box
       virtualHosts."sing-box.${ctx.metadata.fdqn}" = {
-        listenAddresses = listenAddrs;
         extraConfig = ''
           ${tlsConfig}
           reverse_proxy 127.0.0.1:9091
