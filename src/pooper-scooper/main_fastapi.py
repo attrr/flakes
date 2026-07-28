@@ -162,82 +162,85 @@ async def _fetch_with_retry(
     resolved_ip: str | None,
     hostname: str | None,
 ) -> httpx.Response:
-    """Fetch *target_url* with up to 3 attempts, falling back to a local proxy.
+    """Fetch *target_url* directly, then retry through a local proxy.
 
-    Per attempt:
+    The direct path is attempted once, via the DoH-resolved IP and
+    :class:`CustomSNITransport` when *resolved_ip* is available.  On a
+    transport failure, the request is retried up to three times through
+    :data:`PROXY_URL`, reusing the same proxy connection pool.
 
-    1. **Direct** — via DoH-resolved IP + :class:`CustomSNITransport` when
-       *resolved_ip* is available, or a plain direct request otherwise.
-    2. **Proxy fallback** — on network failure, retries through
-       :data:`PROXY_URL`.
-
-    Raises :class:`~fastapi.HTTPException` (500) when all attempts fail.
+    The proxy gets a longer read timeout because subscription generators
+    can take a while to produce their response.
     """
-    _NETWORK_ERRORS = (
-        httpx.TimeoutException,
-        httpx.ConnectError,
-        httpx.ReadTimeout,
-        httpx.ConnectTimeout,
+    direct_timeout = httpx.Timeout(
+        connect=3.0,
+        read=3.0,
+        write=3.0,
+        pool=3.0,
+    )
+    proxy_timeout = httpx.Timeout(
+        connect=10.0,
+        read=60.0,
+        write=10.0,
+        pool=10.0,
     )
     parsed_url = urlparse(target_url)
+
+    try:
+        if resolved_ip and hostname:
+            # Connect to the DoH-resolved IP while preserving the original
+            # hostname for HTTP routing and TLS certificate verification.
+            netloc = resolved_ip
+            if parsed_url.port:
+                netloc += f":{parsed_url.port}"
+            direct_url = parsed_url._replace(netloc=netloc).geturl()
+            transport = CustomSNITransport(sni=hostname)
+            direct_headers = {**HEADERS, "Host": hostname}
+        else:
+            direct_url = target_url
+            transport = None
+            direct_headers = HEADERS
+
+        async with httpx.AsyncClient(
+            transport=transport,
+            headers=direct_headers,
+            timeout=direct_timeout,
+            follow_redirects=True,
+            verify=True,
+        ) as client:
+            return await client.get(direct_url)
+    except httpx.TransportError as e:
+        logger.warning(
+            "Direct fetch failed (%s): %s; trying proxy…",
+            type(e).__name__,
+            str(e) or "<no details>",
+        )
+
     last_exception: Exception | None = None
-    resp: httpx.Response | None = None
-
-    for attempt in range(3):
-        try:
-            if resolved_ip and hostname:
-                # Direct via DoH-resolved IP, preserving SNI for TLS verification.
-                netloc = resolved_ip
-                if parsed_url.port:
-                    netloc += f":{parsed_url.port}"
-                direct_url = parsed_url._replace(netloc=netloc).geturl()
-                async with httpx.AsyncClient(
-                    transport=CustomSNITransport(sni=hostname),
-                    headers={**HEADERS, "Host": hostname},
-                    timeout=3.0,
-                    follow_redirects=True,
-                    verify=True,
-                ) as client:
-                    try:
-                        resp = await client.get(direct_url)
-                    except _NETWORK_ERRORS as e:
-                        logger.warning(
-                            f"Direct (DoH) failed (attempt {attempt + 1}/3): {e}, trying proxy…"
-                        )
-                        raise
-            else:
-                async with httpx.AsyncClient(
-                    headers=HEADERS, timeout=3.0, follow_redirects=True
-                ) as client:
-                    resp = await client.get(target_url)
-
-        except _NETWORK_ERRORS:
+    async with httpx.AsyncClient(
+        headers=HEADERS,
+        proxy=PROXY_URL,
+        timeout=proxy_timeout,
+        follow_redirects=True,
+    ) as proxy_client:
+        for attempt in range(3):
             try:
-                async with httpx.AsyncClient(
-                    headers=HEADERS,
-                    proxy=PROXY_URL,
-                    timeout=10.0,
-                    follow_redirects=True,
-                ) as proxy_client:
-                    resp = await proxy_client.get(target_url)
+                return await proxy_client.get(target_url)
             except Exception as e:
-                logger.warning(f"Proxy fallback failed (attempt {attempt + 1}/3): {e}")
                 last_exception = e
+                logger.warning(
+                    "Proxy fallback failed (attempt %d/3, %s): %s",
+                    attempt + 1,
+                    type(e).__name__,
+                    str(e) or "<no details>",
+                )
+                if attempt < 2:
+                    await asyncio.sleep(1)
 
-        except Exception as e:
-            logger.warning(f"Attempt {attempt + 1}/3 failed: {e}")
-            last_exception = e
-
-        if resp is not None:
-            return resp
-
-        if attempt < 2:
-            await asyncio.sleep(1)
-
-    if last_exception:
-        logger.error(f"All retries exhausted. Last error: {last_exception}")
-        raise HTTPException(status_code=500, detail=str(last_exception))
-    raise HTTPException(status_code=500, detail="Unknown fetch failure")
+    assert last_exception is not None
+    error_detail = f"{type(last_exception).__name__}: {last_exception}"
+    logger.error("All proxy retries exhausted. Last error: %s", error_detail)
+    raise HTTPException(status_code=500, detail=error_detail)
 
 
 def process_ss_url(url: str) -> str:
@@ -309,7 +312,7 @@ def process_vless_url(url: str) -> str:
                     _flow, uuid = userinfo.split(":", 1)
                 else:
                     uuid = userinfo
-                logger.info(
+                logger.debug(
                     f"vless: decoded base64 userinfo → uuid={uuid[:8]}… host={hostport}"
                 )
                 # Rebuild a clean URL and re-parse
@@ -333,7 +336,7 @@ def process_vless_url(url: str) -> str:
     # Fix 2: headerType not supported on TCP transport
     transport = qs.get("type", ["tcp"])[0].lower()
     if transport == "tcp" and "headerType" in qs:
-        logger.info("vless: removing unsupported 'headerType' from TCP transport")
+        logger.debug("vless: removing unsupported 'headerType' from TCP transport")
         qs.pop("headerType")
         changed = True
 
@@ -341,7 +344,7 @@ def process_vless_url(url: str) -> str:
     # Some airport generators put the node name in ?remark= instead of #fragment.
     if not fragment and "remark" in qs:
         fragment = qs.pop("remark")[0]
-        logger.info(f"vless: promoted 'remark' param to fragment: {fragment}")
+        logger.debug(f"vless: promoted 'remark' param to fragment: {fragment}")
         changed = True
 
     # Fix 4: Reality param normalization
@@ -361,7 +364,7 @@ def process_vless_url(url: str) -> str:
         # Strip params that conflict with or are meaningless for Reality
         for junk in ("xtls", "tls", "alterId", "tfo"):
             if junk in qs:
-                logger.info(f"vless: stripping junk Reality param '{junk}'")
+                logger.debug(f"vless: stripping junk Reality param '{junk}'")
                 qs.pop(junk)
                 changed = True
 
