@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  utils,
   ...
 }:
 
@@ -49,11 +50,35 @@ in
         }
       '';
     };
+
+    gallery-dl = {
+      configFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a custom gallery-dl config file.
+          If set, it will be copied to /var/lib/tgu/.config/gallery-dl/config.json.
+        '';
+      };
+
+      settings = lib.mkOption {
+        type = lib.types.submodule {
+          freeformType = settingsFormat.type;
+        };
+        default = { };
+        description = ''
+          Declarative configuration for gallery-dl.
+          If set, the module will generate and place the configuration at
+          /var/lib/tgu/.config/gallery-dl/config.json.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
     users.users.tgu = {
       isSystemUser = true;
+      home = "/var/lib/tgu";
       group = "tgu";
     };
     users.groups.tgu = { };
@@ -62,6 +87,20 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
+
+      preStart = ''
+        mkdir -p /var/lib/tgu/.config/gallery-dl
+        ${lib.optionalString (cfg."gallery-dl".configFile != null) ''
+          cp -f ${cfg."gallery-dl".configFile} /var/lib/tgu/.config/gallery-dl/config.json
+          chmod 600 /var/lib/tgu/.config/gallery-dl/config.json
+        ''}
+        ${lib.optionalString (cfg."gallery-dl".settings != { }) ''
+          ${utils.genJqSecretsReplacementSnippet cfg."gallery-dl".settings
+            "/var/lib/tgu/.config/gallery-dl/config.json"
+          }
+          chmod 600 /var/lib/tgu/.config/gallery-dl/config.json
+        ''}
+      '';
 
       serviceConfig = {
         ExecStart = "${cfg.package}/bin/tgu --config ${settingsFormat.generate "tgu-config.json" cfg.settings} daemon";
