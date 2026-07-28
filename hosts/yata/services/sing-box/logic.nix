@@ -113,19 +113,25 @@ in
           outbound = "direct";
         }
         {
+          ip_is_private = true;
+          outbound = "direct";
+        }
+        {
           # fixed-ip/direct for VPN restricted trackers
           domain_suffix = [
+            "myanonamouse.net"
             "animebytes.tv"
             "gazellegames.net"
           ];
           outbound = "trackers";
         }
         {
+          domain_regex = [
+            ".+\\.tb-cdn\\..+"
+          ];
           domain_suffix = [
             "real-debrid.com"
             "torbox.app"
-            "tb-cdn.st"
-            "tb-cdn.pw"
             "strem.fun"
           ];
           outbound = "direct";

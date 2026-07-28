@@ -99,6 +99,7 @@ in
         type = "wireguard";
         tag = "wg";
         system = true;
+        mtu = 1420;
         address = wg.addresses;
         private_key._secret = wg.private-key.path;
         listen_port = 51820;
