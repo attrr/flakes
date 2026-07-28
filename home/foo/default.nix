@@ -22,13 +22,13 @@
         ELECTRON_OZONE_PLATFORM_HINT = "auto";
       };
       home.packages = with pkgs; [
-        antigravity
         xournalpp
         krita
       ];
     })
     (lib.mkIf (host == "fedora") {
       home.packages = with pkgs; [
+        nixgl.nixGLIntel
         nix
         sops
         nixos-rebuild
@@ -73,6 +73,7 @@
         autossh
         rclone-ssh
         google-cloud-sdk
+        hydrus
       ];
 
       programs.direnv.enable = true;
