@@ -19,7 +19,6 @@ in
     ./override.nix
   ];
 
-  nix.package = pkgs.lixPackageSets.stable.lix;
   nix.settings = {
     extra-experimental-features = [
       "nix-command"
