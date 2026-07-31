@@ -48,7 +48,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 app = FastAPI()
 
 #: HTTP headers sent when fetching upstream subscriptions.
-HEADERS: dict[str, str] = {"User-Agent": "ProxySubscriber/0.6.0 Shadowrocket/2070"}
+HEADERS: dict[str, str] = {"User-Agent": "Shadowrocket/3378"}
 #: Local HTTP proxy used as fallback when direct access fails.
 PROXY_URL: str = "http://127.0.0.1:2080"
 #: DNS-over-HTTPS resolver URL; populated at startup via ``--doh_url``.
