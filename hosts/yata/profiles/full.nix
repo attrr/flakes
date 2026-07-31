@@ -17,6 +17,8 @@
     "net.ipv4.tcp_tw_reuse" = 1;
     "net.core.rmem_max" = 16777216;
     "net.core.wmem_max" = 16777216;
+    "net.ipv4.conf.all.send_redirects" = 0;
+    "net.ipv4.conf.default.send_redirects" = 0;
   };
 
   local.sing-box.enable = true;

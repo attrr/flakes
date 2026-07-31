@@ -14,6 +14,7 @@ in
     ./main.nix
     ./outbounds.nix
     ./logic.nix
+    ./package.nix
   ];
 
   options.local.sing-box = {
