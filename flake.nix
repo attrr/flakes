@@ -17,10 +17,6 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    stage1-dd = {
-      url = "github:attrr/stage1-dd";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     deploy-rs = {
       url = "github:serokell/deploy-rs";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -43,7 +39,6 @@
       sops-nix,
       home-manager,
       nixgl,
-      stage1-dd,
       deploy-rs,
       ...
     }@inputs:
