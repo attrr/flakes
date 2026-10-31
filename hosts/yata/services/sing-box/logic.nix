@@ -57,6 +57,15 @@ in
         default = "out";
       }
       {
+        tag = "direct-ng";
+        type = "selector";
+        outbounds = [
+          "out-all"
+          "direct"
+        ];
+        default = "direct";
+      }
+      {
         tag = "hy2-out";
         type = "selector";
         outbounds = tags.hysteria2;
@@ -126,15 +135,48 @@ in
           outbound = "trackers";
         }
         {
+          # open-sourced mirrors
+          domain = [
+            "mirrors.tuna.tsinghua.edu.cn"
+            "mirrors.bfsu.edu.cn"
+            "mirrors.ustc.edu.cn"
+            "mirrors.nju.edu.cn"
+            "mirror.sjtu.edu.cn"
+            "mirrors.sjtug.sjtu.edu.cn"
+            "mirrors.zju.edu.cn"
+            "mirrors.pku.edu.cn"
+            "mirrors.hit.edu.cn"
+            "mirrors.bit.edu.cn"
+            "mirrors.lzu.edu.cn"
+            "mirrors.cqu.edu.cn"
+            "mirrors.jlu.edu.cn"
+            "mirrors.cernet.edu.cn"
+            "mirrors.aliyun.com"
+            "mirrors.cloud.tencent.com"
+            "mirrors.huaweicloud.com"
+            "mirrors.163.com"
+            "mirrors.volces.com"
+          ];
+          domain_suffix = [
+            "mirrorz.org"
+          ];
+          outbound = "direct";
+        }
+        {
+          domain_suffix = [
+            "strem.fun"
+          ];
+          outbound = "direct";
+        }
+        {
           domain_regex = [
             ".+\\.tb-cdn\\..+"
           ];
           domain_suffix = [
             "real-debrid.com"
             "torbox.app"
-            "strem.fun"
           ];
-          outbound = "direct";
+          outbound = "direct-ng";
         }
         {
           # high volume traffic
