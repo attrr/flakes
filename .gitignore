@@ -4,6 +4,7 @@
 !*/
 
 Makefile
+*.raw
 # Ignore tempdir
 **/dist
 **/build

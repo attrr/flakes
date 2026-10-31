@@ -33,6 +33,7 @@
     "console=ttyS0,115200n8"
     "earlyprintk=ttyS0,115200"
     "rd.systemd.show_status=auto"
+    "tpm_tis.force=1"
   ];
   systemd.services."serial-getty@ttyS0" = {
     enable = true;

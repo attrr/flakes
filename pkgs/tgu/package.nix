@@ -11,7 +11,7 @@ python3Packages.buildPythonApplication {
 
   src = fetchGit {
     url = "git+ssh://git@github.com/attrr/tgu.git";
-    rev = "0f11bf694f2dae09bbd9f62f44e0ae51e8756462";
+    rev = "1f737f8fffb8ff3c42a74a6561416791feba054b";
   };
 
   build-system = with python3Packages; [
@@ -19,6 +19,7 @@ python3Packages.buildPythonApplication {
   ];
 
   propagatedBuildInputs = with python3Packages; [
+    anyascii
     rich
     httpx
     socksio
@@ -26,6 +27,7 @@ python3Packages.buildPythonApplication {
     tenacity
     click
     pillow
+    pysocks
     imagehash
   ];
 
