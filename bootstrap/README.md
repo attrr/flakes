@@ -141,11 +141,13 @@ sops age key) and same tailscale node (so its tailscale IPs, and everything boun
 them, stay valid). These are scripts instead of derivations:
 
 ```sh
-nix run .#bootstrap.images.<name>   # writes ./main.raw
+nix run .#bootstrap.images.<name>   # writes ./<name>.qcow2
 ```
 
 They decrypt `ctx/hosts/<dir>/identity/*` with your admin age key into `$XDG_RUNTIME_DIR`,
 copy them into the image with disko's `--post-format-files`, and wipe them on exit.
+The raw image is built in a temp dir under `$PWD` and converted to a zstd-compressed qcow2
+(`qemu-img convert -O raw` gets a raw one back for `dd`).
 Only the encrypted files ever reach the nix store.
 
 | file in `identity/` | lands at |
@@ -153,7 +155,7 @@ Only the encrypted files ever reach the nix store.
 | `ssh_host_ed25519_key`, `.pub` | `/etc/ssh/` |
 | `tailscaled.state` | `/var/lib/tailscale/` |
 
-- The resulting `main.raw` holds private keys: keep it off shared storage.
+- The resulting qcow2 holds private keys (written mode 600): keep it off shared storage.
 - Never boot it while the original host is up; they will fight over IP and tailscale node.
 - Disable key expiry for the node in the tailscale admin console, or the saved state goes stale.
 - Capturing the identity from a live host (files are admin-only via `.sops.yaml`):
@@ -169,7 +171,8 @@ done
 ## Layout
 
 ```
-default.nix     outputs, mkRescue, shared kernel module list, identity images
+default.nix     outputs, mkRescue, shared kernel module list
+identity-image.nix  disko image script carrying a host identity
 rescue.nix      stage1: the rescue OS (sshd, console shells, tools, zram)
 ctx.nix         ctx -> rescue (keys, port, static addresses/gateways, MAC match)
 console.sh      systemd generator: a shell per console= tty

@@ -4,8 +4,8 @@
   same static IP, tailscale node, wg and sops identity. Never run both.
 
   To init:
-  - nix run .\#bootstrap.images.gateway   (writes ./main.raw, contains yata's private keys)
-  - boot main.raw as a VM with a bridged NIC on the LAN, after yata is down
+  - nix run .\#bootstrap.images.gateway   (writes ./gateway.qcow2, contains yata's private keys)
+  - boot it as a VM with a bridged NIC on the LAN, after yata is down
 */
 {
   imports = [
