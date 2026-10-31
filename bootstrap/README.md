@@ -6,7 +6,7 @@ Install-time artifacts. Nothing here is imported into `nixosConfigurations`.
 legacyPackages.<system>.bootstrap
 ├── rescue.default   generic rescue, DHCP, keys only via ssh_key= on the cmdline
 ├── rescue.<host>    rescue configured from ctx: port, static network, MAC, hostname
-├── images.<name>    flashable images
+├── images.<name>    flashable images, or scripts that write one into $PWD
 └── mkRescue         { modules, specialArgs, kernelPackages } -> rescue
 ```
 
@@ -134,10 +134,42 @@ nix build --impure --expr '(builtins.getFlake "git+file://'$PWD'")
   .legacyPackages.x86_64-linux.bootstrap.mkRescue { modules = [ { rescue.zram.enable = true; } ]; }'
 ```
 
+## Images with a host identity
+
+Some images must come up as an existing host: same ssh host key (which is also its
+sops age key) and same tailscale node (so its tailscale IPs, and everything bound to
+them, stay valid). These are scripts instead of derivations:
+
+```sh
+nix run .#bootstrap.images.<name>   # writes ./main.raw
+```
+
+They decrypt `ctx/hosts/<dir>/identity/*` with your admin age key into `$XDG_RUNTIME_DIR`,
+copy them into the image with disko's `--post-format-files`, and wipe them on exit.
+Only the encrypted files ever reach the nix store.
+
+| file in `identity/` | lands at |
+|---|---|
+| `ssh_host_ed25519_key`, `.pub` | `/etc/ssh/` |
+| `tailscaled.state` | `/var/lib/tailscale/` |
+
+- The resulting `main.raw` holds private keys: keep it off shared storage.
+- Never boot it while the original host is up; they will fight over IP and tailscale node.
+- Disable key expiry for the node in the tailscale admin console, or the saved state goes stale.
+- Capturing the identity from a live host (files are admin-only via `.sops.yaml`):
+
+```sh
+d=ctx/hosts/<dir>/identity; mkdir -p $d
+for f in /etc/ssh/ssh_host_ed25519_key{,.pub} /var/lib/tailscale/tailscaled.state; do
+  ssh <host> sudo cat $f | sops encrypt --input-type binary --output-type binary \
+    --filename-override $d/${f##*/} /dev/stdin > $d/${f##*/}
+done
+```
+
 ## Layout
 
 ```
-default.nix     outputs, mkRescue, shared kernel module list
+default.nix     outputs, mkRescue, shared kernel module list, identity images
 rescue.nix      stage1: the rescue OS (sshd, console shells, tools, zram)
 ctx.nix         ctx -> rescue (keys, port, static addresses/gateways, MAC match)
 console.sh      systemd generator: a shell per console= tty
