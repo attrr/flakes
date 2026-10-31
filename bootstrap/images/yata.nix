@@ -8,8 +8,8 @@
   imports = [
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
     "${self}/modules/shim/sops.nix"
-    ./hardware/arm.nix
-    ./profiles/base.nix
+    "${self}/hosts/yata/hardware/arm.nix"
+    "${self}/hosts/yata/profiles/base.nix"
   ];
 
   sdImage = {
