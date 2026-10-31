@@ -59,8 +59,9 @@ in
           { lib, ... }:
           {
             options.ctx = lib.mkOption {
-              type = lib.types.submodule {
-                imports = [ ./ctx/modules/perhost ];
+              type = lib.types.submoduleWith {
+                modules = [ ./ctx/modules/perhost ];
+                specialArgs.fn = import ./ctx/lib/default.nix { inherit lib; };
               };
               default = { };
             };
