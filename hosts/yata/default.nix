@@ -1,6 +1,6 @@
 /*
   To init:
-  - nix build .\#sdimages.$hostname
+  - nix build .\#bootstrap.images.$hostname
   - flash sdcard image:
   -> sudo dd if=result/sd-image/nixos-image-sd-card-*-aarch64-linux.img of=/dev/path-to-usb bs=4M status=progress
   - generate age keys from living system's ssh public key
