@@ -68,8 +68,10 @@ let
     in
     stage0.config.system.build.rescue;
 
-  hosts = lib.filterAttrs (_: c: c.metadata.arch == system) (
-    lib.mapAttrs (_: m: m._module.args.ctx) (removeAttrs ctx.nixosModules [ "default" ])
+  hosts = lib.filterAttrs (_: a: a.ctx.metadata.arch == system) (
+    lib.mapAttrs (_: m: { inherit (m._module.args) ctx global; }) (
+      removeAttrs ctx.nixosModules [ "default" ]
+    )
   );
 in
 {
@@ -79,9 +81,9 @@ in
     default = mkRescue { };
   }
   // lib.mapAttrs (
-    name: c:
+    name: args:
     mkRescue {
-      specialArgs.ctx = c;
+      specialArgs = args;
       modules = [ ./ctx.nix ] ++ lib.optional (builtins.pathExists ./hosts/${name}.nix) ./hosts/${name}.nix;
     }
   ) hosts;

@@ -1,6 +1,11 @@
-# ctx -> rescue: same keys/port as the host, and its static addresses so
-# hosts without DHCP (ipv6-only, static v4) are reachable right after boot.
-{ lib, ctx, ... }:
+# ctx -> rescue: global rescue-only keys, the host's port, and its static
+# addresses so hosts without DHCP (ipv6-only, static v4) are reachable right after boot.
+{
+  lib,
+  ctx,
+  global,
+  ...
+}:
 let
   net = ctx.network;
   has = stack: net.${stack}.cidr != [ ];
@@ -10,7 +15,11 @@ in
 
   rescue.ssh = {
     port = lib.head ctx.ssh.ports;
-    authorizedKeys = ctx.ssh.auth-keys;
+    authorizedKeys =
+      if global.rescue-keys != [ ] then
+        global.rescue-keys
+      else
+        throw "ctx: global.rescue-keys is empty, add a key in ctx/common/default.nix";
   };
 
   boot.initrd.systemd.network.networks."10-ctx" = lib.mkIf (has "ipv4" || has "ipv6") {
