@@ -71,8 +71,8 @@ in
 
       network.enable = true;
       network.networks."99-eth-all" = {
-        matchConfig.Name = "en* eth*";
-        networkConfig.DHCP = "yes";
+        matchConfig.Name = lib.mkDefault "en* eth*";
+        networkConfig.DHCP = lib.mkDefault "yes";
       };
 
       initrdBin =
