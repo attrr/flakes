@@ -15,7 +15,6 @@
       ms-pyright.pyright
       redhat.vscode-yaml
       golang.go
-      Google.gemini-cli-vscode-ide-companion
       mkhl.direnv
       anthropic.claude-code
     ];
@@ -43,15 +42,15 @@
 
   home.packages =
     (with pkgsUnstable; [
-      gemini-cli
       codex
       claude-code
       opencode
       opencode-desktop
+      antigravity-cli
+      antigravity-hub
+      antigravity-acp
     ])
     ++ (with pkgs; [
-      antigravity-hub
-      antigravity-ide
       nixfmt
       nixd
       prettier
@@ -64,12 +63,16 @@
   xdg.configFile."Antigravity IDE/User/settings.json".source =
     config.lib.file.mkOutOfStoreSymlink "${config.xdg.configHome}/Code/User/settings.json";
 
-  allowUnfree.packages = with pkgs; [
-    claude-code
-    antigravity-hub
-    antigravity-ide
-    vscode
-    vscode-extensions.ms-python.vscode-pylance
-    vscode-extensions.anthropic.claude-code
-  ];
+  allowUnfree.packages =
+    (with pkgsUnstable; [
+      claude-code
+      antigravity-cli
+      antigravity-hub
+      antigravity-acp
+    ])
+    ++ (with pkgs; [
+      vscode
+      vscode-extensions.ms-python.vscode-pylance
+      vscode-extensions.anthropic.claude-code
+    ]);
 }

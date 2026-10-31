@@ -53,6 +53,7 @@
       allowUnfree = {
         enable = true;
         packages = [
+          pkgs.google-chrome
         ];
       };
       home.packages = with pkgs; [
@@ -74,6 +75,7 @@
         rclone-ssh
         google-cloud-sdk
         hydrus
+        google-chrome
       ];
 
       programs.direnv.enable = true;
