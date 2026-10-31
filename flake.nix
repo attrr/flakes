@@ -231,16 +231,14 @@
           directory = ./pkgs;
         }
         // {
-          sdimages.yata =
-            (nixpkgs.lib.nixosSystem {
-              system = "aarch64-linux";
-              modules = [
-                ./hosts/yata/init.nix
-                ctx.nixosModules.yata
-                self.nixosModules.default
-              ];
-              specialArgs = { inherit self; };
-            }).config.system.build.sdImage;
+          bootstrap = import ./bootstrap {
+            inherit
+              nixpkgs
+              self
+              ctx
+              system
+              ;
+          };
         }
       );
 

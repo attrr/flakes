@@ -11,3 +11,4 @@ When writing or modifying code in this repository, rigidly adhere to the followi
 - **`modules/*` (except `ctx`)**: Contains pure NixOS modules. Code here MUST NOT reference `ctx`. It should only define standard `lib.mkOption` blocks and consume `config.*` for generic server configuration.
 - **`lib/*`**: Contains pure Nix functions. These functions should only depend on `lib` and not system configuration or context.
 - **`pkgs/`**: Contains custom derivations and software packages built from source via `callPackage`.
+- **`bootstrap/`**: Install-time artifacts only (`legacyPackages.<system>.bootstrap`): the RAM rescue initrd (`rescue.<host>`, configured from `ctx` via `bootstrap/ctx.nix`, per-host tweaks in `bootstrap/hosts/<host>.nix`) and flashable images (`images.<name>`). Never import anything from here into `nixosConfigurations`.
