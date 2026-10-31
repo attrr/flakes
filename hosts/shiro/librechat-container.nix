@@ -25,9 +25,12 @@ let
           // cfg;
         })
         {
+          # FIXME: litellm <=1.87 only detects gemini 3+ via "gemini-3" substring,
+          # so reasoning_effort gets mapped to thinkingBudget; rely on the default (high)
+          "gemini-4-argon" = { };
           "gemini-3.1-pro-preview".reasoning_effort = "high";
-          "gemini-3-flash-preview".reasoning_effort = "medium";
-          "gemini-3.1-flash-lite-preview".reasoning_effort = "medium";
+          "gemini-3.8-flash".reasoning_effort = "medium";
+          "gemini-3.5-flash-lite".reasoning_effort = "medium";
           "gemini-2.5-pro".reasoning_effort = "high";
           "gemini-2.5-flash".reasoning_effort = "medium";
           "gemini-2.5-flash-lite" = { };

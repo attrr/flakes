@@ -42,6 +42,10 @@ in
       "d /var/lib/loadbalance 0750 root root -"
     ];
 
+    networking.firewall = {
+      allowedTCPPorts = [ 2088 ];
+    };
+
     containers.loadbalance = {
       autoStart = true;
       ephemeral = true;
