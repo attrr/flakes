@@ -2,6 +2,7 @@
   description = "NixOS Declarative Configuration";
 
   inputs = {
+    self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     home-manager = {
@@ -14,10 +15,6 @@
     };
     sops-nix = {
       url = "github:Mic92/sops-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    ctx = {
-      url = "git+ssh://git@github.com/attrr/ctx.git";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     stage1-dd = {
@@ -45,13 +42,15 @@
       disko,
       sops-nix,
       home-manager,
-      ctx,
       nixgl,
       stage1-dd,
       deploy-rs,
       ...
     }@inputs:
     let
+      # private submodule
+      ctx = (import ./ctx/flake.nix).outputs { inherit nixpkgs; };
+
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"

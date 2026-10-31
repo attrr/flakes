@@ -60,7 +60,7 @@ in
           {
             options.ctx = lib.mkOption {
               type = lib.types.submodule {
-                imports = [ flake.inputs.ctx.nixosModules.default ];
+                imports = [ ./ctx/modules/perhost ];
               };
               default = { };
             };
