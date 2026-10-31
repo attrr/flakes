@@ -106,6 +106,27 @@ for the rescue initrd:
 
 Options: `rescue.ssh.{port,authorizedKeys,hostKeys}`, `rescue.zram.{enable,size}`, `rescue.extraPackages`.
 
+Everything derived from ctx is `mkDefault`, so plain assignments win. Networks:
+
+| file | source |
+|---|---|
+| `10-*` .. `49-*` | yours, matched before ctx |
+| `50-ctx` | ctx static addresses/gateways (only if ctx has any) |
+| `99-eth-all` | DHCP on `en* eth*` |
+
+```nix
+{
+  # tweak the ctx network
+  boot.initrd.systemd.network.networks."50-ctx".networkConfig.DHCP = "yes";
+  # or replace it for this NIC
+  boot.initrd.systemd.network.networks."10-uplink" = {
+    matchConfig.Name = "ens18";
+    address = [ "192.0.2.10/24" ];
+    routes = [ { Gateway = "192.0.2.1"; } ];
+  };
+}
+```
+
 One-off build without a file:
 
 ```sh
