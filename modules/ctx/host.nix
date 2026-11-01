@@ -1,6 +1,19 @@
 # What every host takes from its ctx entry. flake.nix (mkSystem) also picks
 # imports from it: profiles/<tag> + ./<tag>.nix per tag, ./providers/<provider>.nix.
-{ lib, ctx, ... }:
+{
+  lib,
+  config,
+  ctx,
+  ...
+}:
 {
   nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
+
+  # untrusted machines stay off the tailnet
+  assertions = [
+    {
+      assertion = ctx.metadata.group != "untrusted" || !config.services.tailscale.enable;
+      message = "${ctx.metadata.hostname} is in group untrusted, it must not run tailscale";
+    }
+  ];
 }
