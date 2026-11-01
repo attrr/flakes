@@ -1,17 +1,9 @@
-# put general purpose override for config here
 { lib, config, ... }:
 {
-  config = lib.mkMerge [
-    {
-      services.tailscale = lib.mkIf config.services.tailscale.enable {
-        openFirewall = true;
-        # disable firewall bypassing
-        extraSetFlags = [ "--netfilter-mode=nodivert" ];
-      };
-    }
-    # caddy bound to (tailscale) addresses fails while they don't exist yet;
-    # one listening everywhere doesn't need to wait
-    (lib.mkIf
+  # caddy bound to (tailscale) addresses fails while they don't exist yet;
+  # one listening everywhere doesn't need to wait
+  config =
+    lib.mkIf
       (
         config.services.caddy.enable
         && config.services.tailscale.enable
@@ -34,7 +26,5 @@
             StartLimitIntervalSec = lib.mkForce 60;
           };
         };
-      }
-    )
-  ];
+      };
 }
