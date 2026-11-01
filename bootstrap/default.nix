@@ -93,7 +93,7 @@ in
   ) hosts;
 
   # every config whose host has an ssh host key in ctx vars, as that host;
-  # gateway (yata's cold standby) included, so never run both at once
+  # <host>+<variant> configs included (same identity), so never run both at once
   images =
     let
       hostKey = cfg: ../ctx/vars + "/${cfg.config.networking.hostName}/ssh-host-key/ssh_host_ed25519_key";
@@ -108,8 +108,8 @@ in
         inherit name;
         nixos = cfg;
         vars = vars cfg;
-        # yata's cold standby runs as a VM, the rest get dd'ed from rescue
-        format = if name == "gateway" then "qcow2" else "raw.zst";
+        # <host>+vm configs run as VMs, the rest get dd'ed from rescue
+        format = if lib.hasSuffix "+vm" name then "qcow2" else "raw.zst";
       }
     ) disko
     // {
