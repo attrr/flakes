@@ -168,7 +168,7 @@
           system = "aarch64-linux";
           modules = [ sops-nix.nixosModules.sops ];
         };
-        gateway = {
+        "yata+vm" = {
           hostname = "yata";
           modules = [
             ./hosts/yata/default-vm.nix
@@ -194,17 +194,17 @@
           hostname = "yata";
           fastConnection = true;
         };
-        shiro.hostname = "shiro-gfw";
-        reisi.hostname = "reisi-gfw";
+        shiro.hostname = "shiro.";
+        reisi.hostname = "reisi.";
         iwa.hostname = "iwa";
         neko = {
           sshUser = "foo";
           hostname = "neko";
           fastConnection = true;
         };
-        kamo.hostname = "kamo-gfw";
-        koto.hostname = "koto-gfw";
-        ren.hostname = "ren-gfw";
+        kamo.hostname = "kamo.";
+        koto.hostname = "koto.";
+        ren.hostname = "ren.";
         eric.hostname = "eric";
         nerine.hostname = "nerine";
       };
