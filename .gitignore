@@ -4,7 +4,6 @@
 !*/
 
 Makefile
-*.raw
 # Ignore tempdir
 **/dist
 **/build
@@ -18,5 +17,10 @@ Makefile
 __pycache__/
 *.py[cod]
 
-# ignore unfinished migration
-dev
+# ignore disk files and potentially any zip files
+*.raw
+*.raw.zst
+*.raw.gz
+*.qcow2
+*.rar
+*.zip
