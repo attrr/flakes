@@ -27,22 +27,15 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
-    "${self}/modules/profiles/server"
-    "${self}/modules/ctx/proxy.nix"
     (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
       device = "/dev/sda";
       espSize = "500M";
     })
   ];
-
-  nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 
   core.server = {
-    inherit (ctx.metadata) hostname;
-    ssh-ports = ctx.ssh.ports;
-    ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
     serial = true;
     lowend.is = true;

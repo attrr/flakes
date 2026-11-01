@@ -1,5 +1,4 @@
 {
-  nixpkgs.hostPlatform = "aarch64-linux";
   boot.loader.grub.enable = false;
   boot.loader.generic-extlinux-compatible.enable = true;
   boot.kernelParams = [ "console=ttyS0,115200n8" ];

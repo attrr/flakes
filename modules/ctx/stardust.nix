@@ -11,16 +11,10 @@
       device = "/dev/vda";
       espSize = "500M";
     })
-    "${self}/modules/profiles/server"
   ];
-
-  nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
 
   core.server = {
-    inherit (ctx.metadata) hostname;
-    ssh-ports = ctx.ssh.ports;
-    ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
     serial = true;
     lowend.is = true;

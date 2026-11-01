@@ -67,14 +67,21 @@
           defaultPath = ./hosts + "/${n}/default.nix";
           modules = v.modules or [ ];
           hostname = v.hostname or n;
+          # what the host's ctx entry says it is
+          host = ctx.cluster.hosts.${hostname};
+          proxied = lib.any (s: host.services.${s}.enable) [
+            "shadowsocks"
+            "hysteria2"
+            "vless"
+          ];
         in
         lib.nixosSystem (
-          lib.recursiveUpdate (builtins.removeAttrs v [ "hostname" ]) {
-            system = v.system or "x86_64-linux";
+          lib.recursiveUpdate (removeAttrs v [ "hostname" ]) {
             modules = [
               self.nixosModules.default
               ctx.nixosModules.${hostname}
               ./lib/default.nix
+              ./modules/ctx/host.nix
               (
                 { ... }:
                 {
@@ -84,6 +91,11 @@
                 }
               )
             ]
+            ++ lib.optionals (lib.elem "server" host.metadata.tags) [
+              ./modules/profiles/server
+              ./modules/ctx/server.nix
+            ]
+            ++ lib.optional proxied ./modules/ctx/proxy.nix
             ++ modules
             ++ lib.optional (builtins.pathExists defaultPath) defaultPath;
             specialArgs = {
@@ -164,10 +176,7 @@
     in
     {
       nixosConfigurations = mkSystems {
-        yata = {
-          system = "aarch64-linux";
-          modules = [ sops-nix.nixosModules.sops ];
-        };
+        yata.modules = [ sops-nix.nixosModules.sops ];
         "yata+vm" = {
           hostname = "yata";
           modules = [

@@ -8,7 +8,6 @@
 }:
 {
   imports = [
-    "${self}/modules/profiles/server"
     ./services/sing-box
     ./services/loadbalance
     ./services/caddy.nix
@@ -36,12 +35,6 @@
       UseGateway = true;
       Token = "prefixstable";
     };
-  };
-
-  core.server = {
-    hostname = ctx.metadata.hostname;
-    ssh-ports = ctx.ssh.ports;
-    ssh-keys = ctx.ssh.auth-keys;
   };
 
   boot.kernel.sysctl = {
