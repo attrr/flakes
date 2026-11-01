@@ -29,7 +29,7 @@ in
   ];
 
   infra.disko = {
-    layout = "btrfs-subvol-deprecated";
+    layout = "btrfs-subvol";
     device = "/dev/sda";
     espSize = "500M";
   };
