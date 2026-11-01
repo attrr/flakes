@@ -195,8 +195,9 @@
           directory = ./pkgs;
         };
 
-      # nix run .#deploy -- <selector>... [-- <deploy-rs args>]: a selector is a
-      # host, a ctx group, tag or provider, or "all"
+      # nix run .#deploy -- [--checks] <selector>... [-- <deploy-rs args>]: a
+      # selector is a host, a ctx group, tag or provider, or "all". Skips the
+      # flake checks (every host's evaluation) unless --checks
       apps = forAllSystems (
         system:
         let
@@ -232,7 +233,13 @@
                   )
                 })
                 targets=()
+                checks=(--skip-checks)
                 while [ $# -gt 0 ] && [ "$1" != -- ]; do
+                  if [ "$1" = --checks ]; then
+                    checks=()
+                    shift
+                    continue
+                  fi
                   if [ -z "''${sel[$1]+x}" ]; then
                     echo "unknown selector '$1', one of: ''${!sel[*]}" >&2
                     exit 1
@@ -241,10 +248,12 @@
                   shift
                 done
                 [ "''${1:-}" = -- ] && shift
-                [ ''${#targets[@]} -gt 0 ] || { echo "usage: nix run .#deploy -- <selector>... [-- <deploy-rs args>]" >&2; exit 1; }
+                [ ''${#targets[@]} -gt 0 ] || { echo "usage: nix run .#deploy -- [--checks] <selector>... [-- <deploy-rs args>]" >&2; exit 1; }
                 mapfile -t targets < <(printf '%s\n' "''${targets[@]}" | sort -u)
                 echo "deploying: ''${targets[*]#.#}" >&2
-                exec ${deploy-rs.packages.${system}.default}/bin/deploy --targets "''${targets[@]}" "$@"
+                exec ${
+                  deploy-rs.packages.${system}.default
+                }/bin/deploy "''${checks[@]}" --targets "''${targets[@]}" "$@"
               ''
             );
           };
