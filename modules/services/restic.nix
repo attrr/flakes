@@ -38,6 +38,37 @@ in
       default = null;
     };
 
+    # prune needs the repo exclusively, so it runs once for every job here
+    # instead of after each backup, where the jobs would fight over the lock
+    maintenance = {
+      pruneOpts = lib.mkOption {
+        type = with lib.types; listOf str;
+        default = [
+          "--group-by host,paths,tags"
+          "--keep-last 5"
+          "--keep-hourly 24"
+          "--keep-daily 7"
+          "--keep-weekly 5"
+          "--keep-monthly 12"
+          "--keep-yearly 10"
+        ];
+        description = "restic forget --prune options, applied per host/paths/tags group";
+      };
+      checkOpts = lib.mkOption {
+        type = with lib.types; listOf str;
+        default = [ "--read-data-subset=5%" ];
+        description = "restic check options, run after the prune";
+      };
+      timerConfig = lib.mkOption {
+        type = with lib.types; attrsOf anything;
+        default = {
+          OnCalendar = "weekly";
+          RandomizedDelaySec = "2h";
+          Persistent = true;
+        };
+      };
+    };
+
     backups = lib.mkOption {
       default = { };
       type = lib.types.attrsOf (
@@ -49,20 +80,14 @@ in
               inherit repository;
               inherit (cfg) passwordFile environmentFile;
               initialize = lib.mkDefault true;
-              pruneOpts = lib.mkDefault [
-                "--group-by host,paths,tags"
-                "--tag ${name}"
-                "--keep-last 5"
-                "--keep-hourly 24"
-                "--keep-daily 7"
-                "--keep-weekly 5"
-                "--keep-monthly 12"
-                "--keep-yearly 10"
-              ];
               extraOptions = lib.mkDefault [
                 "s3.storage-class=ONEZONE_IA"
               ];
-              extraBackupArgs = lib.mkDefault [ "--tag ${name}" ];
+              # waits out the maintenance job instead of failing
+              extraBackupArgs = lib.mkDefault [
+                "--tag ${name}"
+                "--retry-lock 30m"
+              ];
               timerConfig = lib.mkDefault {
                 OnCalendar = "daily";
                 RandomizedDelaySec = "2h";
@@ -76,6 +101,15 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    services.restic.backups = cfg.backups;
+    services.restic.backups = cfg.backups // {
+      # no paths: only forget --prune and check
+      maintenance = {
+        inherit repository;
+        inherit (cfg) passwordFile environmentFile;
+        inherit (cfg.maintenance) timerConfig;
+        pruneOpts = cfg.maintenance.pruneOpts ++ [ "--retry-lock 2h" ];
+        checkOpts = cfg.maintenance.checkOpts ++ [ "--retry-lock 2h" ];
+      };
+    };
   };
 }
