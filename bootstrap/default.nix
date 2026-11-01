@@ -110,7 +110,7 @@ in
       gateway = identityImage {
         name = "gateway";
         nixos = self.nixosConfigurations.gateway;
-        identity = ../ctx/hosts/local/yata/identity;
+        vars = ../ctx/vars/yata;
       };
     };
 }

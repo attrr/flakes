@@ -1,20 +1,23 @@
 # A script that builds a nixos config's disko image as an existing host: its
-# ssh host key (= sops age key) and tailscale node, kept sops-encrypted (admin
-# only) in <identity>/, are decrypted to tmpfs and copied into the image.
+# ssh host key (= sops age key) and tailscale node, from the host's ctx vars
+# (<vars> = ctx/vars/<host>; secret files admin-only), are decrypted to tmpfs
+# and copied into the image.
 # Writes ./<name>.qcow2 (zstd compressed, mode 600: it holds private keys).
 { lib, pkgs }:
 {
   name,
   nixos,
-  identity,
+  vars,
 }:
 let
+  # <generator>/<file> -> where it lands; .pub files are public (plain) in vars
   targets = {
-    "ssh_host_ed25519_key" = "/etc/ssh/ssh_host_ed25519_key";
-    "ssh_host_ed25519_key.pub" = "/etc/ssh/ssh_host_ed25519_key.pub";
-    "tailscaled.state" = "/var/lib/tailscale/tailscaled.state";
+    "ssh-host-key/ssh_host_ed25519_key" = "/etc/ssh/ssh_host_ed25519_key";
+    "ssh-host-key/ssh_host_ed25519_key.pub" = "/etc/ssh/ssh_host_ed25519_key.pub";
+    "tailscale-state/tailscaled.state" = "/var/lib/tailscale/tailscaled.state";
   };
-  files = lib.filterAttrs (n: _: builtins.pathExists "${identity}/${n}") targets;
+  files = lib.filterAttrs (n: _: builtins.pathExists "${vars}/${n}") targets;
+  local = n: "$keys/${baseNameOf n}";
 in
 pkgs.writeShellApplication {
   name = "${name}-image";
@@ -30,16 +33,24 @@ pkgs.writeShellApplication {
     trap 'rm -rf "$keys" "$work"' EXIT
 
     umask 077
-    ${lib.concatMapStrings (n: ''
-      sops decrypt --input-type binary --output-type binary ${identity}/${n} > "$keys/${n}"
-      ${lib.optionalString (lib.hasSuffix ".pub" n) ''chmod 644 "$keys/${n}"''}
-    '') (lib.attrNames files)}
+    ${lib.concatMapStrings (
+      n:
+      if lib.hasSuffix ".pub" n then
+        ''
+          cp ${vars}/${n} "${local n}"
+          chmod 644 "${local n}"
+        ''
+      else
+        ''
+          sops decrypt --input-type binary --output-type binary ${vars}/${n} > "${local n}"
+        ''
+    ) (lib.attrNames files)}
 
     # disko copies without -p, so modes get masked again
     umask 022
     (cd "$work" && ${nixos.config.system.build.diskoImagesScript} ${
       lib.concatStringsSep " " (
-        lib.mapAttrsToList (n: dst: "--post-format-files \"$keys/${n}\" ${dst}") files
+        lib.mapAttrsToList (n: dst: "--post-format-files \"${local n}\" ${dst}") files
       )
     } "$@")
 
