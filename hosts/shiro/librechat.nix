@@ -61,15 +61,13 @@ in
     };
   };
 
-  infra.acme.certs."${librechat.domain}" = {
-    reloadServices = [ "caddy.service" ];
-  };
+  infra.acme.certs."${librechat.domain}" = { };
   services.caddy = {
     enable = true;
     virtualHosts."${librechat.domain}" = {
       listenAddresses = ctx.tailscale.ips;
+      useACMEHost = librechat.domain;
       extraConfig = ''
-        tls /var/lib/acme/${librechat.domain}/cert.pem /var/lib/acme/${librechat.domain}/key.pem
         reverse_proxy 127.0.0.1:3080 {
           flush_interval -1
 

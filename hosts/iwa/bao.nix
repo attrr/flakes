@@ -38,17 +38,15 @@ in
     };
   };
 
-  infra.acme.certs."${bao.domain}" = {
-    reloadServices = [ "caddy.service" ];
-  };
+  infra.acme.certs."${bao.domain}" = { };
 
   # Wire the Caddy service to wait for the socket and Tailscale
   services.caddy = {
     enable = true;
     virtualHosts."${bao.domain}" = {
       listenAddresses = ctx.tailscale.ips;
+      useACMEHost = bao.domain;
       extraConfig = ''
-        tls /var/lib/acme/${bao.domain}/cert.pem /var/lib/acme/${bao.domain}/key.pem
         reverse_proxy 127.0.0.1:8200
       '';
     };

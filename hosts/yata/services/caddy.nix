@@ -19,29 +19,27 @@ in
       extraLegoFlags = [
         "--dns.resolvers=${wg.ipv4}:53"
       ];
-      reloadServices = [ "caddy.service" ];
     };
   };
 
   services.caddy =
     let
-      tlsConfig = ''
-        tls /var/lib/acme/${ctx.metadata.fdqn}/cert.pem /var/lib/acme/${ctx.metadata.fdqn}/key.pem
-      '';
+      # the *.fdqn cert; useACMEHost orders caddy after it and reloads it on renewal
+      useACMEHost = ctx.metadata.fdqn;
     in
     {
       enable = true;
       # to loadbalance
       virtualHosts."loadbalance.${ctx.metadata.fdqn}" = {
+        inherit useACMEHost;
         extraConfig = ''
-          ${tlsConfig}
           reverse_proxy 127.0.0.1:9090
         '';
       };
       # to sing-box
       virtualHosts."sing-box.${ctx.metadata.fdqn}" = {
+        inherit useACMEHost;
         extraConfig = ''
-          ${tlsConfig}
           reverse_proxy 127.0.0.1:9091
         '';
       };
