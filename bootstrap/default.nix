@@ -1,7 +1,7 @@
 # Bootstrap artifacts, exposed as legacyPackages.<system>.bootstrap:
 #   rescue.default   generic rescue, keys only via ssh_key= on the cmdline
 #   rescue.<host>    rescue preconfigured from ctx (+ ./hosts/<host>.nix if present)
-#   images.<name>    flashable images, or scripts that write one into $PWD (./identity-image.nix)
+#   images.<name>    scripts that write <name>'s image into $PWD, as its host (./identity-image.nix)
 {
   nixpkgs,
   self,
@@ -92,25 +92,30 @@ in
     }
   ) hosts;
 
+  # every config whose host has an ssh host key in ctx vars, as that host;
+  # gateway (yata's cold standby) included, so never run both at once
   images =
-    lib.optionalAttrs (system == "aarch64-linux") {
-      yata =
-        (lib.nixosSystem {
-          system = "aarch64-linux";
-          modules = [
-            ./images/yata.nix
-            ctx.nixosModules.yata
-            self.nixosModules.default
-          ];
-          specialArgs = { inherit self; };
-        }).config.system.build.sdImage;
-    }
-    // lib.optionalAttrs (system == "x86_64-linux") {
-      # cold standby for yata: same identity, so never run both at once
-      gateway = identityImage {
-        name = "gateway";
-        nixos = self.nixosConfigurations.gateway;
-        vars = ../ctx/vars/yata;
+    let
+      hostKey = cfg: ../ctx/vars + "/${cfg.config.networking.hostName}/ssh-host-key/ssh_host_ed25519_key";
+      vars = cfg: ../ctx/vars + "/${cfg.config.networking.hostName}";
+      disko = lib.filterAttrs (
+        _: cfg: (cfg.config.disko.devices.disk or { }) != { } && builtins.pathExists (hostKey cfg)
+      ) self.nixosConfigurations;
+    in
+    lib.mapAttrs (
+      name: cfg:
+      identityImage.disko {
+        inherit name;
+        nixos = cfg;
+        vars = vars cfg;
+      }
+    ) disko
+    // {
+      # the Pi boots an sd image instead
+      yata = identityImage.sd {
+        name = "yata";
+        nixos = self.nixosConfigurations.yata.extendModules { modules = [ ./images/yata.nix ]; };
+        vars = vars self.nixosConfigurations.yata;
       };
     };
 }

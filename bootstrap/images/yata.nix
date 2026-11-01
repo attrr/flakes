@@ -1,16 +1,7 @@
+# The Pi's sd card, on top of nixosConfigurations.yata (bootstrap/default.nix)
+{ pkgs, modulesPath, ... }:
 {
-  pkgs,
-  self,
-  modulesPath,
-  ...
-}:
-{
-  imports = [
-    "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
-    "${self}/modules/shim/sops.nix"
-    "${self}/hosts/yata/hardware/arm.nix"
-    "${self}/hosts/yata/profiles/base.nix"
-  ];
+  imports = [ "${modulesPath}/installer/sd-card/sd-image-aarch64.nix" ];
 
   sdImage = {
     compressImage = false;
