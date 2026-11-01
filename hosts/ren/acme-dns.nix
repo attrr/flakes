@@ -16,7 +16,7 @@ in
         nsname = acme.ns-domain;
         nsadmin = acme.ns-admin;
         records = [
-          "${acme.ns-domain}. A  ${acme.address}"
+          "${acme.ns-domain}. AAAA ${acme.address}"
           "${acme.ns-domain}. NS ${acme.ns-domain}."
         ];
       };
