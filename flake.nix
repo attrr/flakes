@@ -195,6 +195,62 @@
           directory = ./pkgs;
         };
 
+      # nix run .#deploy -- <selector>... [-- <deploy-rs args>]: a selector is a
+      # host, a ctx group, tag or provider, or "all"
+      apps = forAllSystems (
+        system:
+        let
+          lib = nixpkgs.lib;
+          pkgs = nixpkgs.legacyPackages.${system};
+          selectors = lib.zipAttrsWith (_: lib.concatLists) (
+            [ { all = lib.attrNames hosts; } ]
+            ++ lib.mapAttrsToList (
+              name: h:
+              {
+                ${name} = [ name ];
+              }
+              // lib.genAttrs (
+                h.metadata.tags
+                ++ lib.filter (x: x != null) [
+                  h.metadata.group
+                  h.metadata.provider
+                ]
+              ) (_: [ name ])
+            ) hosts
+          );
+        in
+        {
+          deploy = {
+            type = "app";
+            program = toString (
+              pkgs.writeShellScript "deploy-selected" ''
+                declare -A sel=(${
+                  lib.concatStrings (
+                    lib.mapAttrsToList (
+                      n: hs: "[${lib.escapeShellArg n}]=${lib.escapeShellArg (toString (lib.unique hs))} "
+                    ) selectors
+                  )
+                })
+                targets=()
+                while [ $# -gt 0 ] && [ "$1" != -- ]; do
+                  if [ -z "''${sel[$1]+x}" ]; then
+                    echo "unknown selector '$1', one of: ''${!sel[*]}" >&2
+                    exit 1
+                  fi
+                  for h in ''${sel[$1]}; do targets+=(".#$h"); done
+                  shift
+                done
+                [ "''${1:-}" = -- ] && shift
+                [ ''${#targets[@]} -gt 0 ] || { echo "usage: nix run .#deploy -- <selector>... [-- <deploy-rs args>]" >&2; exit 1; }
+                mapfile -t targets < <(printf '%s\n' "''${targets[@]}" | sort -u)
+                echo "deploying: ''${targets[*]#.#}" >&2
+                exec ${deploy-rs.packages.${system}.default}/bin/deploy --targets "''${targets[@]}" "$@"
+              ''
+            );
+          };
+        }
+      );
+
       legacyPackages = forAllSystems (
         system:
         let
