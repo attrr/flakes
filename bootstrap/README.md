@@ -136,33 +136,38 @@ nix build --impure --expr '(builtins.getFlake "git+file://'$PWD'")
 
 ## Images with a host identity
 
-Some images must come up as an existing host: same ssh host key (which is also its
-sops age key) and same tailscale node (so its tailscale IPs, and everything bound to
-them, stay valid). These are scripts instead of derivations:
+Every image comes up as its host, with its full config: same ssh host key (which is
+also its sops age key, so secrets decrypt on first boot) and, if captured, the same
+tailscale node (so its tailscale IPs, and everything bound to them, stay valid). There is
+no second deploy. `images.<name>` exists for every config whose host has an ssh host key
+in `ctx/vars/<host>/`; they are scripts, not derivations:
 
 ```sh
-nix run .#bootstrap.images.<name>   # writes ./<name>.qcow2
+nix run .#bootstrap.images.<name>   # writes ./<name>.qcow2, or ./<name>.img for sd card hosts
 ```
 
-They decrypt the host's identity from `ctx/vars/<host>/` with your admin age key into
-`$XDG_RUNTIME_DIR`, copy it into the image with disko's `--post-format-files`, and wipe it
-on exit. The raw image is built in a temp dir under `$PWD` and converted to a
-zstd-compressed qcow2 (`qemu-img convert -O raw` gets a raw one back for `dd`).
-Only the encrypted files ever reach the nix store.
+They decrypt the host's identity with your admin age key into `$XDG_RUNTIME_DIR` and wipe
+it on exit; only the encrypted files ever reach the nix store. Big temp files go in a
+temp dir under `$PWD`.
+
+- disko hosts: disko's image script with `--post-format-files`, converted to a
+  zstd-compressed qcow2 (`qemu-img convert -O raw` gets a raw one back for `dd`).
+- sd card hosts: the config's `sdImage`, the files written into its root partition
+  offline with `debugfs`.
 
 | in `ctx/vars/<host>/` | lands at |
 |---|---|
 | `ssh-host-key/ssh_host_ed25519_key`, `.pub` | `/etc/ssh/` |
 | `tailscale-state/tailscaled.state` | `/var/lib/tailscale/` |
 
-- The resulting qcow2 holds private keys (written mode 600): keep it off shared storage.
+- The output holds private keys (written mode 600): keep it off shared storage.
 - Never boot it while the original host is up; they will fight over IP and tailscale node.
-- Disable key expiry for the node in the tailscale admin console, or the saved state goes stale.
-- The host declares these in ctx: `credentials.identity.generate = true` (the
-  `ssh-host-key` generator, admin only) and an admin-only `prompt` generator
-  `tailscale-state` with the file `tailscaled.state`. A new host just runs
-  `nix run ./ctx -- generate`; an existing one has its identity captured instead
-  (plaintext only goes through pipes):
+- With a tailscale state, disable key expiry for the node in the tailscale admin console,
+  or the saved state goes stale.
+- The host declares its identity in ctx: `credentials.identity.generate = true` (the
+  `ssh-host-key` generator) and optionally `credentials.identity.tailscale = true`, both
+  admin only. A new host just runs `nix run ./ctx -- generate`; an existing one has its
+  identity captured instead (plaintext only goes through pipes):
 
 ```sh
 nix run ./ctx -- import <host>/ssh-host-key \
@@ -176,13 +181,13 @@ nix run ./ctx -- import <host>/tailscale-state \
 
 ```
 default.nix     outputs, mkRescue, shared kernel module list
-identity-image.nix  disko image script carrying a host identity
+identity-image.nix  image scripts carrying a host identity (disko, sd)
+images/         per-host image modules (an sd card on top of the host's config)
 rescue.nix      stage1: the rescue OS (sshd, console shells, tools, zram)
 ctx.nix         ctx -> rescue (keys, port, static addresses/gateways, MAC match)
 console.sh      systemd generator: a shell per console= tty
 stage0/         busybox init: find squashfs, overlay it, switch_root
 hosts/          optional per-host modules
-images/         image definitions
 ```
 
 Boot flow: kernel → stage0 (busybox, modules, ash init) → mount `stage1.squashfs`

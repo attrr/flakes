@@ -9,7 +9,7 @@
 */
 {
   imports = [
-    ./profiles/full.nix
+    ./system.nix
     ./hardware/vm.nix
   ];
 }
