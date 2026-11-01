@@ -101,6 +101,8 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    infra.alerts.units = map (n: "restic-backups-${n}") (lib.attrNames config.services.restic.backups);
+
     services.restic.backups = cfg.backups // {
       # no paths: only forget --prune and check
       maintenance = {

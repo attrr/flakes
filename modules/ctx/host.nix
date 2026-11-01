@@ -9,6 +9,12 @@
 {
   nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
 
+  infra.alerts = lib.mkIf ctx.alerts.enable {
+    enable = true;
+    inherit (ctx.alerts) url topic;
+    tokenFile = ctx.alerts.token.path;
+  };
+
   # untrusted machines stay off the tailnet
   assertions = [
     {

@@ -2,6 +2,7 @@
 [
   ./disko
   ./services/acme.nix
+  ./services/alerts.nix
   ./services/restic.nix
   ./services/ssh.nix
   ./services/unfree.nix

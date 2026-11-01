@@ -3,7 +3,16 @@
   imports = [
     ./acme-dns.nix
     ./dns.nix
+    ./ntfy.nix
   ];
+
+  # for services under ren's own name, like ntfy
+  infra.acme.certs."${ctx.metadata.fdqn}" = {
+    domain = ctx.metadata.fdqn;
+    extraDomainNames = [
+      "*.${ctx.metadata.fdqn}"
+    ];
+  };
 
   infra.restic =
     let
