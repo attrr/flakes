@@ -70,6 +70,13 @@ in
     allowedUDPPorts = [ 443 ];
   };
 
+  # the module only orders itself after mysql with createLocally; without it,
+  # a switch that restarts both runs init before the socket exists
+  systemd.services.mediawiki-init = {
+    after = [ "mysql.service" ];
+    requires = [ "mysql.service" ];
+  };
+
   # wiki
   sops.secrets.${wiki.admin-password.name}.owner = "mediawiki";
   services.mediawiki.httpd.virtualHost = {
