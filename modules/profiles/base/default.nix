@@ -1,22 +1,16 @@
+# The everyday bits; network tuning, security posture and bug workarounds in
+# their own files.
 {
   lib,
   pkgs,
   ...
 }:
-let
-  disableModules = [
-    "algif_aead"
-    "esp4"
-    "esp6"
-    "rxrpc"
-    "rds"
-    "rds_tcp"
-    "rds_rdma"
-  ];
-in
 {
   imports = [
-    ./override.nix
+    ./network.nix
+    ./hardening.nix
+    ./mitigations.nix
+    ./caddy.nix
   ];
 
   nix.settings = {
@@ -27,21 +21,6 @@ in
     allowed-users = [ "@users" ];
     trusted-users = [ "@wheel" ];
   };
-  security.sudo.wheelNeedsPassword = false;
-
-  # basic sysctl
-  boot.kernel.sysctl = {
-    "net.core.default_qdisc" = lib.mkDefault "cake";
-    "net.ipv4.tcp_congestion_control" = "bbr";
-    "net.ipv4.tcp_slow_start_after_idle" = 0;
-    "net.ipv4.tcp_mtu_probing" = 1;
-  };
-
-  boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
-  boot.blacklistedKernelModules = disableModules;
-  boot.extraModprobeConfig = lib.concatMapStringsSep "\n" (
-    mod: "install ${mod} /run/current-system/sw/bin/false"
-  ) disableModules;
 
   # enable zram regardless
   zramSwap.enable = lib.mkDefault true;
