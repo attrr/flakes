@@ -29,7 +29,7 @@ in
   config = lib.mkIf cfg.enable {
     security.acme = {
       acceptTerms = true;
-      defaults.email = "";
+      defaults.email = null;
       certs = lib.mapAttrs (
         name: value:
         value
