@@ -2,7 +2,8 @@
 # host key (= sops age key) and tailscale node, from the host's ctx vars
 # (<vars> = ctx/vars/<host>; secret files admin-only), are decrypted to tmpfs
 # and copied in. Outputs are mode 600 in $PWD: they hold private keys.
-#   disko  ./<name>.qcow2 (zstd), from the config's disko image script
+#   disko  ./<name>.raw.zst (or .qcow2 with zstd clusters), from the config's
+#          disko image script
 #   sd     ./<name>.img, the config's sdImage with the files written into its
 #          root partition (ext4, edited offline with debugfs)
 { lib, pkgs }:
@@ -44,15 +45,27 @@ in
       name,
       nixos,
       vars,
+      # raw.zst to dd onto a disk (from rescue), qcow2 to run as a VM; --format overrides
+      format ? "raw.zst",
     }:
     pkgs.writeShellApplication {
       name = "${name}-image";
       runtimeInputs = with pkgs; [
         sops
         qemu-utils
+        zstd
       ];
       text = ''
-        out=$PWD/${name}.qcow2
+        format=${format}
+        if [ "''${1:-}" = --format ]; then
+          format=$2
+          shift 2
+        fi
+        case $format in
+          raw.zst | qcow2) ;;
+          *) echo "--format: raw.zst or qcow2, not $format" >&2; exit 1 ;;
+        esac
+        out=$PWD/${name}.$format
         ${decrypt vars}
 
         # disko copies without -p, so modes get masked again
@@ -64,7 +77,12 @@ in
         } "$@")
 
         umask 077
-        qemu-img convert -p -c -O qcow2 -o compression_type=zstd "$work/main.raw" "$out"
+        if [ "$format" = qcow2 ]; then
+          qemu-img convert -p -c -O qcow2 -o compression_type=zstd "$work/main.raw" "$out"
+        else
+          # through the shell: zstd -o would copy main.raw's 644
+          zstd -T0 -c "$work/main.raw" > "$out"
+        fi
         echo "$out"
       '';
     };

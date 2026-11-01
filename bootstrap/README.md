@@ -78,7 +78,8 @@ Hosts with a static network in ctx won't come up under qemu's user net; use `res
 
 ```sh
 ssh root@host 'lsblk'
-zstd -c nixos.raw | ssh root@host 'zstd -d | dd of=/dev/vda bs=4M status=progress && sync'
+# <name>.raw.zst from images.<name> (below), already compressed
+ssh root@host 'zstd -dc | dd of=/dev/vda bs=4M status=progress && sync' < <name>.raw.zst
 ssh root@host reboot
 ```
 
@@ -143,15 +144,21 @@ no second deploy. `images.<name>` exists for every config whose host has an ssh 
 in `ctx/vars/<host>/`; they are scripts, not derivations:
 
 ```sh
-nix run .#bootstrap.images.<name>   # writes ./<name>.qcow2, or ./<name>.img for sd card hosts
+nix run .#bootstrap.images.<name>   # ./<name>.raw.zst, .qcow2 (VMs) or .img (sd card hosts)
+nix run .#bootstrap.images.<name> -- --format qcow2   # disko hosts: raw.zst | qcow2
 ```
 
 They decrypt the host's identity with your admin age key into `$XDG_RUNTIME_DIR` and wipe
 it on exit; only the encrypted files ever reach the nix store. Big temp files go in a
 temp dir under `$PWD`.
 
-- disko hosts: disko's image script with `--post-format-files`, converted to a
-  zstd-compressed qcow2 (`qemu-img convert -O raw` gets a raw one back for `dd`).
+- disko hosts: disko's image script with `--post-format-files`, then zstd-compressed:
+  `raw.zst` by default, to stream onto a disk from rescue, or a qcow2 (zstd clusters)
+  for configs meant to run as VMs:
+
+  ```sh
+  ssh root@<rescue> 'zstd -dc | dd of=/dev/vda bs=4M status=progress && sync' < <name>.raw.zst
+  ```
 - sd card hosts: the config's `sdImage`, the files written into its root partition
   offline with `debugfs`.
 
