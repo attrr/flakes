@@ -1,6 +1,5 @@
 {
   lib,
-  self,
   ctx,
   pkgs,
   ...
@@ -11,9 +10,7 @@ let
 in
 {
   imports = [
-    "${self}/modules/hardware/kled.nix"
-    "${self}/modules/services/ssh.nix"
-    "${self}/modules/profiles/desktop.nix"
+    ../../modules/hardware/kled.nix
     ./hardware.nix
     ./disko.nix
   ];

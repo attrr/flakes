@@ -1,5 +1,4 @@
 {
-  self,
   modulesPath,
   config,
   ctx,
@@ -10,17 +9,21 @@
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
-    (import "${self}/modules/disko/ext4-plain.nix" { device = "/dev/sda"; })
     ./dns.nix
     ./librechat.nix
     ./wiki.nix
   ];
 
+  infra.disko = {
+    layout = "ext4-plain";
+    device = "/dev/sda";
+  };
+
   # Basics
   boot.loader.grub.enable = true;
   system.stateVersion = "25.11";
 
-  core.server = {
+  infra.server = {
     auto-resize = true;
   };
 

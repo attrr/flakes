@@ -1,16 +1,13 @@
+# helpers for host configs, as the `helpers` module arg
 {
   config,
   pkgs,
   lib,
   ...
 }@args:
-let
-  fn = {
+{
+  _module.args.helpers = {
     sing = import ./sing.nix args;
     network = import ./network.nix args;
-    general = import ./general.nix args;
   };
-in
-{
-  _module.args.fn = fn;
 }

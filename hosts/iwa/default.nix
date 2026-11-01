@@ -1,5 +1,4 @@
 {
-  self,
   ctx,
   registry,
   ...
@@ -13,7 +12,7 @@
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 
-  core.server = {
+  infra.server = {
     containers = false;
   };
   services.openssh.lockRootLogin = false;

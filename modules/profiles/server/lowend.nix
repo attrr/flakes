@@ -4,23 +4,23 @@
   ...
 }:
 let
-  cfg = config.core.server.lowend;
+  cfg = config.infra.server.lowend;
 in
 {
 
-  options.core.server.lowend = {
-    is = lib.mkEnableOption "toggle lowend";
+  options.infra.server.lowend = {
+    enable = lib.mkEnableOption "toggle lowend";
     zram-percent = lib.mkOption {
       type = lib.types.int;
       default = 100;
     };
   };
 
-  config = lib.mkIf cfg.is (
+  config = lib.mkIf cfg.enable (
     lib.mkMerge [
       {
         zramSwap.memoryPercent = cfg.zram-percent;
-        core.server.auto-resize = true;
+        infra.server.auto-resize = true;
       }
       (lib.mkIf config.services.tailscale.enable {
         systemd.services.tailscaled = {

@@ -1,5 +1,4 @@
 {
-  self,
   modulesPath,
   ctx,
   ...
@@ -7,17 +6,19 @@
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
-      device = "/dev/vda";
-      espSize = "500M";
-    })
   ];
+
+  infra.disko = {
+    layout = "btrfs-subvol-deprecated";
+    device = "/dev/vda";
+    espSize = "500M";
+  };
   system.stateVersion = "25.11";
 
-  core.server = {
+  infra.server = {
     auto-resize = true;
     serial = true;
-    lowend.is = true;
+    lowend.enable = true;
   };
 
   boot.loader.efi.canTouchEfiVariables = true;

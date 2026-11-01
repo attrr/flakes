@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.local.loadbalance;
+  cfg = config.yata.loadbalance;
   jsonFormat = pkgs.formats.json { };
 in
 {
@@ -14,7 +14,7 @@ in
     ./providers.nix
   ];
 
-  options.local.loadbalance = {
+  options.yata.loadbalance = {
     enable = lib.mkEnableOption "enable loadbalance service";
 
     settings = lib.mkOption {
@@ -27,11 +27,6 @@ in
     # internal
     secrets = lib.mkOption {
       type = lib.types.listOf (lib.types.either lib.types.path lib.types.str);
-      default = [ ];
-      internal = true;
-    };
-    providers = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
       default = [ ];
       internal = true;
     };

@@ -1,5 +1,5 @@
 {
-  fn,
+  helpers,
   lib,
   ctx,
   ...
@@ -74,26 +74,26 @@ let
   mapMultiAddrOutbound =
     namespace: outbound:
     let
-      results = lib.partition fn.network.isIPv4 outbound.addresses;
+      results = lib.partition helpers.network.isIPv4 outbound.addresses;
       ipv4 = results.right;
       ipv6 = results.wrong;
     in
     (mapClassedAddrOutbound namespace outbound "ipv4" ipv4)
     ++ (mapClassedAddrOutbound namespace outbound "ipv6" ipv6);
 
-  shadowsocks = fn.sing.mkShadowsocks (
+  shadowsocks = helpers.sing.mkShadowsocks (
     map shadowsocksAdapter (lib.concatMap (mapMultiAddrOutbound "out") sb.outbounds.shadowsocks)
   );
-  hysteria2 = fn.sing.mkHysteria2 (
+  hysteria2 = helpers.sing.mkHysteria2 (
     map hysteriaAdapter (lib.concatMap (mapMultiAddrOutbound "hy2") sb.outbounds.hysteria2)
   );
-  vless = fn.sing.mkVless (
+  vless = helpers.sing.mkVless (
     map vlessAdapter (lib.concatMap (mapMultiAddrOutbound "vless") sb.outbounds.vless)
   );
 
 in
 {
-  local.sing-box.settings = {
+  yata.sing-box.settings = {
     endpoints = [
       {
         type = "wireguard";
@@ -109,7 +109,7 @@ in
     outbounds = lib.mkOrder 300 (shadowsocks ++ hysteria2 ++ vless);
   };
 
-  local.sing-box.tags = {
+  yata.sing-box.tags = {
     shadowsocks = map (o: o.tag) shadowsocks;
     hysteria2 = map (o: o.tag) hysteria2;
     vless = map (o: o.tag) vless;

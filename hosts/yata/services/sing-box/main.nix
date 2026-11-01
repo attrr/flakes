@@ -9,7 +9,7 @@ let
   wg = ctx.services.wireguard;
 in
 {
-  local.sing-box.settings = {
+  yata.sing-box.settings = {
     log = {
       level = "debug";
       # redundant with systemd
