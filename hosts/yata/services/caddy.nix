@@ -1,6 +1,5 @@
 {
   ctx,
-  lib,
   registry,
   ...
 }:
@@ -24,19 +23,8 @@ in
     };
   };
 
-  # systemd.services.caddy = {
-  #   requires = [
-  #     "sing-box.service"
-  #     "sys-devices-virtual-net-wg0.device"
-  #   ];
-  #   after = [
-  #     "sing-box.service"
-  #     "sys-devices-virtual-net-wg0.device"
-  #   ];
-  # };
   services.caddy =
     let
-      listenAddrs = map (s: builtins.head (lib.splitString "/" s)) wg.addresses;
       tlsConfig = ''
         tls /var/lib/acme/${ctx.metadata.fdqn}/cert.pem /var/lib/acme/${ctx.metadata.fdqn}/key.pem
       '';
