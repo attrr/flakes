@@ -108,6 +108,8 @@ in
         inherit name;
         nixos = cfg;
         vars = vars cfg;
+        # yata's cold standby runs as a VM, the rest get dd'ed from rescue
+        format = if name == "gateway" then "qcow2" else "raw.zst";
       }
     ) disko
     // {
