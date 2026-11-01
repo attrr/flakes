@@ -46,15 +46,14 @@ in
     extraDomainNames = [
       "*.${domain}"
     ];
-    reloadServices = [ "caddy.service" ];
   };
   services.caddy.virtualHosts =
     let
       target-config = {
         listenAddresses = ctx.tailscale.ips;
+        useACMEHost = domain;
         extraConfig = ''
           reverse_proxy 127.0.0.1:8080
-          tls /var/lib/acme/${domain}/cert.pem /var/lib/acme/${domain}/key.pem
         '';
       };
     in

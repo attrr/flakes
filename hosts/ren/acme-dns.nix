@@ -35,17 +35,16 @@ in
     enable = true;
     # use local url to avoid chicken egg problem
     api = local-url;
-    certs."${acme.domain}" = {
-      reloadServices = [ "caddy.service" ];
-    };
+    certs."${acme.domain}" = { };
   };
 
+  # useACMEHost orders caddy after the cert and reloads it on renewal
   services.caddy = {
     enable = true;
     virtualHosts."${acme.domain}" = {
       listenAddresses = ctx.tailscale.ips;
+      useACMEHost = acme.domain;
       extraConfig = ''
-        tls /var/lib/acme/${acme.domain}/cert.pem /var/lib/acme/${acme.domain}/key.pem
         reverse_proxy 127.0.0.1:${toString local-port}
       '';
     };
