@@ -90,9 +90,9 @@ in
         allowed_ips = map (
           prefix:
           if lib.hasInfix ":" prefix then
-            "${prefix}${builtins.toString attrs._host_id}/128" # IPv6
+            "${prefix}${toString attrs._host_id}/128" # IPv6
           else
-            "${prefix}${builtins.toString attrs._host_id}/32" # IPv4
+            "${prefix}${toString attrs._host_id}/32" # IPv4
         ) attrs._prefixes;
       }) splits._true;
     in
