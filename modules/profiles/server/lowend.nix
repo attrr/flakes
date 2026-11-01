@@ -32,6 +32,19 @@ in
           setFlakeRegistry = lib.mkDefault false;
           setNixPath = lib.mkDefault false;
         };
+        # weekly: generations older than two weeks; and nix collects garbage by
+        # itself when a copy/build gets the disk below min-free
+        nix.gc = {
+          automatic = lib.mkDefault true;
+          dates = lib.mkDefault "weekly";
+          options = lib.mkDefault "--delete-older-than 14d";
+          persistent = true;
+          randomizedDelaySec = "1h";
+        };
+        nix.settings = {
+          min-free = lib.mkDefault (512 * 1024 * 1024);
+          max-free = lib.mkDefault (1024 * 1024 * 1024);
+        };
       }
       (lib.mkIf config.services.tailscale.enable {
         systemd.services.tailscaled = {
