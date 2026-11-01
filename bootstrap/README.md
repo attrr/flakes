@@ -144,28 +144,32 @@ them, stay valid). These are scripts instead of derivations:
 nix run .#bootstrap.images.<name>   # writes ./<name>.qcow2
 ```
 
-They decrypt `ctx/hosts/<dir>/identity/*` with your admin age key into `$XDG_RUNTIME_DIR`,
-copy them into the image with disko's `--post-format-files`, and wipe them on exit.
-The raw image is built in a temp dir under `$PWD` and converted to a zstd-compressed qcow2
-(`qemu-img convert -O raw` gets a raw one back for `dd`).
+They decrypt the host's identity from `ctx/vars/<host>/` with your admin age key into
+`$XDG_RUNTIME_DIR`, copy it into the image with disko's `--post-format-files`, and wipe it
+on exit. The raw image is built in a temp dir under `$PWD` and converted to a
+zstd-compressed qcow2 (`qemu-img convert -O raw` gets a raw one back for `dd`).
 Only the encrypted files ever reach the nix store.
 
-| file in `identity/` | lands at |
+| in `ctx/vars/<host>/` | lands at |
 |---|---|
-| `ssh_host_ed25519_key`, `.pub` | `/etc/ssh/` |
-| `tailscaled.state` | `/var/lib/tailscale/` |
+| `ssh-host-key/ssh_host_ed25519_key`, `.pub` | `/etc/ssh/` |
+| `tailscale-state/tailscaled.state` | `/var/lib/tailscale/` |
 
 - The resulting qcow2 holds private keys (written mode 600): keep it off shared storage.
 - Never boot it while the original host is up; they will fight over IP and tailscale node.
 - Disable key expiry for the node in the tailscale admin console, or the saved state goes stale.
-- Capturing the identity from a live host (files are admin-only via `.sops.yaml`):
+- The host declares these in ctx: `credentials.identity.generate = true` (the
+  `ssh-host-key` generator, admin only) and an admin-only `prompt` generator
+  `tailscale-state` with the file `tailscaled.state`. A new host just runs
+  `nix run ./ctx -- generate`; an existing one has its identity captured instead
+  (plaintext only goes through pipes):
 
 ```sh
-d=ctx/hosts/<dir>/identity; mkdir -p $d
-for f in /etc/ssh/ssh_host_ed25519_key{,.pub} /var/lib/tailscale/tailscaled.state; do
-  ssh <host> sudo cat $f | sops encrypt --input-type binary --output-type binary \
-    --filename-override $d/${f##*/} /dev/stdin > $d/${f##*/}
-done
+nix run ./ctx -- import <host>/ssh-host-key \
+  ssh_host_ed25519_key=plain:<(ssh <host> sudo cat /etc/ssh/ssh_host_ed25519_key) \
+  ssh_host_ed25519_key.pub=plain:<(ssh <host> cat /etc/ssh/ssh_host_ed25519_key.pub)
+nix run ./ctx -- import <host>/tailscale-state \
+  tailscaled.state=plain:<(ssh <host> sudo cat /var/lib/tailscale/tailscaled.state)
 ```
 
 ## Layout
