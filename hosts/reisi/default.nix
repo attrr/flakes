@@ -63,6 +63,7 @@
 
   infra.sing-box = {
     lowend = true;
+    usque.ipv6 = true;
     settings = {
       route.rules = [
         {

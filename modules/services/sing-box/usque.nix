@@ -18,6 +18,8 @@ in
       default = 1080;
       description = "Local SOCKS5 port usque listens on (consumed by sing-box as outbound).";
     };
+
+    ipv6 = lib.mkEnableOption "use IPv6 for MASQUE connection";
   };
 
   config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
@@ -68,7 +70,9 @@ in
           fi
         '';
 
-        ExecStart = "${lib.getExe pkgs.usque} socks -b ${socksAddr} -p ${toString socksPort} --always-reconnect";
+        ExecStart =
+          "${lib.getExe pkgs.usque} socks -b ${socksAddr} -p ${toString socksPort} --always-reconnect"
+          + lib.optionalString cfg.ipv6 " -6";
 
         Restart = "on-failure";
         RestartSec = "5s";
