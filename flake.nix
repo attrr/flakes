@@ -52,58 +52,63 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
 
-      commonModules = [
-        sops-nix.nixosModules.sops
-        disko.nixosModules.disko
-      ];
-      stardustModules = commonModules ++ [
-        ./modules/ctx/stardust.nix
-      ];
+      hosts = ctx.cluster.hosts;
 
+      # <host> from hosts/<host>/default.nix, <host>+<variant> from
+      # hosts/<host>/default-<variant>.nix (same ctx entry, so same identity)
       mkSystem =
-        n: v:
+        hostname: entry:
         let
           lib = nixpkgs.lib;
-          defaultPath = ./hosts + "/${n}/default.nix";
-          modules = v.modules or [ ];
-          hostname = v.hostname or n;
-          # what the host's ctx entry says it is
-          host = ctx.cluster.hosts.${hostname};
-          proxied = lib.any (s: host.services.${s}.enable) [
-            "shadowsocks"
-            "hysteria2"
-            "vless"
-          ];
+          host = hosts.${hostname};
+          # profiles/<tag> and its ctx glue ctx/<tag>.nix, for the host's tags
+          byTag =
+            dir:
+            lib.filter builtins.pathExists (
+              lib.concatMap (t: [
+                (dir + "/${t}")
+                (dir + "/${t}.nix")
+              ]) host.metadata.tags
+            );
         in
-        lib.nixosSystem (
-          lib.recursiveUpdate (removeAttrs v [ "hostname" ]) {
-            modules = [
-              self.nixosModules.default
-              ctx.nixosModules.${hostname}
-              ./lib/default.nix
-              ./modules/ctx/host.nix
-              (
-                { ... }:
-                {
-                  nixpkgs.overlays = [
-                    self.overlays.default
-                  ];
-                }
-              )
-            ]
-            ++ lib.optionals (lib.elem "server" host.metadata.tags) [
-              ./modules/profiles/server
-              ./modules/ctx/server.nix
-            ]
-            ++ lib.optional proxied ./modules/ctx/proxy.nix
-            ++ modules
-            ++ lib.optional (builtins.pathExists defaultPath) defaultPath;
-            specialArgs = {
-              inherit inputs self;
-            };
-          }
+        lib.nixosSystem {
+          modules = [
+            self.nixosModules.default
+            sops-nix.nixosModules.sops
+            disko.nixosModules.disko
+            ctx.nixosModules.${hostname}
+            ./lib/default.nix
+            ./modules/ctx/host.nix
+            ./modules/ctx/proxy.nix
+            { nixpkgs.overlays = [ self.overlays.default ]; }
+          ]
+          ++ byTag ./modules/profiles
+          ++ byTag ./modules/ctx
+          ++ lib.optional (
+            host.metadata.provider != null
+          ) ./modules/ctx/providers/${host.metadata.provider}.nix
+          ++ lib.optional (builtins.pathExists entry) entry;
+          specialArgs = {
+            inherit inputs self;
+          };
+        };
+
+      variants =
+        hostname:
+        let
+          dir = ./hosts/${hostname};
+        in
+        nixpkgs.lib.optionalAttrs (builtins.pathExists dir) (
+          nixpkgs.lib.concatMapAttrs (
+            f: _:
+            let
+              m = builtins.match "default-(.+)\\.nix" f;
+            in
+            nixpkgs.lib.optionalAttrs (m != null) {
+              "${hostname}+${builtins.head m}" = mkSystem hostname (dir + "/${f}");
+            }
+          ) (builtins.readDir dir)
         );
-      mkSystems = attrs: nixpkgs.lib.mapAttrs (n: v: mkSystem n v) attrs;
 
       mkHomes =
         let
@@ -142,81 +147,41 @@
           )
         ) attrs;
 
-      mkDeployNodes =
+      mkDeployNode =
+        name: host:
         let
-          lib = nixpkgs.lib;
+          system = self.nixosConfigurations.${name}.pkgs.stdenv.hostPlatform.system;
+          pkgs = import nixpkgs { inherit system; };
+          deployPkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              deploy-rs.overlays.default
+              (self: super: {
+                deploy-rs = {
+                  inherit (pkgs) deploy-rs;
+                  lib = super.deploy-rs.lib;
+                };
+              })
+            ];
+          };
         in
-        attrs:
-        lib.mapAttrs (
-          name: value:
-          let
-            system = self.nixosConfigurations.${name}.config.nixpkgs.system;
-            pkgs = import nixpkgs { inherit system; };
-            deployPkgs = import nixpkgs {
-              inherit system;
-              overlays = [
-                deploy-rs.overlays.default
-                (self: super: {
-                  deploy-rs = {
-                    inherit (pkgs) deploy-rs;
-                    lib = super.deploy-rs.lib;
-                  };
-                })
-              ];
-            };
-          in
-          lib.recursiveUpdate {
-            sshUser = "sysadm";
-            profiles.system = {
-              user = "root";
-              path = deployPkgs.deploy-rs.lib.activate.nixos self.nixosConfigurations.${name};
-            };
-          } value
-        ) attrs;
+        {
+          inherit (host.deploy) hostname;
+          sshUser = host.deploy.user;
+          profiles.system = {
+            user = "root";
+            path = deployPkgs.deploy-rs.lib.activate.nixos self.nixosConfigurations.${name};
+          };
+        }
+        // nixpkgs.lib.optionalAttrs host.deploy.fast-connection { fastConnection = true; };
     in
     {
-      nixosConfigurations = mkSystems {
-        yata.modules = [ sops-nix.nixosModules.sops ];
-        "yata+vm" = {
-          hostname = "yata";
-          modules = [
-            ./hosts/yata/default-vm.nix
-          ]
-          ++ commonModules;
-        };
+      # every ctx host, plus its variants
+      nixosConfigurations = nixpkgs.lib.concatMapAttrs (
+        name: _: { ${name} = mkSystem name ./hosts/${name}/default.nix; } // variants name
+      ) hosts;
 
-        shiro.modules = commonModules;
-        reisi.modules = commonModules;
-        iwa.modules = commonModules;
-        neko.modules = commonModules;
-        # stardust
-        kamo.modules = stardustModules;
-        koto.modules = stardustModules;
-        ren.modules = stardustModules;
-        # lowend
-        eric.modules = commonModules;
-        nerine.modules = commonModules;
-      };
-
-      deploy.nodes = mkDeployNodes {
-        yata = {
-          hostname = "yata";
-          fastConnection = true;
-        };
-        shiro.hostname = "shiro.";
-        reisi.hostname = "reisi.";
-        iwa.hostname = "iwa";
-        neko = {
-          sshUser = "foo";
-          hostname = "neko";
-          fastConnection = true;
-        };
-        kamo.hostname = "kamo.";
-        koto.hostname = "koto.";
-        ren.hostname = "ren.";
-        eric.hostname = "eric";
-        nerine.hostname = "nerine";
-      };
+      deploy.nodes = nixpkgs.lib.mapAttrs mkDeployNode hosts;
 
       homeConfigurations = mkHomes {
         "foo@fedora" = { };

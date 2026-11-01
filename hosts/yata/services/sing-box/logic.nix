@@ -1,5 +1,5 @@
 {
-  fn,
+  helpers,
   lib,
   config,
   pkgs,
@@ -8,11 +8,11 @@
 }:
 let
   wg = ctx.services.wireguard;
-  cfg = config.local.sing-box;
+  cfg = config.yata.sing-box;
   tags = cfg.tags;
 in
 {
-  local.sing-box.settings = {
+  yata.sing-box.settings = {
     outbounds = lib.mkOrder 200 [
       {
         tag = "sele";
@@ -76,7 +76,7 @@ in
     ];
 
     route = {
-      rule_set = fn.sing.mkLocalRuleSets [
+      rule_set = helpers.sing.mkLocalRuleSets [
         {
           tag = "geosite:google";
           path = "${pkgs.sing-geosite}/share/sing-box/rule-set/geosite-google.srs";

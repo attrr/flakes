@@ -1,12 +1,11 @@
 {
   lib,
   ctx,
-  fn,
+  helpers,
   config,
   ...
 }:
 let
-  cfg = config.local.loadbalance;
   lb = ctx.services.loadbalance;
   providerAdapter =
     name: value:
@@ -15,20 +14,22 @@ let
       url._secret = value.url.path;
       _name = name;
     };
+  providers = helpers.sing.mkProviders (lib.mapAttrsToList providerAdapter lb.providers);
+  tags = map (p: p.tag) providers;
 in
 {
-  local.loadbalance.settings = {
-    providers = fn.sing.mkProviders (lib.mapAttrsToList providerAdapter lb.providers);
+  yata.loadbalance.settings = {
+    inherit providers;
     outbounds = lib.mkAfter [
       {
         type = "selector";
         tag = "select";
-        providers = cfg.providers;
+        providers = tags;
       }
       {
         type = "loadbalance";
         tag = "auto";
-        providers = cfg.providers;
+        providers = tags;
         check = {
           interval = "2m";
         };
@@ -52,6 +53,5 @@ in
     ];
   };
 
-  local.loadbalance.providers = map (p: p.tag) cfg.settings.providers;
-  local.loadbalance.secrets = lib.mapAttrsToList (n: v: v.url.path) lb.providers;
+  yata.loadbalance.secrets = lib.mapAttrsToList (n: v: v.url.path) lb.providers;
 }

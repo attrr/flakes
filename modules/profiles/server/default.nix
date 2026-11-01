@@ -1,24 +1,22 @@
 {
   config,
-  self,
   lib,
   pkgs,
   modulesPath,
   ...
 }:
 let
-  cfg = config.core.server;
+  cfg = config.infra.server;
 in
 {
   imports = [
     (modulesPath + "/profiles/minimal.nix")
     (modulesPath + "/profiles/headless.nix")
-    "${self}/modules/profiles/base"
-    "${self}/modules/services/ssh.nix"
+    ../base
     ./lowend.nix
   ];
 
-  options.core.server = {
+  options.infra.server = {
     hostname = lib.mkOption {
       type = lib.types.str;
     };

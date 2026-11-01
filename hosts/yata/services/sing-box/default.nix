@@ -5,7 +5,7 @@
   ...
 }:
 let
-  cfg = config.local.sing-box;
+  cfg = config.yata.sing-box;
   jsonFormat = pkgs.formats.json { };
 
 in
@@ -17,7 +17,7 @@ in
     ./package.nix
   ];
 
-  options.local.sing-box = {
+  options.yata.sing-box = {
     enable = lib.mkEnableOption "enable sing-box client";
     settings = lib.mkOption {
       type = lib.types.submodule {

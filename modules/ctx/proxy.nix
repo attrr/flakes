@@ -1,7 +1,7 @@
+# ctx proxy services -> a sing-box server
 {
   ctx,
   lib,
-  self,
   ...
 }:
 
@@ -11,11 +11,7 @@ let
   vless = ctx.services.vless;
 in
 {
-  imports = [
-    "${self}/modules/services/sing-box"
-  ];
-
-  infra.sing-box = {
+  infra.sing-box = lib.mkIf (shadowsocks.enable || hysteria2.enable || vless.enable) {
     enable = lib.mkDefault true;
     usque.enable = lib.mkDefault true;
 

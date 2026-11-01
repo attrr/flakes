@@ -1,7 +1,7 @@
 {
   pkgs,
   ctx,
-  fn,
+  helpers,
   lib,
   ...
 }:
@@ -9,7 +9,7 @@ let
   lb = ctx.services.loadbalance;
 in
 {
-  local.loadbalance.settings = {
+  yata.loadbalance.settings = {
     log = {
       level = "debug";
       timestamp = false;
@@ -66,7 +66,7 @@ in
         server = "bootstrap";
         rewrite_ttl = 60;
       };
-      rule_set = fn.sing.mkLocalRuleSets [
+      rule_set = helpers.sing.mkLocalRuleSets [
         {
           tag = "geosite:cn";
           path = "${pkgs.sing-geosite}/share/sing-box/rule-set/geosite-cn.srs";
@@ -122,7 +122,7 @@ in
     };
   };
 
-  local.loadbalance.secrets = [
+  yata.loadbalance.secrets = [
     lb.password.path
   ];
 }

@@ -1,5 +1,4 @@
 {
-  self,
   modulesPath,
   ctx,
   ...
@@ -27,18 +26,20 @@ in
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
-    (import "${self}/modules/disko/btrfs-subvol-deprecated.nix" {
-      device = "/dev/sda";
-      espSize = "500M";
-    })
   ];
+
+  infra.disko = {
+    layout = "btrfs-subvol-deprecated";
+    device = "/dev/sda";
+    espSize = "500M";
+  };
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 
-  core.server = {
+  infra.server = {
     auto-resize = true;
     serial = true;
-    lowend.is = true;
+    lowend.enable = true;
   };
   infra.sing-box.lowend = true;
 

@@ -2,8 +2,6 @@
 {
   lib,
   ctx,
-  self,
-  pkgs,
   ...
 }:
 {
@@ -15,7 +13,6 @@
   ];
 
   system.stateVersion = "25.11";
-  boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.supportedFilesystems.zfs = lib.mkForce false;
 
   networking.useNetworkd = true;
@@ -50,8 +47,8 @@
     "net.ipv4.conf.default.send_redirects" = 0;
   };
 
-  local.sing-box.enable = true;
-  local.loadbalance.enable = true;
+  yata.sing-box.enable = true;
+  yata.loadbalance.enable = true;
 
   services.tailscale.enable = true;
   services.pooper-scooper = {
