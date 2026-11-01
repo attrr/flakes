@@ -73,10 +73,7 @@ in
           # would otherwise fall back to the TUN L3-to-L4 translation path.
           # v1.14 forwards this peer-to-peer traffic directly at L3.
           inbound = "wg";
-          ip_cidr = [
-            "10.0.0.0/24"
-            "2001:470:1f0f:15::/64"
-          ];
+          ip_cidr = wg.subnets;
           outbound = "wg";
         }
         {

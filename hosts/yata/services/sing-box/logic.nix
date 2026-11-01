@@ -3,9 +3,11 @@
   lib,
   config,
   pkgs,
+  ctx,
   ...
 }:
 let
+  wg = ctx.services.wireguard;
   cfg = config.local.sing-box;
   tags = cfg.tags;
 in
@@ -107,10 +109,7 @@ in
         }
         {
           # forwarding between peers
-          ip_cidr = [
-            "10.0.0.0/24"
-            "2001:470:1f0f:15::/64"
-          ];
+          ip_cidr = wg.subnets;
           outbound = "wg";
         }
         {
