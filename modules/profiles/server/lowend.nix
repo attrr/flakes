@@ -21,6 +21,17 @@ in
       {
         zramSwap.memoryPercent = cfg.zram-percent;
         infra.server.auto-resize = true;
+
+        # small disks: a new generation has to fit next to the running one
+        # podman & co (~200M) only when something runs containers (oci-containers
+        # brings podman along by itself)
+        infra.server.containers = lib.mkDefault false;
+        # nixpkgs source (~200M) for the registry/NIX_PATH; `nix shell nixpkgs#x`
+        # falls back to the global registry
+        nixpkgs.flake = {
+          setFlakeRegistry = lib.mkDefault false;
+          setNixPath = lib.mkDefault false;
+        };
       }
       (lib.mkIf config.services.tailscale.enable {
         systemd.services.tailscaled = {
