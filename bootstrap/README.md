@@ -167,6 +167,10 @@ temp dir under `$PWD`.
 | `ssh-host-key/ssh_host_ed25519_key`, `.pub` | `/etc/ssh/` |
 | `tailscale-state/tailscaled.state` | `/var/lib/tailscale/` |
 
+- Checking one offline (any filesystem, btrfs subvolumes included):
+  `zstd -dc --sparse <name>.raw.zst > main.raw`, then
+  `nix shell --inputs-from . nixpkgs#libguestfs-with-appliance -c guestfish --ro -a main.raw`
+  (`run`, `list-filesystems`, `mount-options subvol=root /dev/sdaN /`, `checksum sha256 <file>`).
 - The output holds private keys (written mode 600): keep it off shared storage.
 - Never boot it while the original host is up; they will fight over IP and tailscale node.
 - With a tailscale state, disable key expiry for the node in the tailscale admin console,
