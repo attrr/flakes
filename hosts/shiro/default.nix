@@ -11,8 +11,6 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (import "${self}/modules/disko/ext4-plain.nix" { device = "/dev/sda"; })
-    "${self}/modules/profiles/server"
-    "${self}/modules/ctx/proxy.nix"
     ./dns.nix
     ./librechat.nix
     ./wiki.nix
@@ -20,13 +18,9 @@
 
   # Basics
   boot.loader.grub.enable = true;
-  nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
 
   core.server = {
-    hostname = ctx.metadata.hostname;
-    ssh-ports = ctx.ssh.ports;
-    ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
   };
 

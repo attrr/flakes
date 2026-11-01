@@ -6,20 +6,14 @@
 }:
 {
   imports = [
-    "${self}/modules/profiles/server"
     ./hardware.nix
     ./disko.nix
     ./bao.nix
   ];
-
-  nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 
   core.server = {
-    hostname = ctx.metadata.hostname;
-    ssh-ports = ctx.ssh.ports;
-    ssh-keys = ctx.ssh.auth-keys;
     containers = false;
   };
   services.openssh.lockRootLogin = false;

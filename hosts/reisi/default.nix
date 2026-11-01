@@ -13,11 +13,7 @@
       device = "/dev/vda";
       espSize = "500M";
     })
-    "${self}/modules/profiles/server"
-    "${self}/modules/ctx/proxy.nix"
   ];
-
-  nixpkgs.hostPlatform = "x86_64-linux";
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 
@@ -50,9 +46,6 @@
   core.server.lowend.is = true;
   core.server.lowend.zram-percent = 150;
   core.server = {
-    hostname = ctx.metadata.hostname;
-    ssh-ports = ctx.ssh.ports;
-    ssh-keys = ctx.ssh.auth-keys;
     auto-resize = true;
   };
 
