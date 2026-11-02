@@ -17,6 +17,7 @@
     "${self}/modules/services/unfree.nix"
     ./apps.nix
     ./emacs.nix
+    ./gnome.nix
     ./htop.nix
     ./i18n.nix
     ./ide.nix
