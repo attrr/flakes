@@ -38,4 +38,17 @@
   allowUnfree.packages = [
     pkgs.fcitx5-pinyin-moegirl
   ];
+
+  fonts.fontconfig.enable = true;
+  home.packages = with pkgs; [
+    adwaita-fonts
+    nerd-fonts.adwaita-mono
+    nerd-fonts.symbols-only
+    inconsolata
+    rictydiminished-with-firacode
+    plemoljp
+    maple-mono.truetype
+    maple-mono.NF
+    maple-mono.NF-CN
+  ];
 }

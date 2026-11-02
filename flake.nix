@@ -110,24 +110,28 @@
           ) (builtins.readDir dir)
         );
 
+      # <user>: NixOS; <user>+generic: other distros
       mkHomes =
         let
           lib = nixpkgs.lib;
         in
         attrs:
         lib.mapAttrs (
-          tag: value:
+          name: value:
           let
-            parts = lib.splitString "@" tag;
-            user = builtins.elemAt parts 0;
-            host = builtins.elemAt parts 1;
-            modules = value.modules or [ ];
+            parts = lib.splitString "+" name;
+            user = builtins.head parts;
+            variant = if builtins.length parts > 1 then builtins.elemAt parts 1 else null;
           in
+          assert lib.assertMsg (lib.elem variant [
+            null
+            "generic"
+          ]) "home ${name}: the only variant is +generic";
           home-manager.lib.homeManagerConfiguration (
             lib.recursiveUpdate value {
               pkgs = value.pkgs or nixpkgs.legacyPackages.x86_64-linux;
               extraSpecialArgs = {
-                inherit inputs host self;
+                inherit inputs self;
               }
               // (value.extraSpecialArgs or { });
               modules = [
@@ -142,7 +146,8 @@
                   }
                 )
               ]
-              ++ modules;
+              ++ [ { os.isNixOS = variant == null; } ]
+              ++ (value.modules or [ ]);
             }
           )
         ) attrs;
@@ -184,8 +189,8 @@
       deploy.nodes = nixpkgs.lib.mapAttrs mkDeployNode hosts;
 
       homeConfigurations = mkHomes {
-        "foo@fedora" = { };
-        "foo@nixos" = { };
+        foo = { };
+        "foo+generic" = { };
       };
 
       overlays.default =
