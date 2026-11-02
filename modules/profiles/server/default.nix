@@ -45,6 +45,9 @@ in
         users.sysadm.authorizedKeys = cfg.ssh-keys;
         lockRootLogin = lib.mkDefault true;
       };
+      # wheel means ssh-key-only admin accounts (deploy-rs sudoes through
+      # them), services never are
+      security.sudo.wheelNeedsPassword = false;
 
       # resource journald saving
       services.journald.extraConfig = ''
