@@ -49,6 +49,8 @@
       antigravity-cli
       antigravity-hub
       antigravity-acp
+      # 26.05's is a release behind the flatpak it replaced
+      android-studio
     ])
     ++ (with pkgs; [
       nixfmt
@@ -69,6 +71,7 @@
       antigravity-cli
       antigravity-hub
       antigravity-acp
+      android-studio
     ])
     ++ (with pkgs; [
       vscode
