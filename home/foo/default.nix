@@ -19,6 +19,7 @@
     ./emacs.nix
     ./gnome.nix
     ./htop.nix
+    ./hydroxide.nix
     ./i18n.nix
     ./ide.nix
     ./ssh.nix
