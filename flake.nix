@@ -257,6 +257,25 @@
               ''
             );
           };
+
+          # nix run .#gcroots: keep every host's build graph from gc
+          gcroots = {
+            type = "app";
+            program = toString (
+              pkgs.writeShellScript "gcroots" ''
+                set -e
+                roots=''${XDG_STATE_HOME:-$HOME/.local/state}/flakes-gcroots
+                rm -rf "$roots"
+                mkdir -p "$roots"
+                for name in $(nix eval --raw .#nixosConfigurations --apply 'cs: toString (builtins.attrNames cs)'); do
+                  nix-instantiate --add-root "$roots/$name" --expr \
+                    "(builtins.getFlake \"$PWD\").nixosConfigurations.\"$name\".config.system.build.toplevel" \
+                    >/dev/null
+                  echo "rooted $name"
+                done
+              ''
+            );
+          };
         }
       );
 
