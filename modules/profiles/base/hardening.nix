@@ -23,7 +23,4 @@ in
     "kernel.dmesg_restrict" = lib.mkDefault 1;
     "net.core.bpf_jit_harden" = lib.mkDefault 2;
   };
-
-  # wheel means ssh-key-only admin accounts, services never are
-  security.sudo.wheelNeedsPassword = false;
 }
