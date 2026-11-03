@@ -41,11 +41,10 @@ in
     allowDiscards = true;
   };
 
-  # Fedora keeps its own root subvolume, nixos and nix are new
-  fileSystems."/" = btrfs "nixos";
-  fileSystems."/nix" = btrfs "nix";
-  fileSystems."/home" = btrfs "home";
-  # Fedora mounts this at /boot/efi; systemd-boot wants it at /boot
+  # Fedora's root is @fedora
+  fileSystems."/" = btrfs "@";
+  fileSystems."/nix" = btrfs "@nix";
+  fileSystems."/home" = btrfs "@home";
   fileSystems."/boot" = {
     device = "/dev/disk/by-uuid/035C-F92A";
     fsType = "vfat";
