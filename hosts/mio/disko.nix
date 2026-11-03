@@ -45,6 +45,15 @@
                     mountpoint = "/nix";
                     inherit mountOptions;
                   };
+                  # after zram
+                  "@swap" = {
+                    mountpoint = "/swap";
+                    mountOptions = [ "noatime" ];
+                    swap.swapfile = {
+                      size = "32G";
+                      priority = 1;
+                    };
+                  };
                   # Fedora's root, not mounted here
                   "@fedora" = { };
                 };
