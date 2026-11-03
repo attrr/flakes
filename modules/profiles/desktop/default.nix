@@ -13,6 +13,13 @@
 
   services.displayManager.gdm.enable = true;
   services.desktopManager.gnome.enable = true;
+  # Ptyxis instead of Console, as in Fedora
+  environment.gnome.excludePackages = [ pkgs.gnome-console ];
+  environment.systemPackages = [ pkgs.ptyxis ];
+  xdg.terminal-exec = {
+    enable = true;
+    settings.GNOME = [ "org.gnome.Ptyxis.desktop" ];
+  };
   networking.networkmanager.enable = true;
   services.printing.enable = true;
   programs.firefox.enable = true;
