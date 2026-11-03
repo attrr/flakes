@@ -4,9 +4,12 @@
   pkgsUnstable,
   ...
 }:
-let
-in
 {
+  xdg.configFile = {
+    "emacs/init.el".source = ./init.el;
+    "emacs/lisp".source = ./lisp;
+  };
+
   programs.emacs = {
     enable = true;
     package = pkgs.emacs-pgtk;

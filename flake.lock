@@ -57,22 +57,6 @@
         "type": "github"
       }
     },
-    "dotfiles": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1777187377,
-        "narHash": "sha256-+H54Oqego0ivd7ykTPDeUWhPrapNqzW4AqUlZMzlJ+U=",
-        "ref": "refs/heads/main",
-        "rev": "6cc0859561abe28d0dab8b8d062a38519f6e7ef4",
-        "revCount": 5,
-        "type": "git",
-        "url": "ssh://git@github.com/attrr/dotfiles.git"
-      },
-      "original": {
-        "type": "git",
-        "url": "ssh://git@github.com/attrr/dotfiles.git"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -247,7 +231,6 @@
       "inputs": {
         "deploy-rs": "deploy-rs",
         "disko": "disko",
-        "dotfiles": "dotfiles",
         "home-manager": "home-manager",
         "lanzaboote": "lanzaboote",
         "nixgl": "nixgl",

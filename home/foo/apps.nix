@@ -11,8 +11,6 @@
       home.packages = with pkgs; [
         # cli
         deploy-rs
-        zsh-completions
-        nix-zsh-completions
         autossh
         rclone
         rclone-ssh
@@ -53,7 +51,6 @@
         tor-browser
         gnome-tweaks
         # tools
-        git-lfs
         rlwrap
         ccache
         libarchive # bsdtar

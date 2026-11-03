@@ -29,10 +29,6 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    dotfiles = {
-      url = "git+ssh://git@github.com/attrr/dotfiles.git";
-      flake = false;
-    };
   };
 
   outputs =

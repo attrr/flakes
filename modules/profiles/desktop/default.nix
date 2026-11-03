@@ -58,9 +58,5 @@ in
   programs.firefox.enable = true;
 
   users.users.foo.shell = pkgs.zsh;
-  programs.zsh = {
-    enable = true;
-    autosuggestions.enable = true;
-    syntaxHighlighting.enable = true;
-  };
+  programs.zsh.enable = true;
 }
