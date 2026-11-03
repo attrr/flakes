@@ -1,5 +1,6 @@
 {
   inputs,
+  ctx,
   lib,
   pkgs,
   ...
@@ -86,6 +87,13 @@ in
 
   # with `nix run .#gcroots`, gc keeps every host's build graph
   nix.settings.keep-outputs = true;
+
+  # github token; wheel-readable since flake inputs are fetched by the client
+  sops.secrets.${ctx.vars.nix-access-tokens.conf.name} = {
+    group = "wheel";
+    mode = "0440";
+  };
+  nix.extraOptions = "!include ${ctx.vars.nix-access-tokens.conf.path}";
 
   # debug vm; secrets don't work in it
   virtualisation.vmVariant = {
