@@ -1,4 +1,5 @@
 {
+  inputs,
   lib,
   pkgs,
   ...
@@ -12,16 +13,18 @@ let
 in
 {
   imports = [
+    inputs.lanzaboote.nixosModules.lanzaboote
     ./hardware.nix
     ./network.nix
     ./containers.nix
     ./caddy.nix
   ];
 
-  boot.loader.systemd-boot = {
+  # secure boot with our own keys, enrolled alongside Microsoft's
+  boot.lanzaboote = {
     enable = true;
-    # small ESP
-    configurationLimit = 5;
+    pkiBundle = "/var/lib/sbctl";
+    configurationLimit = 10;
   };
   boot.loader.efi.canTouchEfiVariables = true;
 
@@ -59,8 +62,9 @@ in
   # ssh-tpm-agent keys are sealed in the TPM
   security.tpm2.enable = true;
 
-  environment.systemPackages = with pkgs.gnomeExtensions; [
-    freon
+  environment.systemPackages = [
+    pkgs.sbctl
+    pkgs.gnomeExtensions.freon
   ];
   # state shared with Fedora; devices and folders set in the gui
   services.syncthing = {
