@@ -14,7 +14,6 @@
         name = "attrr";
         email = "110731994+attrr@users.noreply.github.com";
       };
-      gpg.ssh.allowedSignersFile = true;
     };
   };
 }

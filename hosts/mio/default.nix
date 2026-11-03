@@ -96,6 +96,6 @@ in
       cores = 4;
     };
   };
-
+  security.sudo.wheelNeedsPassword = false;
   system.stateVersion = "26.05";
 }
