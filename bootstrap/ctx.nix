@@ -11,6 +11,10 @@
 let
   net = ctx.network;
   has = stack: net.${stack}.cidr != [ ];
+  gateways = lib.filter (g: g != null) [
+    net.ipv4.gateway
+    net.ipv6.gateway
+  ];
 in
 {
   networking.hostName = lib.mkDefault "${ctx.metadata.hostname}-rescue";
@@ -36,10 +40,10 @@ in
     };
     address = lib.mkDefault (net.ipv4.cidr ++ net.ipv6.cidr);
     routes = lib.mkDefault (
-      map (Gateway: {
+      lib.forEach gateways (Gateway: {
         inherit Gateway;
         GatewayOnLink = true;
-      }) (lib.filter (g: g != null) [ net.ipv4.gateway net.ipv6.gateway ])
+      })
     );
   };
 }

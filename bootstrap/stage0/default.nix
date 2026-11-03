@@ -63,10 +63,10 @@ let
       target = "/lib";
     }
   ]
-  ++ map (d: {
+  ++ lib.forEach [ "proc" "sys" "dev" "mnt" ] (d: {
     source = "${dirs}/${d}";
     target = "/${d}";
-  }) [ "proc" "sys" "dev" "mnt" ];
+  });
 
   mkInitrd =
     extra:

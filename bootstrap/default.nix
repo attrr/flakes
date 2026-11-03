@@ -88,7 +88,10 @@ in
     name: args:
     mkRescue {
       specialArgs = args;
-      modules = [ ./ctx.nix ] ++ lib.optional (builtins.pathExists ./hosts/${name}.nix) ./hosts/${name}.nix;
+      modules = lib.filter builtins.pathExists [
+        ./ctx.nix
+        ./hosts/${name}.nix
+      ];
     }
   ) hosts;
 
