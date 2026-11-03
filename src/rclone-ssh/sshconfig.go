@@ -14,6 +14,7 @@ type ResolvedHost struct {
 	Port          string
 	IdentityFiles []string // all IdentityFile entries, in order
 	ProxyCommand  string   // empty if none or "none"
+	IdentityAgent string   // empty if unset, "none" or "SSH_AUTH_SOCK"
 }
 
 // ResolveSSH invokes ssh -G to resolve the effective configuration for
@@ -66,6 +67,10 @@ func parseSSHGOutput(raw string) (*ResolvedHost, error) {
 		case "proxycommand":
 			if parts[1] != "none" {
 				r.ProxyCommand = parts[1]
+			}
+		case "identityagent":
+			if parts[1] != "none" && parts[1] != "SSH_AUTH_SOCK" {
+				r.IdentityAgent = parts[1]
 			}
 		}
 	}

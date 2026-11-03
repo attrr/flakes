@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
+	"strings"
 	"syscall"
 )
 
@@ -23,7 +25,7 @@ func main() {
 		os.Exit(handleComplete(os.Args[2:]))
 	}
 
-	rewritten, err := RewriteArgs(os.Args[1:])
+	rewritten, agent, err := RewriteArgs(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "rclone-ssh: %v\n", err)
 		os.Exit(1)
@@ -37,8 +39,17 @@ func main() {
 
 	// Replace this process with rclone via exec(2). On success this
 	// never returns — rclone inherits the tty, signals, and stdio.
+	// Go takes the first of duplicate env entries, so replace, not append.
+	env := os.Environ()
+	if agent != "" {
+		env = slices.DeleteFunc(env, func(e string) bool {
+			return strings.HasPrefix(e, "SSH_AUTH_SOCK=")
+		})
+		env = append(env, "SSH_AUTH_SOCK="+agent)
+	}
+
 	argv := append([]string{"rclone"}, rewritten...)
-	if err := syscall.Exec(rclonePath, argv, os.Environ()); err != nil {
+	if err := syscall.Exec(rclonePath, argv, env); err != nil {
 		fmt.Fprintf(os.Stderr, "rclone-ssh: exec failed: %v\n", err)
 		os.Exit(1)
 	}

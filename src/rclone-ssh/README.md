@@ -10,7 +10,7 @@ Normally, `rclone` requires you to explicitly configure an SFTP remote for every
 
 ## Features
 
-- **Zero-Config Remote Backends:** Automatically parses `~/.ssh/config` (via `ssh -G`) to resolve `HostName`, `User`, `Port`, and `IdentityFile` directives dynamically.
+- **Zero-Config Remote Backends:** Automatically parses `~/.ssh/config` (via `ssh -G`) to resolve `HostName`, `User`, `Port`, `IdentityFile` and `IdentityAgent` directives dynamically; rclone gets the `IdentityAgent` socket as `$SSH_AUTH_SOCK`, so agents like ssh-tpm-agent work.
 - **Proxy Translation:** Automatically parses `ProxyCommand` directives containing `connect-proxy`, `nc`, or `ncat` and translates them into native `rclone` flags (e.g., `--sftp-socks-proxy` and `--sftp-http-proxy`).
 - **ControlMaster Speed:** Operates effortlessly alongside your existing SSH multiplexing (`ControlMaster`) for extremely low latency.
 - **Native Shell Autocompletion:** Implements the hidden `__complete` subcommand to hook seamlessly into `zsh` and `bash` tab completions:
