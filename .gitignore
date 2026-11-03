@@ -24,3 +24,6 @@ __pycache__/
 *.qcow2
 *.rar
 *.zip
+
+# zsh's fmt Makefile
+!home/foo/zsh/Makefile

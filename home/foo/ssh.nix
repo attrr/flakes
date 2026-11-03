@@ -18,6 +18,8 @@ in
   home.sessionVariables = askpass // {
     SSH_AUTH_SOCK = lib.mkForce "$XDG_RUNTIME_DIR/ssh-agent.socket";
   };
+  # else ssh-tpm-agent points SSH_AUTH_SOCK at itself in the shell rc
+  sshAuthSock.initialization = lib.mkForce null;
 
   # the agents run under systemd, not the login shell
   systemd.user.sessionVariables = askpass // {

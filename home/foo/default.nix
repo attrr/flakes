@@ -16,13 +16,16 @@
   imports = [
     "${self}/modules/services/unfree.nix"
     ./apps.nix
-    ./emacs.nix
+    ./emacs
+    ./git.nix
     ./gnome.nix
     ./htop.nix
     ./hydroxide.nix
     ./i18n.nix
     ./ide.nix
+    ./mpv.nix
     ./ssh.nix
+    ./zsh
   ];
 
   config = {
@@ -30,19 +33,7 @@
     home.homeDirectory = "/home/foo";
     home.stateVersion = "25.11"; # Please read the comment before changing.
     programs.home-manager.enable = true;
-
-    # shell and app configs live in the dotfiles repo
-    home.file = {
-      ".zshenv".source = "${inputs.dotfiles}/.zshenv";
-      ".config" = {
-        source = "${inputs.dotfiles}/.config";
-        recursive = true;
-      };
-      ".local" = {
-        source = "${inputs.dotfiles}/.local";
-        recursive = true;
-      };
-    };
+    xdg.enable = true;
 
     allowUnfree.enable = true;
 
