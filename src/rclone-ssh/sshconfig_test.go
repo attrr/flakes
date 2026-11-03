@@ -141,3 +141,20 @@ func TestParseSSHGOutput_EmptyInput(t *testing.T) {
 		t.Errorf("error should mention 'no hostname', got: %v", err)
 	}
 }
+
+func TestParseSSHGOutput_IdentityAgent(t *testing.T) {
+	for raw, want := range map[string]string{
+		"identityagent /run/user/1000/ssh-tpm-agent.sock": "/run/user/1000/ssh-tpm-agent.sock",
+		"identityagent none":                              "",
+		"identityagent SSH_AUTH_SOCK":                     "",
+		"":                                                "",
+	} {
+		r, err := parseSSHGOutput("hostname example.com\n" + raw + "\n")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if r.IdentityAgent != want {
+			t.Errorf("%q: IdentityAgent = %q, want %q", raw, r.IdentityAgent, want)
+		}
+	}
+}

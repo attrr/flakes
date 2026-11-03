@@ -14,6 +14,7 @@
         zsh-completions
         nix-zsh-completions
         autossh
+        rclone
         rclone-ssh
         google-cloud-sdk
         knot-dns

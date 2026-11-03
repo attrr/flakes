@@ -16,12 +16,14 @@ type remoteListFunc func() (map[string]bool, error)
 
 // RewriteArgs scans args for host:path references, resolves each via
 // SSH config, and rewrites them to rclone's on-the-fly :sftp backend.
-func RewriteArgs(args []string) ([]string, error) {
+// It also returns the IdentityAgent socket of the rewritten hosts, if
+// any, since rclone only talks to $SSH_AUTH_SOCK.
+func RewriteArgs(args []string) ([]string, string, error) {
 	return rewriteArgsWith(args, ResolveSSH, listRcloneRemotes)
 }
 
 // rewriteArgsWith is the testable core with injectable dependencies.
-func rewriteArgsWith(args []string, resolve sshResolver, listRemotes remoteListFunc) ([]string, error) {
+func rewriteArgsWith(args []string, resolve sshResolver, listRemotes remoteListFunc) ([]string, string, error) {
 	remotes, err := listRemotes()
 	if err != nil {
 		remotes = map[string]bool{}
@@ -29,6 +31,7 @@ func rewriteArgsWith(args []string, resolve sshResolver, listRemotes remoteListF
 	}
 
 	out := make([]string, 0, len(args))
+	agent := ""
 
 	for _, arg := range args {
 		// Pass flags through unchanged. We deliberately do not try to
@@ -81,9 +84,29 @@ func rewriteArgsWith(args []string, resolve sshResolver, listRemotes remoteListF
 			continue
 		}
 		out = append(out, rewritten)
+
+		if a := expandAgent(resolved.IdentityAgent); a != "" {
+			switch {
+			case agent == "":
+				agent = a
+			case agent != a:
+				fmt.Fprintf(os.Stderr, "rclone-ssh: warning: host %q wants agent %s, but only one agent can be used; using %s\n", name, a, agent)
+			}
+		}
 	}
 
-	return out, nil
+	return out, agent, nil
+}
+
+// expandAgent expands ~ and environment variables in an IdentityAgent
+// value, as ssh does.
+func expandAgent(a string) string {
+	if strings.HasPrefix(a, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			a = home + a[1:]
+		}
+	}
+	return os.ExpandEnv(a)
 }
 
 // buildSFTPBackend produces a :sftp,key=val,...:path connection string

@@ -39,7 +39,7 @@ func TestRewriteArgs_SingleRemote(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"ls", "myserver:/data"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestRewriteArgs_DualRemote(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"copy", "serverA:/src", "serverB:/dst", "--progress"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestRewriteArgs_ConfiguredRemotePassthrough(t *testing.T) {
 	remotes := mockRemotes("gdrive:", "s3:")
 
 	args := []string{"ls", "gdrive:/photos"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRewriteArgs_OnTheFlyBackendPassthrough(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"ls", ":sftp,host=example.com:/data"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestRewriteArgs_FlagsPreserved(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"--verbose", "sync", "myhost:/src", "/local/dst", "--dry-run", "--progress"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestRewriteArgs_NoArgs(t *testing.T) {
 	resolve := mockResolver(map[string]*ResolvedHost{})
 	remotes := mockRemotes()
 
-	got, err := rewriteArgsWith([]string{}, resolve, remotes)
+	got, _, err := rewriteArgsWith([]string{}, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestRewriteArgs_PlainCommand(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"version"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestRewriteArgs_UnknownHostWarning(t *testing.T) {
 
 	// "badhost" is not in the resolver, so it should warn and pass through
 	args := []string{"ls", "badhost:/path"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestRewriteArgs_WithProxy(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"ls", "proxyhost:/"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestRewriteArgs_DefaultPortOmitted(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"ls", "myhost:/"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestRewriteArgs_MixedRemoteAndLocal(t *testing.T) {
 
 	// rclone sync srv:/remote /local/path
 	args := []string{"sync", "srv:/remote", "/local/path"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -313,7 +313,7 @@ func TestRewriteArgs_WindowsDriveLetterPassthrough(t *testing.T) {
 	remotes := mockRemotes()
 
 	args := []string{"ls", "C:\\Users\\test"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestRewriteArgs_EmptyPathAfterColon(t *testing.T) {
 
 	// rclone ls myhost:  (empty path = root)
 	args := []string{"ls", "myhost:"}
-	got, err := rewriteArgsWith(args, resolve, remotes)
+	got, _, err := rewriteArgsWith(args, resolve, remotes)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -354,7 +354,7 @@ func TestRewriteArgs_MultipleCommandTypes(t *testing.T) {
 	commands := []string{"copy", "sync", "move", "check", "bisync"}
 	for _, cmd := range commands {
 		args := []string{cmd, "src:/a", "dst:/b"}
-		got, err := rewriteArgsWith(args, resolve, remotes)
+		got, _, err := rewriteArgsWith(args, resolve, remotes)
 		if err != nil {
 			t.Fatalf("%s: unexpected error: %v", cmd, err)
 		}
@@ -367,5 +367,34 @@ func TestRewriteArgs_MultipleCommandTypes(t *testing.T) {
 		if !strings.Contains(got[2], "host=10.0.0.2") {
 			t.Errorf("%s: dst not resolved", cmd)
 		}
+	}
+}
+
+func TestRewriteArgs_IdentityAgent(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
+	resolve := mockResolver(map[string]*ResolvedHost{
+		"tpm":   {Host: "10.0.0.1", IdentityAgent: "$XDG_RUNTIME_DIR/ssh-tpm-agent.sock"},
+		"plain": {Host: "10.0.0.2"},
+		"other": {Host: "10.0.0.3", IdentityAgent: "/tmp/other.sock"},
+	})
+	remotes := mockRemotes()
+
+	_, agent, err := rewriteArgsWith([]string{"copy", "plain:/a", "tpm:/b"}, resolve, remotes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if agent != "/run/user/1000/ssh-tpm-agent.sock" {
+		t.Errorf("agent = %q", agent)
+	}
+
+	_, agent, _ = rewriteArgsWith([]string{"copy", "plain:/a", "/local"}, resolve, remotes)
+	if agent != "" {
+		t.Errorf("agent should be empty without IdentityAgent, got %q", agent)
+	}
+
+	// conflicting agents: the first wins
+	_, agent, _ = rewriteArgsWith([]string{"copy", "tpm:/a", "other:/b"}, resolve, remotes)
+	if agent != "/run/user/1000/ssh-tpm-agent.sock" {
+		t.Errorf("agent = %q, want the first host's", agent)
 	}
 }
