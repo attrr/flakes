@@ -58,6 +58,7 @@
         libarchive # bsdtar
         conntrack-tools
         git-repo
+        android-tools # adb, fastboot
         libguestfs-with-appliance
         temurin-bin-25
         tpm2-tools
