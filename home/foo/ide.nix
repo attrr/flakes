@@ -46,6 +46,7 @@
       claude-code
       opencode
       opencode-desktop
+      pi-coding-agent
       antigravity-cli
       antigravity-hub
       antigravity-acp
