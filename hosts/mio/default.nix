@@ -15,6 +15,7 @@ in
   imports = [
     inputs.lanzaboote.nixosModules.lanzaboote
     ./hardware.nix
+    ./disko.nix
     ./network.nix
     ./containers.nix
     ./caddy.nix
