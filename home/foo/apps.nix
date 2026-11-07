@@ -10,6 +10,7 @@
     {
       home.packages = with pkgs; [
         # cli
+        sops
         deploy-rs
         autossh
         rclone
@@ -17,6 +18,7 @@
         google-cloud-sdk
         knot-dns
         gh
+        qrencode
         # gui
         google-chrome
         chromium
@@ -54,6 +56,7 @@
         rlwrap
         ccache
         libarchive # bsdtar
+        binutils # strings, objdump
         conntrack-tools
         git-repo
         android-tools # adb, fastboot
@@ -76,7 +79,6 @@
       home.packages = with pkgs; [
         nixgl.nixGLIntel
         nix
-        sops
         nixos-rebuild
       ];
     })
