@@ -26,22 +26,22 @@ in
     let
       # the *.fdqn cert; useACMEHost orders caddy after it and reloads it on renewal
       useACMEHost = ctx.metadata.fdqn;
+      # external_ui is served from /nix/store (mtime = 1970-01-01 00:00:01), so
+      # Go's http.FileServer emits a bogus Last-Modified that triggers multi-year
+      # heuristic caching and false 304 Not Modified across metacubexd upgrades.
+      mkProxy = upstream: {
+        inherit useACMEHost;
+        extraConfig = ''
+          reverse_proxy ${upstream} {
+            header_up -If-Modified-Since
+            header_down -Last-Modified
+          }
+        '';
+      };
     in
     {
       enable = true;
-      # to loadbalance
-      virtualHosts."loadbalance.${ctx.metadata.fdqn}" = {
-        inherit useACMEHost;
-        extraConfig = ''
-          reverse_proxy 127.0.0.1:9090
-        '';
-      };
-      # to sing-box
-      virtualHosts."sing-box.${ctx.metadata.fdqn}" = {
-        inherit useACMEHost;
-        extraConfig = ''
-          reverse_proxy 127.0.0.1:9091
-        '';
-      };
+      virtualHosts."loadbalance.${ctx.metadata.fdqn}" = mkProxy "127.0.0.1:9090";
+      virtualHosts."sing-box.${ctx.metadata.fdqn}" = mkProxy "127.0.0.1:9091";
     };
 }
