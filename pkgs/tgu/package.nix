@@ -11,7 +11,7 @@ python3Packages.buildPythonApplication {
 
   src = fetchGit {
     url = "git+ssh://git@github.com/attrr/tgu.git";
-    rev = "1f737f8fffb8ff3c42a74a6561416791feba054b";
+    rev = "d6249b772f88c8e697192c1c6f1ef6d45c9ed310";
   };
 
   build-system = with python3Packages; [
