@@ -2,6 +2,7 @@
 {
   pkgs,
   pkgsUnstable,
+  self,
   ...
 }:
 let
@@ -12,7 +13,7 @@ let
 in
 {
   imports = [
-    ../base
+    "${self}/modules/profiles/base"
     ./boot.nix
     ./i18n.nix
   ];

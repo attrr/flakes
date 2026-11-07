@@ -1,6 +1,6 @@
-{ pkgs, ... }@args:
+{ pkgs, self, ... }@args:
 let
-  base = import ../../modules/profiles/base args;
+  base = import "${self}/modules/profiles/base" args;
   settings = base.programs.htop.settings;
 in
 {
