@@ -1,6 +1,5 @@
 {
   pkgs,
-  config,
   pkgsUnstable,
   ...
 }:
@@ -59,12 +58,6 @@
       prettier
       black
     ]);
-
-  home.file.".antigravity-ide/extensions".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/.vscode/extensions";
-
-  xdg.configFile."Antigravity IDE/User/settings.json".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.xdg.configHome}/Code/User/settings.json";
 
   allowUnfree.packages =
     (with pkgsUnstable; [
