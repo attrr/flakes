@@ -85,6 +85,9 @@ in
   # for prebuilt binaries in the shared /home (vscode extensions)
   programs.nix-ld.enable = true;
 
+  # deploying arm64
+  boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
+
   # with `nix run .#gcroots`, gc keeps every host's build graph
   nix.settings.keep-outputs = true;
 
