@@ -20,7 +20,7 @@ in
       user-ids = tgu.whitelist-users;
       channel-ids = tgu.whitelist-channels;
       allow-pedestrian = false;
-      proxy = "socks5://127.0.0.1:1080";
+      # proxy = "socks5://127.0.0.1:1080";
 
       daemon = {
         channels = tgu.monitor-channels;
