@@ -81,6 +81,16 @@
             ./modules/ctx/host.nix
             ./modules/ctx/proxy.nix
             { nixpkgs.overlays = [ self.overlays.default ]; }
+            # as in home/foo
+            (
+              { pkgs, config, ... }:
+              {
+                _module.args.pkgsUnstable = import inputs.nixpkgs-unstable {
+                  inherit (pkgs.stdenv.hostPlatform) system;
+                  inherit (config.nixpkgs) config;
+                };
+              }
+            )
           ]
           ++ byTag ./modules/profiles
           ++ byTag ./modules/ctx
