@@ -1,5 +1,9 @@
 # GNOME workstation; ctx parts in modules/ctx/desktop.nix
-{ pkgs, ... }:
+{
+  pkgs,
+  pkgsUnstable,
+  ...
+}:
 let
   # as Fedora builds it: named "Terminal", with the generic icon
   ptyxis = pkgs.ptyxis.overrideAttrs (old: {
@@ -21,7 +25,11 @@ in
   services.desktopManager.gnome.enable = true;
   # Ptyxis instead of Console, as in Fedora
   environment.gnome.excludePackages = [ pkgs.gnome-console ];
-  environment.systemPackages = [ ptyxis ];
+  environment.systemPackages = [
+    ptyxis
+    # 2.8 (qt6); system-wide so polkit sees its quick unlock action
+    pkgsUnstable.keepassxc
+  ];
   xdg.terminal-exec = {
     enable = true;
     settings.GNOME = [ "org.gnome.Ptyxis.desktop" ];

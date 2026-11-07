@@ -22,7 +22,7 @@
         chromium
         thunderbird
         czkawka-full
-        # 2.8 (qt6)
+        # 2.8 (qt6); the NixOS desktop profile has it system-wide too, for polkit
         pkgsUnstable.keepassxc
       ];
       allowUnfree.packages = [ pkgs.google-chrome ];
