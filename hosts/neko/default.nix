@@ -1,11 +1,12 @@
 {
   lib,
   pkgs,
+  self,
   ...
 }:
 {
   imports = [
-    ../../modules/hardware/kled.nix
+    "${self}/modules/hardware/kled.nix"
     ./hardware.nix
     ./disko.nix
   ];

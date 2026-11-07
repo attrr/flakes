@@ -2,6 +2,7 @@
   config,
   lib,
   modulesPath,
+  self,
   ...
 }:
 let
@@ -11,7 +12,7 @@ in
   imports = [
     (modulesPath + "/profiles/minimal.nix")
     (modulesPath + "/profiles/headless.nix")
-    ../base
+    "${self}/modules/profiles/base"
     ./lowend.nix
   ];
 
