@@ -37,10 +37,10 @@ in
           server = "tailscale";
         }
         {
-          # for some reason, they are unreachable through ipv6
+          # for some reason, they are unreachable through ipv6: no AAAA records
           domain_suffix = [ "gnu.org" ];
-          server = "bootstrap";
-          strategy = "ipv4_only";
+          query_type = [ "AAAA" ];
+          action = "predefined";
         }
       ];
       final = "bootstrap";
