@@ -23,13 +23,6 @@ in
 {
   inherit normalize;
   # -> tag, path
-  mkRemoteRulesets = mapMergeEntries {
-    type = "remote";
-    format = "binary";
-    download_detour = "upstream";
-  };
-
-  # -> tag, path
   mkLocalRuleSets = mapMergeEntries {
     type = "local";
     format = "binary";

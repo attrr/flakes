@@ -2,7 +2,6 @@
   lib,
   ctx,
   helpers,
-  config,
   ...
 }:
 let
