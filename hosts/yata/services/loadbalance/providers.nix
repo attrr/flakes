@@ -20,6 +20,8 @@ in
 {
   yata.loadbalance.settings = {
     inherit providers;
+    http_clients = [ { tag = "direct"; } ];
+    route.default_http_client = "direct";
     outbounds = lib.mkAfter [
       {
         type = "selector";
@@ -30,24 +32,15 @@ in
         type = "loadbalance";
         tag = "auto";
         providers = tags;
-        check = {
+        health_check = {
           interval = "2m";
         };
         pick = {
-          objective = "leastload";
+          objective = "quick";
           strategy = "random";
           max_fail = 0;
           max_rtt = "3000ms";
-          expected = 3;
-          baselines = [
-            "30ms"
-            "50ms"
-            "100ms"
-            "150ms"
-            "200ms"
-            "250ms"
-            "350ms"
-          ];
+          min_nodes = 3;
         };
       }
     ];

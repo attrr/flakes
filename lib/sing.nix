@@ -111,6 +111,9 @@ in
     in
     mapMergeEntries {
       type = "http";
-      download_detour = "direct";
+      # needs a `direct` entry in http_clients. By tag, not left to
+      # route.default_http_client: the fork's providers resolve their client
+      # before that one is set up
+      http_client = "direct";
     } value;
 }

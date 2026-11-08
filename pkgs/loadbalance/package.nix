@@ -4,18 +4,22 @@
   fetchFromGitHub,
 }:
 
-buildGoModule {
+# bump to the fork's main (its own releases aren't versions, hence the regex):
+#   nix run nixpkgs#nix-update -- --flake legacyPackages.x86_64-linux.loadbalance --version=branch --version-regex '^v?([0-9].*)$'
+buildGoModule (finalAttrs: {
   pname = "loadbalance";
-  version = "unstable-2026-04-02";
+  version = "1.15.0-alpha.13-unstable-2026-11-08";
 
   src = fetchFromGitHub {
     owner = "qjebbs";
     repo = "sing-box";
-    rev = "9265da6a08ce00fa7986a41cae327058906547a4";
-    hash = "sha256-GM1yCwEcqrOWDvGUM7TMXUocwe37FDxVO2JIbuehnbM=";
+    rev = "c323c7818e4d991ee8fe765ebfa0b2e9fe40043c";
+    hash = "sha256-jRsw70jqFYFE9Ehp35UIARQbx56qbH66TQIdaddcfAg=";
   };
 
-  vendorHash = "sha256-xQhO2UIqrZezSH1XtbayRbLzAE1c+DdQYi1bu63H1lY=";
+  vendorHash = "sha256-ipPHWUuYQRwzqfx+qP3oNq5fpojxtimOD19iwj+nHcU=";
+
+  env.CGO_ENABLED = 0;
 
   tags = [
     "with_gvisor"
@@ -25,6 +29,8 @@ buildGoModule {
     "with_utls"
     "with_acme"
     "with_clash_api"
+    "badlinkname"
+    "tfogo_checklinkname0"
   ];
 
   subPackages = [
@@ -34,7 +40,7 @@ buildGoModule {
   ldflags = [
     "-s"
     "-w"
-    "-X=github.com/sagernet/sing-box/constant.Version=unstable-2026-02-09"
+    "-X=github.com/sagernet/sing-box/constant.Version=${finalAttrs.version}"
     "-checklinkname=0"
   ];
 
@@ -49,4 +55,4 @@ buildGoModule {
     license = lib.licenses.gpl3Plus;
     mainProgram = "loadbalance";
   };
-}
+})
