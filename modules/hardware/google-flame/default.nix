@@ -6,6 +6,7 @@
 */
 {
   imports = [
+    ./audio.nix
     ./battery.nix
     ./boot.nix
     ./display.nix
