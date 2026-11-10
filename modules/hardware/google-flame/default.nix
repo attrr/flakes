@@ -10,6 +10,7 @@
     ./battery.nix
     ./boot.nix
     ./display.nix
+    ./haptics.nix
     ./wireless.nix
   ];
 }

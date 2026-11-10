@@ -1,0 +1,297 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:26:59 +0000
+Subject: [PATCH] Input: cs40l25-vibra - the IRQ, and hardware errors released
+
+Without its IRQ line, the firmware's events go unread and an amplifier
+or boost error, all left masked, stops the amplifier until the next
+probe. With one: enable the hardware and playback-end events, unmask
+the errors, and handle them as cs40l2x does: acknowledge each, release
+it (the boost's with the boost off), up to 10 times, then acknowledge
+the event and free the line with a wake-up. A DSP fault is fatal.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/input/misc/cs40l25-vibra.c | 184 +++++++++++++++++++++++++++--
+ 1 file changed, 172 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/input/misc/cs40l25-vibra.c b/drivers/input/misc/cs40l25-vibra.c
+index 7614eb8c7143..90e0014f6cbf 100644
+--- a/drivers/input/misc/cs40l25-vibra.c
++++ b/drivers/input/misc/cs40l25-vibra.c
+@@ -16,8 +16,9 @@
+  * part as shipped in Google's Pixel 6 kernels (google-modules/amplifiers,
+  * cs40l25/cs40l2x.c; Copyright (C) 2018-2020 Cirrus Logic, Inc.), on which
+  * the errata, IRQ mask and boost tables here are based. Only the CS40L25A
+- * B1 is supported. Not supported yet: the IRQ (amplifier errors are left
+- * masked), hibernation, the closed-loop braking configuration
++ * B1 is supported. With an IRQ line, the firmware's hardware and playback
++ * events come through it and amplifier and boost errors are released. Not
++ * supported yet: hibernation, the closed-loop braking configuration
+  * (cs40l25a_clab.bin), calibration and the codec path. The boost's peak
+  * current, voltage and OVP threshold come from the device tree; its inductor
+  * and capacitor terms are stock raven's (and flame's).
+@@ -31,6 +32,7 @@
+ #include <linux/gpio/consumer.h>
+ #include <linux/i2c.h>
+ #include <linux/input.h>
++#include <linux/interrupt.h>
+ #include <linux/iopoll.h>
+ #include <linux/module.h>
+ #include <linux/regmap.h>
+@@ -42,6 +44,7 @@
+ #define CS40L25_OTP_LAST		0x0000051c
+ #define CS40L25_PWR_CTRL1		0x00002014
+ #define CS40L25_PWR_CTRL2		0x00002018
++#define CS40L25_PROTECT_REL_ERR_IGN	0x00002034
+ #define CS40L25_LRCK_PAD_CONTROL	0x00002418
+ #define CS40L25_SDIN_PAD_CONTROL	0x00002420
+ #define CS40L25_PWRMGT_CTL		0x00002900
+@@ -69,6 +72,7 @@
+ #define CS40L25_AMP_DIG_VOL_CTRL	0x00006000
+ #define CS40L25_IRQ1_STATUS3		0x00010018
+ #define CS40L25_IRQ1_STATUS4		0x0001001c
++#define CS40L25_IRQ2_STATUS1		0x00010810
+ #define CS40L25_IRQ2_MASK1		0x00010910
+ #define CS40L25_IRQ2_MASK2		0x00010914
+ #define CS40L25_XMEM_PACKED_0		0x02000000
+@@ -185,9 +189,42 @@ static const struct reg_sequence cs40l25_pcm_routing[] = {
+ 	{ CS40L25_DSP1RX4_INPUT,	0x28 },
+ };
+ 
+-/* cs40l2x_irq2_masks[], all hardware errors left masked: no IRQ line here */
++/* cs40l2x_irq2_masks[]; with an IRQ line, the first unmasks the errors */
+ static const u32 cs40l25_irq2_masks[] = { 0xffffffff, 0xffffffff, 0xffff87ff, 0xfeffffff };
+ 
++/*
++ * cs40l2x_hw_errs[]: the errors (IRQ2_STATUS1 bits) and the bits releasing
++ * them; the boost's are released with the boost off
++ */
++static const struct {
++	u32 irq;
++	u32 rls;
++	bool bst_cycle;
++	const char *name;
++} cs40l25_hw_errs[] = {
++	{ BIT(31), BIT(1), false, "amplifier short" },
++	{ BIT(17), BIT(6), false, "overtemperature" },
++	{ BIT(15), BIT(5), false, "temperature rise" },
++	{ BIT(8), BIT(2), true, "boost converter short" },
++	{ BIT(7), BIT(4), true, "boost converter undervoltage" },
++	{ BIT(6), BIT(3), true, "boost converter overvoltage" },
++};
++#define CS40L25_HW_ERRS			(BIT(31) | BIT(17) | BIT(15) | BIT(8) | BIT(7) | BIT(6))
++#define CS40L25_HW_ERR_COUNT_MAX	10
++#define CS40L25_BST_EN_MASK		GENMASK(5, 4)
++#define CS40L25_BST_EN			2
++
++/* the firmware's event notifiers, as EVENTCONTROL enables them */
++#define CS40L25_EVENT_END_ENABLED	BIT(5)
++#define CS40L25_EVENT_HARDWARE_ENABLED	BIT(23)
++#define CS40L25_EVENT_CTRL_HARDWARE	13
++#define CS40L25_EVENT_CTRL_NONE		0xffffff
++static const char * const cs40l25_event_ctls[] = {
++	"GPIOPLAYBACKEVENT",
++	"TRIGGERPLAYBACKEVENT",
++	"HARDWAREEVENT",
++};
++
+ static const struct cs_dsp_region cs40l25_dsp_regions[] = {
+ 	{ .type = WMFW_HALO_PM_PACKED, .base = CS40L25_PMEM_0 },
+ 	{ .type = WMFW_HALO_XM_PACKED, .base = CS40L25_XMEM_PACKED_0 },
+@@ -199,6 +236,8 @@ static const struct cs_dsp_region cs40l25_dsp_regions[] = {
+ #define CS40L25_FW			"cs40l25a_clab.wmfw"
+ #define CS40L25_WT			"cs40l20.bin"
+ #define CS40L25_MBOX_TRIGGERINDEX	0x00013020
++#define CS40L25_MBOX_POWERCONTROL	0x0001302c
++#define CS40L25_POWERCONTROL_WAKEUP	2
+ #define CS40L25_INDEX_VIBE		0
+ #define CS40L25_HALO_STATE_IDLE		201
+ #define CS40L25_GAIN_TRIG		GENMASK(13, 4)
+@@ -233,6 +272,9 @@ struct cs40l25 {
+ 	bool playing;
+ 	struct cs_dsp_coeff_ctl *gain_ctl;
+ 	struct cs_dsp_coeff_ctl *end_ctl;
++	struct cs_dsp_coeff_ctl *event_ctls[ARRAY_SIZE(cs40l25_event_ctls)];
++	unsigned int hw_err_count[ARRAY_SIZE(cs40l25_hw_errs)];
++	int irq;
+ 	u32 bst_ipk_ua;
+ 	u32 bst_uv;
+ 	u32 bst_ovp_uv;
+@@ -437,29 +479,34 @@ static int cs40l25_ctl_write(struct cs40l25 *cs40l25, const char *name, const u3
+ }
+ 
+ /*
+- * cs40l2x_dsp_pre_config() without an IRQ line (an empty power-on
+- * sequence, GPIO1 for button detection, GPIO1 off outside suspend, the
+- * speaker free in standby, events off, the IRQ2 mask sequence, each mask as
+- * two words, then valid), then cs40l2x_dsp_start()'s DSP errata, memory
+- * ready and global enable.
++ * cs40l2x_dsp_pre_config() (an empty power-on sequence, GPIO1 for button
++ * detection, GPIO1 off outside suspend, the speaker free in standby, the
++ * hardware and playback-end events with an IRQ line, the IRQ2 mask
++ * sequence, each mask as two words, then valid), then cs40l2x_dsp_start()'s
++ * DSP errata, memory ready and global enable.
+  */
+ static int cs40l25_pre_run(struct cs_dsp *dsp)
+ {
+ 	struct cs40l25 *cs40l25 = container_of(dsp, struct cs40l25, dsp);
+ 	static const u32 one = 1, zero, wseq_term = 0x00ffffff;
+-	u32 seq[8];
++	u32 seq[8], events = 0, mask;
+ 	int ret, i;
+ 
++	if (cs40l25->irq > 0)
++		events = CS40L25_EVENT_HARDWARE_ENABLED | CS40L25_EVENT_END_ENABLED;
+ 	for (i = 0; i < ARRAY_SIZE(cs40l25_irq2_masks); i++) {
+-		seq[2 * i] = (cs40l25_irq2_masks[i] & 0xff) << 16;
+-		seq[2 * i + 1] = (cs40l25_irq2_masks[i] & 0xffffff00) >> 8;
++		mask = cs40l25_irq2_masks[i];
++		if (!i && cs40l25->irq > 0)
++			mask &= ~CS40L25_HW_ERRS;
++		seq[2 * i] = (mask & 0xff) << 16;
++		seq[2 * i + 1] = (mask & 0xffffff00) >> 8;
+ 	}
+ 	ret = cs40l25_ctl_write(cs40l25, "POWERONSEQUENCE", &wseq_term, 1, false) ?:
+ 	      cs40l25_ctl_write(cs40l25, "GPIO_BUTTONDETECT", &one, 1, false) ?:
+ 	      cs40l25_ctl_write(cs40l25, "GPIO_POL", &zero, 1, true) ?:
+ 	      cs40l25_ctl_write(cs40l25, "GPIO_ENABLE", &zero, 1, false) ?:
+ 	      cs40l25_ctl_write(cs40l25, "SPK_FORCE_TST_1_AUTO", &zero, 1, true) ?:
+-	      cs40l25_ctl_write(cs40l25, "EVENTCONTROL", &zero, 1, false) ?:
++	      cs40l25_ctl_write(cs40l25, "EVENTCONTROL", &events, 1, false) ?:
+ 	      cs40l25_ctl_write(cs40l25, "IRQMASKSEQUENCE", seq, ARRAY_SIZE(seq), false) ?:
+ 	      cs40l25_ctl_write(cs40l25, "IRQMASKSEQUENCE_VALID", &one, 1, false);
+ 	if (ret)
+@@ -505,9 +552,115 @@ static int cs40l25_post_run(struct cs_dsp *dsp)
+ 	cs40l25->end_ctl = cs_dsp_get_ctl(dsp, "ENDPLAYBACK", WMFW_ADSP2_XM, dsp->fw_id);
+ 	if (!cs40l25->gain_ctl || !cs40l25->end_ctl)
+ 		return dev_err_probe(cs40l25->dev, -ENOENT, "no GAIN_CONTROL or ENDPLAYBACK\n");
++	for (i = 0; cs40l25->irq > 0 && i < ARRAY_SIZE(cs40l25_event_ctls); i++) {
++		cs40l25->event_ctls[i] = cs_dsp_get_ctl(dsp, cs40l25_event_ctls[i],
++							WMFW_ADSP2_XM, dsp->fw_id);
++		if (!cs40l25->event_ctls[i])
++			return dev_err_probe(cs40l25->dev, -ENOENT, "no %s control\n",
++					     cs40l25_event_ctls[i]);
++	}
++	return 0;
++}
++
++/* cs40l2x_hw_err_rls(): the release bit cycled, the boost off around it */
++static int cs40l25_hw_err_rls(struct cs40l25 *cs40l25, unsigned int i)
++{
++	struct regmap *regmap = cs40l25->regmap;
++	bool bst = cs40l25_hw_errs[i].bst_cycle;
++	int ret;
++
++	ret = (bst ? regmap_update_bits(regmap, CS40L25_PWR_CTRL2, CS40L25_BST_EN_MASK, 0) : 0) ?:
++	      regmap_write(regmap, CS40L25_PROTECT_REL_ERR_IGN, 0) ?:
++	      regmap_write(regmap, CS40L25_PROTECT_REL_ERR_IGN, cs40l25_hw_errs[i].rls) ?:
++	      regmap_write(regmap, CS40L25_PROTECT_REL_ERR_IGN, 0) ?:
++	      (bst ? regmap_update_bits(regmap, CS40L25_PWR_CTRL2, CS40L25_BST_EN_MASK,
++					FIELD_PREP(CS40L25_BST_EN_MASK, CS40L25_BST_EN)) : 0);
++	if (!ret)
++		dev_info(cs40l25->dev, "released %s error\n", cs40l25_hw_errs[i].name);
++	return ret;
++}
++
++/* cs40l2x_hw_err_chk(): each error acknowledged, released up to 10 times */
++static int cs40l25_hw_err_chk(struct cs40l25 *cs40l25)
++{
++	unsigned int val, i;
++	int ret;
++
++	ret = regmap_read(cs40l25->regmap, CS40L25_IRQ2_STATUS1, &val);
++	if (ret)
++		return ret;
++	for (i = 0; i < ARRAY_SIZE(cs40l25_hw_errs); i++) {
++		if (!(val & cs40l25_hw_errs[i].irq))
++			continue;
++		dev_crit(cs40l25->dev, "%s error\n", cs40l25_hw_errs[i].name);
++		ret = regmap_write(cs40l25->regmap, CS40L25_IRQ2_STATUS1,
++				   cs40l25_hw_errs[i].irq);
++		if (ret)
++			return ret;
++		if (cs40l25->hw_err_count[i]++ >= CS40L25_HW_ERR_COUNT_MAX) {
++			dev_err(cs40l25->dev, "%s error not released again\n",
++				cs40l25_hw_errs[i].name);
++			continue;
++		}
++		ret = cs40l25_hw_err_rls(cs40l25, i);
++		if (ret)
++			return ret;
++	}
+ 	return 0;
+ }
+ 
++/*
++ * cs40l2x_irq(): the firmware raises the line for its events, each
++ * acknowledged (NONE) and the line freed by a wake-up. A DSP fault (its
++ * scratch register) is fatal: the line stays off until the driver is
++ * rebound.
++ */
++static irqreturn_t cs40l25_irq(int irq, void *data)
++{
++	struct cs40l25 *cs40l25 = data;
++	struct regmap *regmap = cs40l25->regmap;
++	irqreturn_t handled = IRQ_NONE;
++	unsigned int val, reg, i;
++	int ret;
++
++	mutex_lock(&cs40l25->lock);
++	ret = regmap_read(regmap, CS40L25_DSP1_SCRATCH1, &val);
++	if (ret)
++		goto out;
++	if (val) {
++		dev_err(cs40l25->dev, "DSP fault, scratch %u\n", val);
++		disable_irq_nosync(irq);
++		handled = IRQ_HANDLED;
++		goto out;
++	}
++
++	for (i = 0; i < ARRAY_SIZE(cs40l25_event_ctls); i++) {
++		reg = cs40l25_ctl_reg(cs40l25->event_ctls[i]);
++		ret = regmap_read(regmap, reg, &val);
++		if (ret)
++			goto out;
++		if (val == CS40L25_EVENT_CTRL_NONE)
++			continue;
++		dev_dbg(cs40l25->dev, "%s %u\n", cs40l25_event_ctls[i], val);
++		if (val == CS40L25_EVENT_CTRL_HARDWARE) {
++			ret = cs40l25_hw_err_chk(cs40l25);
++			if (ret)
++				goto out;
++		}
++		ret = regmap_write(regmap, reg, CS40L25_EVENT_CTRL_NONE) ?:
++		      regmap_write(regmap, CS40L25_MBOX_POWERCONTROL,
++				   CS40L25_POWERCONTROL_WAKEUP);
++		if (ret)
++			goto out;
++		handled = IRQ_HANDLED;
++	}
++out:
++	if (ret)
++		dev_err(cs40l25->dev, "IRQ: %d\n", ret);
++	mutex_unlock(&cs40l25->lock);
++	return handled;
++}
++
+ static const struct cs_dsp_client_ops cs40l25_client_ops = {
+ 	.pre_run = cs40l25_pre_run,
+ 	.post_run = cs40l25_post_run,
+@@ -765,9 +918,16 @@ static int cs40l25_probe(struct i2c_client *client)
+ 	ret = cs40l25_handover(cs40l25) ?: cs40l25_init(cs40l25);
+ 	if (ret)
+ 		return ret;
++	cs40l25->irq = client->irq;
+ 	ret = cs40l25_dsp_init(cs40l25);
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "DSP start\n");
++	if (cs40l25->irq > 0) {
++		ret = devm_request_threaded_irq(dev, cs40l25->irq, NULL, cs40l25_irq,
++						IRQF_ONESHOT, dev_name(dev), cs40l25);
++		if (ret)
++			return dev_err_probe(dev, ret, "IRQ\n");
++	}
+ 
+ 	ret = cs40l25_input_init(cs40l25, devid, revid);
+ 	if (ret)

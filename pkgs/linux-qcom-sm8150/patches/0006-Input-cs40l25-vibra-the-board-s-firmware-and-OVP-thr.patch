@@ -1,0 +1,253 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:26:59 +0000
+Subject: [PATCH] Input: cs40l25-vibra - the board's firmware and OVP threshold
+
+flame (Pixel 4) runs the CS40L25A's REMAP firmware, cs40l25a.wmfw
+(0x1400c3), not raven's CLAB one, and stock's boost OVP there is 11 V,
+not 12. Take the firmware from firmware-name, its controls under the ID
+it loads with rather than CLAB's, and the OVP threshold from
+cirrus,boost-ovp-microvolt; the defaults stay raven's.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../bindings/input/cirrus,cs40l25a.yaml       | 11 ++++
+ drivers/input/misc/Kconfig                    |  5 +-
+ drivers/input/misc/cs40l25-vibra.c            | 65 ++++++++++++-------
+ 3 files changed, 54 insertions(+), 27 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/input/cirrus,cs40l25a.yaml b/Documentation/devicetree/bindings/input/cirrus,cs40l25a.yaml
+index 3f8e38a3bb6f..9d86f81d2857 100644
+--- a/Documentation/devicetree/bindings/input/cirrus,cs40l25a.yaml
++++ b/Documentation/devicetree/bindings/input/cirrus,cs40l25a.yaml
+@@ -43,6 +43,17 @@ properties:
+     multipleOf: 50000
+     default: 11000000
+ 
++  cirrus,boost-ovp-microvolt:
++    description: Boost converter overvoltage protection threshold.
++    minimum: 9000000
++    maximum: 12875000
++    multipleOf: 125000
++    default: 12000000
++
++  firmware-name:
++    description: The RAM firmware, from the same family as the default.
++    default: cs40l25a_clab.wmfw
++
+ required:
+   - compatible
+   - reg
+diff --git a/drivers/input/misc/Kconfig b/drivers/input/misc/Kconfig
+index b2ab1f7f44fe..26ff2a2efd3c 100644
+--- a/drivers/input/misc/Kconfig
++++ b/drivers/input/misc/Kconfig
+@@ -166,8 +166,9 @@ config INPUT_CS40L25_VIBRA
+ 	select INPUT_FF_MEMLESS
+ 	help
+ 	  Say Y here to enable force feedback (FF_RUMBLE) on the Cirrus Logic
+-	  CS40L25A boosted haptic driver, as in the Pixel 6 Pro. Needs the
+-	  RAM firmware cs40l25a_clab.wmfw and the wavetable cs40l20.bin.
++	  CS40L25A boosted haptic driver, as in the Pixel 4 and 6 Pro. Needs
++	  the RAM firmware (cs40l25a_clab.wmfw, or the device tree's
++	  firmware-name) and the wavetable cs40l20.bin.
+ 
+ 	  To compile this driver as a module, choose M here: the module will
+ 	  be called cs40l25-vibra.
+diff --git a/drivers/input/misc/cs40l25-vibra.c b/drivers/input/misc/cs40l25-vibra.c
+index 31c4b4ba9ec3..7614eb8c7143 100644
+--- a/drivers/input/misc/cs40l25-vibra.c
++++ b/drivers/input/misc/cs40l25-vibra.c
+@@ -5,11 +5,12 @@
+  * The CS40L25A is a Halo Core DSP with a boosted class-D amplifier for linear
+  * resonant actuators. It boots into a ROM "basic mode"; this driver resets
+  * it, hands it over from basic mode, applies the B0 errata and the board's
+- * boost, loads the RAM firmware (cs40l25a_clab.wmfw) and the wavetable
+- * (cs40l20.bin) through cs_dsp and plays vibration through the firmware's
+- * trigger mailbox, driven by the memoryless force-feedback layer (FF_RUMBLE):
+- * the strength sets the firmware's trigger gain, a start plays the
+- * continuous effect (index 0) and a stop ends it (ENDPLAYBACK).
++ * boost, loads the RAM firmware (cs40l25a_clab.wmfw, or the board's
++ * firmware-name) and the wavetable (cs40l20.bin) through cs_dsp and plays
++ * vibration through the firmware's trigger mailbox, driven by the
++ * memoryless force-feedback layer (FF_RUMBLE): the strength sets the
++ * firmware's trigger gain, a start plays the continuous effect (index 0)
++ * and a stop ends it (ENDPLAYBACK).
+  *
+  * The sequence and register layout follow Cirrus Logic's GPL driver for this
+  * part as shipped in Google's Pixel 6 kernels (google-modules/amplifiers,
+@@ -18,8 +19,8 @@
+  * B1 is supported. Not supported yet: the IRQ (amplifier errors are left
+  * masked), hibernation, the closed-loop braking configuration
+  * (cs40l25a_clab.bin), calibration and the codec path. The boost's peak
+- * current and voltage come from the device tree; its inductor and capacitor
+- * terms are stock raven's.
++ * current, voltage and OVP threshold come from the device tree; its inductor
++ * and capacitor terms are stock raven's (and flame's).
+  */
+ 
+ #include <linux/bitfield.h>
+@@ -102,7 +103,6 @@
+ #define CS40L25_BST_CTL_SEL_CP_VAL	0
+ #define CS40L25_BST_CTL_SEL_CLASSH	1
+ #define CS40L25_BST_SHORT_ERR		BIT(8)
+-#define CS40L25_FW_ID_CLAB		0x1400cb
+ #define CS40L25_HALO_STATE_RUN		203
+ 
+ static const struct reg_sequence cs40l25_basic_mode_revert[] = {
+@@ -155,22 +155,25 @@ static const struct reg_sequence cs40l25_dsp_errata[] = {
+ /*
+  * Stock's boost (gs101-raviole-audio.dtsi: 1000 nH, 4 uF, 4500 mA peak,
+  * 7.5 V, OVP 12 V) through cs40l2x_boost_config()'s tables: LBST 0, the
+- * capacitor in range 0, so K1 0x24, K2 0x24, slope 0x75; OVP
+- * ((12000 - 9000) / 125) * 2 = 0x30, enabled (bit 8). The peak current and
+- * the voltage are the board's (cs40l25_boost_from_dt()), encoded as cs40l2x
+- * does: peak (mA - 1600) / 50 + 0x10, 4500 mA = 0x4a; voltage
+- * (mV - 2550) / 50 + 1, 7.5 V = 0x64.
++ * capacitor in range 0, so K1 0x24, K2 0x24, slope 0x75. The peak
++ * current, the voltage and the OVP threshold are the board's
++ * (cs40l25_boost_from_dt()), encoded as cs40l2x does: peak
++ * (mA - 1600) / 50 + 0x10, 4500 mA = 0x4a; voltage (mV - 2550) / 50 + 1,
++ * 7.5 V = 0x64; OVP ((mV - 9000) / 125) * 2, enabled (bit 8), 12 V = 0x130.
+  */
+ #define CS40L25_BST_IPK_MIN_UA		1600000
+ #define CS40L25_BST_IPK_MAX_UA		4500000
+ #define CS40L25_BST_UV_MIN		2550000
+ #define CS40L25_BST_UV_MAX		11000000
+ #define CS40L25_BST_STEP		50000
++#define CS40L25_BST_OVP_UV_MIN		9000000
++#define CS40L25_BST_OVP_UV_MAX		12875000
++#define CS40L25_BST_OVP_STEP		125000
++#define CS40L25_BST_OVP_EN		BIT(8)
+ 
+ static const struct reg_sequence cs40l25_boost[] = {
+ 	{ CS40L25_BSTCVRT_COEFF,	0x00002424 },
+ 	{ CS40L25_BSTCVRT_SLOPE_LBST,	0x00007500 },
+-	{ CS40L25_BSTCVRT_OVERVOLT_CTRL, 0x00000130 },
+ };
+ 
+ /* cs40l2x_pcm_routing[]: the DAC from the DSP, the DSP's inputs */
+@@ -232,6 +235,7 @@ struct cs40l25 {
+ 	struct cs_dsp_coeff_ctl *end_ctl;
+ 	u32 bst_ipk_ua;
+ 	u32 bst_uv;
++	u32 bst_ovp_uv;
+ };
+ 
+ static bool cs40l25_writeable(struct device *dev, unsigned int reg)
+@@ -348,8 +352,10 @@ static int cs40l25_boost_from_dt(struct cs40l25 *cs40l25)
+ 
+ 	cs40l25->bst_ipk_ua = CS40L25_BST_IPK_MAX_UA;
+ 	cs40l25->bst_uv = CS40L25_BST_UV_MAX;
++	cs40l25->bst_ovp_uv = 12000000;
+ 	device_property_read_u32(dev, "cirrus,boost-peak-microamp", &cs40l25->bst_ipk_ua);
+ 	device_property_read_u32(dev, "cirrus,boost-ctl-microvolt", &cs40l25->bst_uv);
++	device_property_read_u32(dev, "cirrus,boost-ovp-microvolt", &cs40l25->bst_ovp_uv);
+ 	if (cs40l25->bst_ipk_ua < CS40L25_BST_IPK_MIN_UA ||
+ 	    cs40l25->bst_ipk_ua > CS40L25_BST_IPK_MAX_UA ||
+ 	    cs40l25->bst_ipk_ua % CS40L25_BST_STEP)
+@@ -359,6 +365,11 @@ static int cs40l25_boost_from_dt(struct cs40l25 *cs40l25)
+ 	    cs40l25->bst_uv % CS40L25_BST_STEP)
+ 		return dev_err_probe(dev, -EINVAL, "boost voltage %u uV out of range\n",
+ 				     cs40l25->bst_uv);
++	if (cs40l25->bst_ovp_uv < CS40L25_BST_OVP_UV_MIN ||
++	    cs40l25->bst_ovp_uv > CS40L25_BST_OVP_UV_MAX ||
++	    cs40l25->bst_ovp_uv % CS40L25_BST_OVP_STEP)
++		return dev_err_probe(dev, -EINVAL, "boost OVP %u uV out of range\n",
++				     cs40l25->bst_ovp_uv);
+ 	return 0;
+ }
+ 
+@@ -370,14 +381,16 @@ static int cs40l25_boost_from_dt(struct cs40l25 *cs40l25)
+ static int cs40l25_init(struct cs40l25 *cs40l25)
+ {
+ 	struct regmap *regmap = cs40l25->regmap;
+-	unsigned int ipk, vbst, val;
++	unsigned int ipk, vbst, ovp, val;
+ 	int ret;
+ 
+ 	ipk = (cs40l25->bst_ipk_ua - CS40L25_BST_IPK_MIN_UA) / CS40L25_BST_STEP + 0x10;
+ 	vbst = (cs40l25->bst_uv - CS40L25_BST_UV_MIN) / CS40L25_BST_STEP + 1;
++	ovp = (cs40l25->bst_ovp_uv - CS40L25_BST_OVP_UV_MIN) / CS40L25_BST_OVP_STEP * 2;
+ 	ret = regmap_multi_reg_write(regmap, cs40l25_boost, ARRAY_SIZE(cs40l25_boost)) ?:
+ 	      regmap_write(regmap, CS40L25_BSTCVRT_PEAK_CUR, ipk) ?:
+ 	      regmap_write(regmap, CS40L25_BSTCVRT_VCTRL1, vbst) ?:
++	      regmap_write(regmap, CS40L25_BSTCVRT_OVERVOLT_CTRL, CS40L25_BST_OVP_EN | ovp) ?:
+ 	      regmap_update_bits(regmap, CS40L25_BSTCVRT_VCTRL2, CS40L25_BST_CTL_SEL_MASK,
+ 				 CS40L25_BST_CTL_SEL_CP_VAL) ?:
+ 	      regmap_update_bits(regmap, CS40L25_PWR_CTRL1, CS40L25_GLOBAL_EN,
+@@ -414,7 +427,7 @@ static int cs40l25_ctl_write(struct cs40l25 *cs40l25, const char *name, const u3
+ 	unsigned int i;
+ 	int ret;
+ 
+-	ctl = cs_dsp_get_ctl(&cs40l25->dsp, name, WMFW_ADSP2_XM, CS40L25_FW_ID_CLAB);
++	ctl = cs_dsp_get_ctl(&cs40l25->dsp, name, WMFW_ADSP2_XM, cs40l25->dsp.fw_id);
+ 	if (!ctl)
+ 		return optional ? 0 : dev_err_probe(cs40l25->dev, -ENOENT, "no %s control\n", name);
+ 	for (i = 0; i < n; i++)
+@@ -473,7 +486,7 @@ static int cs40l25_post_run(struct cs_dsp *dsp)
+ 	__be32 w;
+ 	int ret, i;
+ 
+-	ctl = cs_dsp_get_ctl(dsp, "HALO_STATE", WMFW_ADSP2_XM, CS40L25_FW_ID_CLAB);
++	ctl = cs_dsp_get_ctl(dsp, "HALO_STATE", WMFW_ADSP2_XM, dsp->fw_id);
+ 	if (!ctl)
+ 		return dev_err_probe(cs40l25->dev, -ENOENT, "no HALO_STATE control\n");
+ 	for (i = 0; i < 10; i++) {
+@@ -488,10 +501,8 @@ static int cs40l25_post_run(struct cs_dsp *dsp)
+ 	if (state != CS40L25_HALO_STATE_RUN && state != CS40L25_HALO_STATE_IDLE)
+ 		return dev_err_probe(cs40l25->dev, -ETIME, "HALO_STATE %u\n", state);
+ 
+-	cs40l25->gain_ctl = cs_dsp_get_ctl(dsp, "GAIN_CONTROL", WMFW_ADSP2_XM,
+-					   CS40L25_FW_ID_CLAB);
+-	cs40l25->end_ctl = cs_dsp_get_ctl(dsp, "ENDPLAYBACK", WMFW_ADSP2_XM,
+-					  CS40L25_FW_ID_CLAB);
++	cs40l25->gain_ctl = cs_dsp_get_ctl(dsp, "GAIN_CONTROL", WMFW_ADSP2_XM, dsp->fw_id);
++	cs40l25->end_ctl = cs_dsp_get_ctl(dsp, "ENDPLAYBACK", WMFW_ADSP2_XM, dsp->fw_id);
+ 	if (!cs40l25->gain_ctl || !cs40l25->end_ctl)
+ 		return dev_err_probe(cs40l25->dev, -ENOENT, "no GAIN_CONTROL or ENDPLAYBACK\n");
+ 	return 0;
+@@ -634,6 +645,7 @@ static int cs40l25_dsp_init(struct cs40l25 *cs40l25)
+ {
+ 	const struct firmware *wmfw, *wt;
+ 	struct device *dev = cs40l25->dev;
++	const char *fw = CS40L25_FW;
+ 	int ret;
+ 
+ 	cs40l25->dsp.num = 1;
+@@ -654,15 +666,17 @@ static int cs40l25_dsp_init(struct cs40l25 *cs40l25)
+ 	if (ret)
+ 		return ret;
+ 
+-	ret = request_firmware(&wmfw, CS40L25_FW, dev);
++	/* the board's RAM firmware, whose controls go under its ID (fw_id) */
++	device_property_read_string(dev, "firmware-name", &fw);
++	ret = request_firmware(&wmfw, fw, dev);
+ 	if (ret)
+-		return dev_err_probe(dev, ret, "no %s\n", CS40L25_FW);
++		return dev_err_probe(dev, ret, "no %s\n", fw);
+ 	ret = request_firmware(&wt, CS40L25_WT, dev);
+ 	if (ret) {
+ 		release_firmware(wmfw);
+ 		return dev_err_probe(dev, ret, "no %s\n", CS40L25_WT);
+ 	}
+-	ret = cs_dsp_power_up(&cs40l25->dsp, wmfw, CS40L25_FW, wt, CS40L25_WT, "cs40l25a");
++	ret = cs_dsp_power_up(&cs40l25->dsp, wmfw, fw, wt, CS40L25_WT, "cs40l25a");
+ 	release_firmware(wt);
+ 	release_firmware(wmfw);
+ 	if (ret)
+@@ -760,7 +774,7 @@ static int cs40l25_probe(struct i2c_client *client)
+ 		return dev_err_probe(dev, ret, "input device\n");
+ 
+ 	dev_info(dev, "CS40L25A revision %02X, firmware 0x%06x running\n", revid,
+-		 CS40L25_FW_ID_CLAB);
++		 cs40l25->dsp.fw_id);
+ 	return 0;
+ }
+ 
+@@ -790,4 +804,5 @@ MODULE_DESCRIPTION("Cirrus Logic CS40L25A haptic driver");
+ MODULE_IMPORT_NS("FW_CS_DSP");
+ MODULE_LICENSE("GPL");
+ MODULE_FIRMWARE(CS40L25_FW);
++MODULE_FIRMWARE("cs40l25a.wmfw");
+ MODULE_FIRMWARE(CS40L25_WT);
