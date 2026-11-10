@@ -7,6 +7,15 @@
   pkgs,
   ...
 }:
+let
+  # what programs.gdk-pixbuf.modulePackages builds, with JPEG XL
+  pixbufLoaders = pkgs.gnome._gdkPixbufCacheBuilder_DO_NOT_USE {
+    extraLoaders = [
+      pkgs.librsvg
+      pkgs.libjxl
+    ];
+  };
+in
 {
   assertions = [
     {
@@ -26,6 +35,14 @@
     # the module pins DSI-1 to scale 2; the panel reports its real size
     # (62x130mm), so phoc can work the scale out itself
     phocConfig.outputs = { };
+    # GNOME's wallpapers are JPEG XL, and phosh's wrapper pins librsvg's
+    # loaders.cache, which has no JXL loader: the background comes out
+    # black
+    package = pkgs.phosh.overrideAttrs (old: {
+      preFixup = old.preFixup + ''
+        gappsWrapperArgs+=(--set GDK_PIXBUF_MODULE_FILE ${pixbufLoaders})
+      '';
+    });
   };
   # what the module leaves out: GNOME's apps, stevia's completion dictionary
   services.gnome.core-apps.enable = true;
