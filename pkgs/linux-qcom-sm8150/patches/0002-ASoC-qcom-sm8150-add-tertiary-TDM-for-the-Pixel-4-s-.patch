@@ -1,0 +1,147 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:26:58 +0000
+Subject: [PATCH] ASoC: qcom: sm8150: add tertiary TDM for the Pixel 4's
+ CS35L36 amps
+
+Four 32-bit slots at 48 kHz, the bit clock driven by the DSP and fed to
+the amps' PLL. The CS35L36 has no set_tdm_slot or channel map; which
+slot each amp plays is its own Channel Mux control.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sound/soc/qcom/sm8150.c | 86 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 86 insertions(+)
+
+diff --git a/sound/soc/qcom/sm8150.c b/sound/soc/qcom/sm8150.c
+index 3f1ca7c89d56..73afbcbbc39c 100644
+--- a/sound/soc/qcom/sm8150.c
++++ b/sound/soc/qcom/sm8150.c
+@@ -30,6 +30,7 @@ struct sm8150_snd_data {
+ 	bool stream_prepared[AFE_PORT_MAX];
+ 	struct snd_soc_card *card;
+ 	uint32_t quat_tdm_clk_count;
++	uint32_t tert_tdm_clk_count;
+ 	struct sdw_stream_runtime *sruntime[AFE_PORT_MAX];
+ };
+ 
+@@ -192,6 +193,66 @@ static int sm8150_tdm_snd_hw_params(struct snd_pcm_substream *substream,
+ 	return ret;
+ }
+ 
++/*
++ * Tertiary TDM, as the Pixel 4's CS35L36 pair takes it: four 32-bit slots
++ * per 48 kHz frame (6.144 MHz), the channels in the first ones. The amps
++ * clock themselves from that bit clock.
++ */
++#define TERT_TDM_SLOTS		4
++#define TERT_TDM_SLOT_WIDTH	32
++#define TERT_TDM_BCLK_RATE	(48000 * TERT_TDM_SLOTS * TERT_TDM_SLOT_WIDTH)
++
++static int sm8150_tert_tdm_snd_hw_params(struct snd_pcm_substream *substream,
++					 struct snd_pcm_hw_params *params)
++{
++	struct snd_soc_pcm_runtime *rtd = snd_soc_substream_to_rtd(substream);
++	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
++	struct snd_soc_dai *codec_dai;
++	unsigned int channels = params_channels(params);
++	unsigned int slot_mask = GENMASK(channels - 1, 0);
++	int ret, i;
++
++	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
++		ret = snd_soc_dai_set_tdm_slot(cpu_dai, 0, slot_mask,
++					       TERT_TDM_SLOTS, TERT_TDM_SLOT_WIDTH);
++		if (ret < 0)
++			goto err;
++		ret = snd_soc_dai_set_channel_map(cpu_dai, 0, NULL,
++						  channels, tdm_slot_offset);
++	} else {
++		ret = snd_soc_dai_set_tdm_slot(cpu_dai, slot_mask, 0,
++					       TERT_TDM_SLOTS, TERT_TDM_SLOT_WIDTH);
++		if (ret < 0)
++			goto err;
++		ret = snd_soc_dai_set_channel_map(cpu_dai, channels,
++						  tdm_slot_offset, 0, NULL);
++	}
++	if (ret < 0)
++		goto err;
++
++	for_each_rtd_codec_dais(rtd, i, codec_dai) {
++		/* the PLL's source first: clk_id 0 is the bit clock */
++		ret = snd_soc_component_set_sysclk(codec_dai->component, 0, 0,
++						   TERT_TDM_BCLK_RATE,
++						   SND_SOC_CLOCK_IN);
++		if (ret < 0)
++			goto err_codec;
++		ret = snd_soc_dai_set_sysclk(codec_dai, 0, TERT_TDM_BCLK_RATE,
++					     SND_SOC_CLOCK_IN);
++		if (ret < 0)
++			goto err_codec;
++	}
++
++	return 0;
++
++err_codec:
++	dev_err(codec_dai->dev, "failed to set sysclk, err:%d\n", ret);
++	return ret;
++err:
++	dev_err(rtd->dev, "%s: failed to set tdm slots, err:%d\n", __func__, ret);
++	return ret;
++}
++
+ static int sm8150_snd_hw_params(struct snd_pcm_substream *substream,
+ 					struct snd_pcm_hw_params *params)
+ {
+@@ -206,6 +267,10 @@ static int sm8150_snd_hw_params(struct snd_pcm_substream *substream,
+ 	case QUATERNARY_TDM_TX_0:
+ 		ret = sm8150_tdm_snd_hw_params(substream, params);
+ 		break;
++	case TERTIARY_TDM_RX_0:
++	case TERTIARY_TDM_TX_0:
++		ret = sm8150_tert_tdm_snd_hw_params(substream, params);
++		break;
+ 	case SLIMBUS_0_RX...SLIMBUS_6_TX:
+ 		ret = sm8150_slim_snd_hw_params(substream, params);
+ 		break;
+@@ -306,6 +371,7 @@ static int sm8150_snd_startup(struct snd_pcm_substream *substream)
+ 	struct sm8150_snd_data *data = snd_soc_card_get_drvdata(card);
+ 	struct snd_soc_dai *cpu_dai = snd_soc_rtd_to_cpu(rtd, 0);
+ 	struct snd_soc_dai *codec_dai = snd_soc_rtd_to_codec(rtd, 0);
++	int i;
+ 
+ 	switch (cpu_dai->id) {
+ 	case QUATERNARY_MI2S_RX:
+@@ -331,6 +397,18 @@ static int sm8150_snd_startup(struct snd_pcm_substream *substream)
+ 		snd_soc_dai_set_fmt(cpu_dai, fmt);
+ 		snd_soc_dai_set_fmt(codec_dai, codec_dai_fmt);
+ 		break;
++	case TERTIARY_TDM_RX_0:
++	case TERTIARY_TDM_TX_0:
++		codec_dai_fmt |= SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_DSP_A;
++		if (++(data->tert_tdm_clk_count) == 1) {
++			snd_soc_dai_set_sysclk(cpu_dai,
++				Q6AFE_LPASS_CLK_ID_TER_TDM_IBIT,
++				TERT_TDM_BCLK_RATE, SNDRV_PCM_STREAM_PLAYBACK);
++		}
++		snd_soc_dai_set_fmt(cpu_dai, fmt);
++		for_each_rtd_codec_dais(rtd, i, codec_dai)
++			snd_soc_dai_set_fmt(codec_dai, codec_dai_fmt);
++		break;
+ 	case SLIMBUS_0_RX...SLIMBUS_6_TX:
+ 		break;
+ 	default:
+@@ -356,6 +434,14 @@ static void sm8150_snd_shutdown(struct snd_pcm_substream *substream)
+ 				0, SNDRV_PCM_STREAM_PLAYBACK);
+ 		}
+ 		break;
++	case TERTIARY_TDM_RX_0:
++	case TERTIARY_TDM_TX_0:
++		if (--(data->tert_tdm_clk_count) == 0) {
++			snd_soc_dai_set_sysclk(cpu_dai,
++				Q6AFE_LPASS_CLK_ID_TER_TDM_IBIT,
++				0, SNDRV_PCM_STREAM_PLAYBACK);
++		}
++		break;
+ 	case SLIMBUS_0_RX...SLIMBUS_6_TX:
+ 	case QUATERNARY_MI2S_RX:
+ 		break;

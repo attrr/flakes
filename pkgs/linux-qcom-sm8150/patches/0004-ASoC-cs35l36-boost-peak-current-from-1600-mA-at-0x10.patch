@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:26:59 +0000
+Subject: [PATCH] ASoC: cs35l36: boost peak current from 1600 mA at 0x10
+
+BSTCVRT_PEAK_CUR counts 50 mA steps from 1600 mA at 0x10, up to 4500 mA
+at 0x4a, its default (as cs35l41's, and cs35l36's own register defaults,
+have it). Without the 0x10 a peak of 3700 mA (flame's, as stock's)
+gives 0x2a, 2900 mA.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l36.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/cs35l36.c b/sound/soc/codecs/cs35l36.c
+index ff6bba003d61..4c53b7ee538b 100644
+--- a/sound/soc/codecs/cs35l36.c
++++ b/sound/soc/codecs/cs35l36.c
+@@ -1453,7 +1453,8 @@ static int cs35l36_handle_of_data(struct i2c_client *i2c_client,
+ 			return -EINVAL;
+ 		}
+ 
+-		pdata->bst_ipk = (val - 1600) / 50;
++		/* 0x10 is 1600 mA, as the register's default 0x4a is 4500 */
++		pdata->bst_ipk = (val - 1600) / 50 + 0x10;
+ 	} else {
+ 		dev_err(&i2c_client->dev,
+ 			"Unable to find required parameter 'cirrus,boost-peak-milliamp'");
