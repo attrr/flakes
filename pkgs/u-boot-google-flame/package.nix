@@ -2,6 +2,7 @@
   lib,
   buildUBoot,
   buildPackages,
+  applyPatches,
   linux-qcom-sm8150,
   xxd,
 }:
@@ -11,9 +12,15 @@
 # https://wiki.nura.eco/wiki/Google_Pixel_4_(google-flame)
 let
   # upstream has the SoC but not this board: its dts/upstream follows
-  # mainline Linux, and flame's DT is only in the sm8150 kernel, so take it,
-  # and the dtsi it includes, from the one the phone runs
-  kernelDts = "${linux-qcom-sm8150.src}/arch/arm64/boot/dts/qcom";
+  # mainline Linux, and flame's DT is only in the patched kernel tree, so
+  # take it, and the dtsi it includes, from there
+  kernelDts = "${
+    applyPatches {
+      name = "linux-qcom-sm8150-src";
+      inherit (linux-qcom-sm8150) src;
+      patches = map (p: p.patch) linux-qcom-sm8150.kernelPatches;
+    }
+  }/arch/arm64/boot/dts/qcom";
 in
 (buildUBoot {
   pname = "u-boot-google-flame";
