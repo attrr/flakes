@@ -1,0 +1,74 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 20:03:29 +0000
+Subject: [PATCH] arm64: dts: qcom: sm8150: GPU bandwidth by its OPP
+
+The a640 GMU sends no DDR votes of its own (a640_build_bw_table's single
+"off" entry), so once the interconnects sync the GPU gets only what the
+CPUs and display ask for: under load it faulted into hangcheck and the
+display timed out its frames. Vote as sdm845 does, the OPP's peak
+bandwidth on gfx-mem: the most the vendor kernel's bus governor gave
+each level (qcom,bus-max on its 675 MHz speed bin).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8150.dtsi | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150.dtsi b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+index b943e8b28823..22306552d377 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -2317,6 +2317,9 @@ gpu: gpu@2c00000 {
+ 
+ 			iommus = <&adreno_smmu 0 0x401>;
+ 
++			interconnects = <&gem_noc MASTER_GRAPHICS_3D 0 &mc_virt SLAVE_EBI_CH0 0>;
++			interconnect-names = "gfx-mem";
++
+ 			operating-points-v2 = <&gpu_opp_table>;
+ 
+ 			qcom,gmu = <&gmu>;
+@@ -2337,36 +2340,42 @@ gpu_opp_table: opp-table {
+ 				opp-675000000 {
+ 					opp-hz = /bits/ 64 <675000000>;
+ 					opp-level = <RPMH_REGULATOR_LEVEL_NOM_L1>;
++					opp-peak-kBps = <6220000>;
+ 					opp-supported-hw = <0x2>;
+ 				};
+ 
+ 				opp-585000000 {
+ 					opp-hz = /bits/ 64 <585000000>;
+ 					opp-level = <RPMH_REGULATOR_LEVEL_NOM>;
++					opp-peak-kBps = <6220000>;
+ 					opp-supported-hw = <0x3>;
+ 				};
+ 
+ 				opp-499200000 {
+ 					opp-hz = /bits/ 64 <499200000>;
+ 					opp-level = <RPMH_REGULATOR_LEVEL_SVS_L2>;
++					opp-peak-kBps = <6220000>;
+ 					opp-supported-hw = <0x3>;
+ 				};
+ 
+ 				opp-427000000 {
+ 					opp-hz = /bits/ 64 <427000000>;
+ 					opp-level = <RPMH_REGULATOR_LEVEL_SVS_L1>;
++					opp-peak-kBps = <4068000>;
+ 					opp-supported-hw = <0x3>;
+ 				};
+ 
+ 				opp-345000000 {
+ 					opp-hz = /bits/ 64 <345000000>;
+ 					opp-level = <RPMH_REGULATOR_LEVEL_SVS>;
++					opp-peak-kBps = <1648000>;
+ 					opp-supported-hw = <0x3>;
+ 				};
+ 
+ 				opp-257000000 {
+ 					opp-hz = /bits/ 64 <257000000>;
+ 					opp-level = <RPMH_REGULATOR_LEVEL_LOW_SVS>;
++					opp-peak-kBps = <1200000>;
+ 					opp-supported-hw = <0x3>;
+ 				};
+ 			};
