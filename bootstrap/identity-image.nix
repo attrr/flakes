@@ -4,8 +4,8 @@
 # and copied in. Outputs are mode 600 in $PWD: they hold private keys.
 #   disko  ./<name>.raw.zst (or .qcow2 with zstd clusters), from the config's
 #          disko image script
-#   sd     ./<name>.img, the config's sdImage with the files written into its
-#          root partition (ext4, edited offline with debugfs)
+#   sd     ./<name>.img, the config's sdImage (or another raw image) with the
+#          files written into its root partition (ext4, edited offline with debugfs)
 { lib, pkgs }:
 let
   # <generator>/<file> -> where it lands; .pub files are public (plain) in vars
@@ -92,6 +92,8 @@ in
       name,
       nixos,
       vars,
+      image ? "${nixos.config.system.build.sdImage}/sd-image/*.img",
+      sectorSize ? 512,
     }:
     let
       files = present vars;
@@ -124,15 +126,15 @@ in
         ${decrypt vars}
 
         img=$work/${name}.img
-        cp --no-preserve=mode ${nixos.config.system.build.sdImage}/sd-image/*.img "$img"
+        cp --no-preserve=mode ${image} "$img"
 
-        # the root partition is the sd image's last (and largest) one
-        read -r start size < <(sfdisk -J "$img" | jq -r '.partitiontable.partitions | max_by(.size) | "\(.start) \(.size)"')
-        dd if="$img" of="$work/root" bs=512 skip="$start" count="$size" conv=sparse status=none
+        # the root partition is the image's largest one
+        read -r start size < <(sfdisk --sector-size ${toString sectorSize} -J "$img" | jq -r '.partitiontable.partitions | max_by(.size) | "\(.start) \(.size)"')
+        dd if="$img" of="$work/root" bs=${toString sectorSize} skip="$start" count="$size" conv=sparse status=none
         debugfs -w -f - "$work/root" > /dev/null <<EOF
         ${commands}
         EOF
-        dd if="$work/root" of="$img" bs=512 seek="$start" conv=notrunc,sparse status=none
+        dd if="$work/root" of="$img" bs=${toString sectorSize} seek="$start" conv=notrunc,sparse status=none
 
         mv "$img" "$out"
         echo "$out"
