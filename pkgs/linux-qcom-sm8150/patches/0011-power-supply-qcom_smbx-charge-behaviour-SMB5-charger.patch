@@ -1,0 +1,186 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:27:00 +0000
+Subject: [PATCH] power: supply: qcom_smbx: charge behaviour, SMB5 charger
+ states
+
+Charging can be disabled with the buck still running the system from
+USB_IN, which leaves the battery idle at a charge limit: expose it, and
+USB_IN suspend, as charge_behaviour. SMB5 numbers its charger states
+from inhibit, with pause and disable at 6 and 7, so read them as such
+rather than as SMB2's; and test the over-voltage bit in the value read,
+not in the register's address.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/qcom_smbx.c | 101 ++++++++++++++++++++++++++++++-
+ 1 file changed, 100 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
+index 2b5d20bac290..ba59008b106f 100644
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -212,6 +212,18 @@ enum charger_status {
+ 	DISABLE_CHARGE,
+ };
+ 
++/* SMB5 numbers them differently */
++enum smb5_charger_status {
++	SMB5_INHIBIT_CHARGE = 0,
++	SMB5_TRICKLE_CHARGE,
++	SMB5_PRE_CHARGE,
++	SMB5_FULLON_CHARGE,
++	SMB5_TAPER_CHARGE,
++	SMB5_TERMINATE_CHARGE,
++	SMB5_PAUSE_CHARGE,
++	SMB5_DISABLE_CHARGE,
++};
++
+ struct smb_init_register {
+ 	u16 addr;
+ 	u8 mask;
+@@ -267,6 +279,7 @@ static enum power_supply_property smb_properties[] = {
+ 	POWER_SUPPLY_PROP_HEALTH,
+ 	POWER_SUPPLY_PROP_ONLINE,
+ 	POWER_SUPPLY_PROP_USB_TYPE,
++	POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR,
+ };
+ 
+ static int smb_get_prop_usb_online(struct smb_chip *chip, int *val)
+@@ -352,7 +365,7 @@ static int smbx_ov_status(struct smb_chip *chip)
+ 	if (rc)
+ 		return rc;
+ 
+-	return !!(reg & mask);
++	return !!(val & mask);
+ }
+ 
+ static int smb_get_prop_status(struct smb_chip *chip, int *val)
+@@ -387,6 +400,25 @@ static int smb_get_prop_status(struct smb_chip *chip, int *val)
+ 
+ 	stat = stat & BATTERY_CHARGER_STATUS_MASK;
+ 
++	if (chip->gen == SMB5) {
++		switch (stat) {
++		case SMB5_TRICKLE_CHARGE:
++		case SMB5_PRE_CHARGE:
++		case SMB5_FULLON_CHARGE:
++		case SMB5_TAPER_CHARGE:
++			*val = POWER_SUPPLY_STATUS_CHARGING;
++			return 0;
++		case SMB5_PAUSE_CHARGE:
++		case SMB5_DISABLE_CHARGE:
++			*val = POWER_SUPPLY_STATUS_NOT_CHARGING;
++			return 0;
++		case SMB5_TERMINATE_CHARGE:
++		case SMB5_INHIBIT_CHARGE:
++			*val = POWER_SUPPLY_STATUS_FULL;
++			return 0;
++		}
++	}
++
+ 	switch (stat) {
+ 	case TRICKLE_CHARGE:
+ 	case PRE_CHARGE:
+@@ -485,6 +517,65 @@ static void smb_status_change_work(struct work_struct *work)
+ 	power_supply_changed(chip->chg_psy);
+ }
+ 
++/*
++ * With charging disabled the buck still runs the system from USB_IN and the
++ * battery only makes up what the input limit can't; suspending USB_IN runs
++ * it from the battery alone
++ */
++static int smb_get_charge_behaviour(struct smb_chip *chip, int *val)
++{
++	unsigned int suspend, enable;
++	int rc;
++
++	rc = regmap_read(chip->regmap, chip->base + USBIN_CMD_IL, &suspend);
++	if (rc < 0)
++		return rc;
++
++	rc = regmap_read(chip->regmap, chip->base + CHARGING_ENABLE_CMD, &enable);
++	if (rc < 0)
++		return rc;
++
++	if (suspend & USBIN_SUSPEND_BIT)
++		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_FORCE_DISCHARGE;
++	else if (!(enable & CHARGING_ENABLE_CMD_BIT))
++		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE;
++	else
++		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO;
++
++	return 0;
++}
++
++static int smb_set_charge_behaviour(struct smb_chip *chip, int val)
++{
++	int rc;
++
++	switch (val) {
++	case POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO:
++	case POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE:
++		rc = regmap_update_bits(chip->regmap,
++					chip->base + CHARGING_ENABLE_CMD,
++					CHARGING_ENABLE_CMD_BIT,
++					val == POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO ?
++					CHARGING_ENABLE_CMD_BIT : 0);
++		if (rc < 0)
++			return rc;
++		rc = regmap_update_bits(chip->regmap, chip->base + USBIN_CMD_IL,
++					USBIN_SUSPEND_BIT, 0);
++		break;
++	case POWER_SUPPLY_CHARGE_BEHAVIOUR_FORCE_DISCHARGE:
++		rc = regmap_update_bits(chip->regmap, chip->base + USBIN_CMD_IL,
++					USBIN_SUSPEND_BIT, USBIN_SUSPEND_BIT);
++		break;
++	default:
++		return -EINVAL;
++	}
++	if (rc < 0)
++		return rc;
++
++	power_supply_changed(chip->chg_psy);
++	return 0;
++}
++
+ static int smb_get_iio_chan(struct smb_chip *chip, struct iio_channel *chan,
+ 			     int *val)
+ {
+@@ -625,6 +716,8 @@ static int smb_get_property(struct power_supply *psy,
+ 		return smb_get_prop_health(chip, &val->intval);
+ 	case POWER_SUPPLY_PROP_USB_TYPE:
+ 		return smb_apsd_get_charger_type(chip, &val->intval);
++	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
++		return smb_get_charge_behaviour(chip, &val->intval);
+ 	default:
+ 		dev_err(chip->dev, "invalid property: %d\n", psp);
+ 		return -EINVAL;
+@@ -643,6 +736,8 @@ static int smb_set_property(struct power_supply *psy,
+ 					  USBIN_SUSPEND_BIT, !val->intval);
+ 	case POWER_SUPPLY_PROP_CURRENT_MAX:
+ 		return smb_set_current_limit(chip, val->intval);
++	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
++		return smb_set_charge_behaviour(chip, val->intval);
+ 	default:
+ 		dev_err(chip->dev, "No setter for property: %d\n", psp);
+ 		return -EINVAL;
+@@ -655,6 +750,7 @@ static int smb_property_is_writable(struct power_supply *psy,
+ 	switch (psp) {
+ 	case POWER_SUPPLY_PROP_STATUS:
+ 	case POWER_SUPPLY_PROP_CURRENT_MAX:
++	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
+ 		return 1;
+ 	default:
+ 		return 0;
+@@ -717,6 +813,9 @@ static const struct power_supply_desc smb_psy_desc = {
+ 		     BIT(POWER_SUPPLY_USB_TYPE_CDP) |
+ 		     BIT(POWER_SUPPLY_USB_TYPE_DCP) |
+ 		     BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN),
++	.charge_behaviours = BIT(POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO) |
++			     BIT(POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE) |
++			     BIT(POWER_SUPPLY_CHARGE_BEHAVIOUR_FORCE_DISCHARGE),
+ 	.properties = smb_properties,
+ 	.num_properties = ARRAY_SIZE(smb_properties),
+ 	.get_property = smb_get_property,

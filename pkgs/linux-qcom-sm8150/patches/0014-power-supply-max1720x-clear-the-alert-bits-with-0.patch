@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:27:01 +0000
+Subject: [PATCH] power: supply: max1720x: clear the alert bits with 0
+
+Status's alert bits clear on writing 0; setting them leaves every
+alert latched, so health reads dead from the first one on.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/max1720x_battery.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/power/supply/max1720x_battery.c b/drivers/power/supply/max1720x_battery.c
+index e2bd54ee3970..599adf763459 100644
+--- a/drivers/power/supply/max1720x_battery.c
++++ b/drivers/power/supply/max1720x_battery.c
+@@ -344,9 +344,12 @@ static int max172xx_battery_health(struct max1720x_device_info *info,
+ 	else
+ 		*health = POWER_SUPPLY_HEALTH_GOOD;
+ 
+-	/* Clear events which are not self-clearing to detect next events */
++	/*
++	 * Clear events which are not self-clearing to detect next events;
++	 * writing 0 clears them
++	 */
+ 	if (status > 0 && status != MAX172XX_STATUS_IMX) {
+-		ret = regmap_set_bits(info->regmap, MAX172XX_STATUS,
++		ret = regmap_clear_bits(info->regmap, MAX172XX_STATUS,
+ 				      MAX172XX_STATUS_VMN |
+ 				      MAX172XX_STATUS_VMX |
+ 				      MAX172XX_STATUS_TMN |

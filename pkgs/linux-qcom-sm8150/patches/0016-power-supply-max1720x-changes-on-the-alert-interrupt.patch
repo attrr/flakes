@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:27:02 +0000
+Subject: [PATCH] power: supply: max1720x: changes on the alert interrupt
+
+Nothing told of the gauge's changes, its percentage's among them, but a
+poll. Take its alert interrupt where it's wired: clear the percentage
+change it latches and report a change.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/max1720x_battery.c | 31 +++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/drivers/power/supply/max1720x_battery.c b/drivers/power/supply/max1720x_battery.c
+index 8d27e452fe8a..7ba66d188351 100644
+--- a/drivers/power/supply/max1720x_battery.c
++++ b/drivers/power/supply/max1720x_battery.c
+@@ -8,6 +8,7 @@
+  */
+ 
+ #include <linux/bitfield.h>
++#include <linux/delay.h>
+ #include <linux/i2c.h>
+ #include <linux/module.h>
+ #include <linux/nvmem-provider.h>
+@@ -30,6 +31,7 @@
+ #define MAX172XX_STATUS			0x00	/* Status */
+ #define MAX172XX_STATUS_BAT_ABSENT	BIT(3)	/* Battery absent */
+ #define MAX172XX_STATUS_IMX		BIT(6)	/* Maximum Current Alert Threshold Exceeded */
++#define MAX172XX_STATUS_DSOCI		BIT(7)	/* Integer percentage of charge changed */
+ #define MAX172XX_STATUS_VMN		BIT(8)	/* Minimum Voltage Alert Threshold Exceeded */
+ #define MAX172XX_STATUS_TMN		BIT(9)	/* Minimum Temperature Alert Threshold Exceeded */
+ #define MAX172XX_STATUS_VMX		BIT(12)	/* Maximum Voltage Alert Threshold Exceeded */
+@@ -54,11 +56,14 @@
+ #define MAX172XX_BATT			0xDA	/* Battery voltage */
+ #define MAX172XX_ATAVCAP		0xDF
+ 
++#define MAX1720X_ALRT_CLEAR_MS		500
++
+ static const char *const max1720x_manufacturer = "Maxim Integrated";
+ static const char *const max17201_model = "MAX17201";
+ static const char *const max17205_model = "MAX17205";
+ 
+ struct max1720x_device_info {
++	struct power_supply *bat;
+ 	struct regmap *regmap;
+ 	struct regmap *regmap_nv;
+ 	struct i2c_client *ancillary;
+@@ -594,6 +599,23 @@ static const struct power_supply_desc max1720x_bat_desc = {
+ 	.external_power_changed = power_supply_changed,
+ };
+ 
++/*
++ * Alerts are as the gauge was configured, Config2.dSOCEn's every percent
++ * among them: it only says something changed
++ */
++static irqreturn_t max1720x_alert(int irq, void *data)
++{
++	struct max1720x_device_info *info = data;
++
++	regmap_clear_bits(info->regmap, MAX172XX_STATUS, MAX172XX_STATUS_DSOCI);
++	power_supply_changed(info->bat);
++	/* ALRT takes up to 351ms to let go once cleared: until then, unmasked,
++	 * it would only come back */
++	msleep(MAX1720X_ALRT_CLEAR_MS);
++
++	return IRQ_HANDLED;
++}
++
+ static int max1720x_probe(struct i2c_client *client)
+ {
+ 	struct power_supply_config psy_cfg = {};
+@@ -623,6 +645,15 @@ static int max1720x_probe(struct i2c_client *client)
+ 	if (IS_ERR(bat))
+ 		return dev_err_probe(dev, PTR_ERR(bat),
+ 				     "Failed to register power supply\n");
++	info->bat = bat;
++
++	if (client->irq) {
++		ret = devm_request_threaded_irq(dev, client->irq, NULL,
++						max1720x_alert, IRQF_ONESHOT,
++						"max1720x", info);
++		if (ret)
++			return dev_err_probe(dev, ret, "Failed to request irq\n");
++	}
+ 
+ 	return 0;
+ }

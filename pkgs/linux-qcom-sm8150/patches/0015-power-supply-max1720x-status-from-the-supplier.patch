@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:27:02 +0000
+Subject: [PATCH] power: supply: max1720x: status from the supplier
+
+The gauge has no idea whether the battery is charging; the charger
+supplying it does, so report its status, and pass its changes on.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/max1720x_battery.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/power/supply/max1720x_battery.c b/drivers/power/supply/max1720x_battery.c
+index 599adf763459..8d27e452fe8a 100644
+--- a/drivers/power/supply/max1720x_battery.c
++++ b/drivers/power/supply/max1720x_battery.c
+@@ -255,6 +255,7 @@ static const struct nvmem_cell_info max1720x_nvmem_cells[] = {
+ };
+ 
+ static const enum power_supply_property max1720x_battery_props[] = {
++	POWER_SUPPLY_PROP_STATUS,
+ 	POWER_SUPPLY_PROP_HEALTH,
+ 	POWER_SUPPLY_PROP_PRESENT,
+ 	POWER_SUPPLY_PROP_CAPACITY,
+@@ -370,6 +371,14 @@ static int max1720x_battery_get_property(struct power_supply *psy,
+ 	int ret = 0;
+ 
+ 	switch (psp) {
++	case POWER_SUPPLY_PROP_STATUS:
++		/* The gauge can't tell; the charger supplying it can */
++		ret = power_supply_get_property_from_supplier(psy, psp, val);
++		if (ret == -ENODEV) {
++			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
++			ret = 0;
++		}
++		break;
+ 	case POWER_SUPPLY_PROP_HEALTH:
+ 		ret = max172xx_battery_health(info, &reg_val);
+ 		val->intval = reg_val;
+@@ -582,6 +591,7 @@ static const struct power_supply_desc max1720x_bat_desc = {
+ 	.properties = max1720x_battery_props,
+ 	.num_properties = ARRAY_SIZE(max1720x_battery_props),
+ 	.get_property = max1720x_battery_get_property,
++	.external_power_changed = power_supply_changed,
+ };
+ 
+ static int max1720x_probe(struct i2c_client *client)

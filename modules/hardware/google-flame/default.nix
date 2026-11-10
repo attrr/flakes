@@ -6,6 +6,7 @@
 */
 {
   imports = [
+    ./battery.nix
     ./boot.nix
     ./display.nix
     ./wireless.nix
