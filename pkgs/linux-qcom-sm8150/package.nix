@@ -14,7 +14,9 @@
 # 80c363b5); on top of it: NFT_FIB_INET=m, for the NixOS firewall's reverse
 # path filter, and NET_SCH_CAKE=m, TCP_CONG_BBR=m, for profiles/base's
 # sysctls; SND_SOC_CS35L36=m, flame's speaker amps; INPUT_CS40L25_VIBRA=m,
-# its vibrator
+# its vibrator; no RTC_HCTOSYS/SYSTOHC, as the PMIC's RTC is read-only and
+# counts from 1970: setting the clock from it took it back every boot. Until
+# the RTC has an offset in a free SDAM cell, as sc8280xp's; then they're back
 linuxManualConfig rec {
   inherit (linux_7_3) version src;
   modDirVersion = "${version}-sm8150";

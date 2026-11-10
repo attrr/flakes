@@ -21,6 +21,20 @@ let
     config.allowUnfreePredicate = pkg: lib.getName pkg == "firmware-google-flame";
   };
   cross = native.pkgsCross.aarch64-multiplatform;
+  # during bring-up, through ccache (hosts/mio's programs.ccache): a patch
+  # recompiles only what it touches. Nix's sources date from 1970 and the
+  # build's own headers (autoconf.h) from now, so their times can't count.
+  # Without the cache dir in the sandbox, plain gcc
+  ccacheStdenv = cross.ccacheStdenv.override {
+    extraConfig = ''
+      export CCACHE_DIR=/var/cache/ccache
+      export CCACHE_COMPRESS=1
+      export CCACHE_UMASK=007
+      export CCACHE_MAXSIZE=20G
+      export CCACHE_SLOPPINESS=include_file_mtime,include_file_ctime,time_macros,random_seed
+      [ -w "$CCACHE_DIR" ] || export CCACHE_DISABLE=1
+    '';
+  };
 in
 {
   imports = [
@@ -31,10 +45,14 @@ in
   ];
 
   # the device's own builds, natively on the x86 deployer instead of under
-  # binfmt. After the flake's own overlay, which would put pkgs/'s back
+  # binfmt, and the kernel through ccache. After the flake's own overlay,
+  # which would put pkgs/'s back
   nixpkgs.overlays = lib.mkAfter [
     (_: _: {
-      inherit (cross) firmware-google-flame linux-qcom-sm8150 u-boot-google-flame;
+      inherit (cross) firmware-google-flame u-boot-google-flame;
+      linux-qcom-sm8150 = cross.linux-qcom-sm8150.override {
+        linuxManualConfig = args: cross.linuxManualConfig (args // { stdenv = ccacheStdenv; });
+      };
     })
   ];
 
@@ -81,4 +99,5 @@ in
   networking.firewall.interfaces.usb0.allowedUDPPorts = [ 67 ];
   # NetworkManager comes with phosh; usb0 stays networkd's
   networking.networkmanager.unmanaged = [ "usb0" ];
+  security.sudo.wheelNeedsPassword = false;
 }

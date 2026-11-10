@@ -1,4 +1,5 @@
 {
+  config,
   inputs,
   ctx,
   lib,
@@ -90,6 +91,11 @@ in
 
   # with `nix run .#gcroots`, gc keeps every host's build graph
   nix.settings.keep-outputs = true;
+
+  # flame's kernel compiles through ccache during its bring-up
+  # (hosts/flame): its cache, reachable from the build sandbox
+  programs.ccache.enable = true;
+  nix.settings.extra-sandbox-paths = [ config.programs.ccache.cacheDir ];
 
   # github token; wheel-readable since flake inputs are fetched by the client
   sops.secrets.${ctx.vars.nix-access-tokens.conf.name} = {
