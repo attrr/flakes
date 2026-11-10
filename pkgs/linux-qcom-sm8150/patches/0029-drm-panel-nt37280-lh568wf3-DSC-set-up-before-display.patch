@@ -1,0 +1,76 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 13:39:45 +0000
+Subject: [PATCH] drm/panel: nt37280-lh568wf3: DSC set up before display on, as
+ stock does
+
+Only the order stock's driver uses: the PPS and compression mode before
+sleep out and display on, rather than after. No observed effect, and in
+theory little: the PPS only decodes incoming frames, the panel's RAM
+holds decoded pixels, and msm sends no frame before prepare is done
+either way. Kept to match stock.
+
+It was a guess at the colour-block frame at boot, which this didn't
+fix; that was dispcc parking the MDP clock under ABL's scanout.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../panel/panel-lg-nt37280-lh568wf3-ed01.c    | 24 +++++++------------
+ 1 file changed, 9 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/gpu/drm/panel/panel-lg-nt37280-lh568wf3-ed01.c b/drivers/gpu/drm/panel/panel-lg-nt37280-lh568wf3-ed01.c
+index 9ff245a3bce6..a1bc985f307d 100644
+--- a/drivers/gpu/drm/panel/panel-lg-nt37280-lh568wf3-ed01.c
++++ b/drivers/gpu/drm/panel/panel-lg-nt37280-lh568wf3-ed01.c
+@@ -50,6 +50,7 @@ static void nt37280_lh568wf3_ed01_reset(struct nt37280_lh568wf3_ed01 *ctx)
+ static int nt37280_lh568wf3_ed01_on(struct nt37280_lh568wf3_ed01 *ctx)
+ {
+ 	struct mipi_dsi_multi_context dsi_ctx = { .dsi = ctx->dsi };
++	struct drm_dsc_picture_parameter_set pps;
+ 
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xff, 0xe0);
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xfb, 0x01);
+@@ -102,6 +103,14 @@ static int nt37280_lh568wf3_ed01_on(struct nt37280_lh568wf3_ed01 *ctx)
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, MIPI_DCS_SET_GAMMA_CURVE, 0x02);
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xbf, 0x03);
+ 	mipi_dsi_dcs_write_seq_multi(&dsi_ctx, 0xc0, 0x03);
++	/*
++	 * DSC before sleep out and display on, as stock's driver sends its
++	 * PPS before the on commands: else the panel shows its RAM through
++	 * the wrong decoder until the first frame lands
++	 */
++	drm_dsc_pps_payload_pack(&pps, &ctx->dsc);
++	mipi_dsi_picture_parameter_set_multi(&dsi_ctx, &pps);
++	mipi_dsi_compression_mode_multi(&dsi_ctx, true);
+ 	mipi_dsi_dcs_exit_sleep_mode_multi(&dsi_ctx);
+ 	mipi_dsi_msleep(&dsi_ctx, 120);
+ 	mipi_dsi_dcs_set_tear_on_multi(&dsi_ctx, MIPI_DSI_DCS_TEAR_MODE_VBLANK);
+@@ -127,7 +136,6 @@ static int nt37280_lh568wf3_ed01_prepare(struct drm_panel *panel)
+ {
+ 	struct nt37280_lh568wf3_ed01 *ctx = to_nt37280_lh568wf3_ed01(panel);
+ 	struct device *dev = &ctx->dsi->dev;
+-	struct drm_dsc_picture_parameter_set pps;
+ 	int ret;
+ 
+ 	ret = regulator_bulk_enable(ARRAY_SIZE(nt37280_lh568wf3_ed01_supplies), ctx->supplies);
+@@ -146,20 +154,6 @@ static int nt37280_lh568wf3_ed01_prepare(struct drm_panel *panel)
+ 		return ret;
+ 	}
+ 
+-	drm_dsc_pps_payload_pack(&pps, &ctx->dsc);
+-
+-	ret = mipi_dsi_picture_parameter_set(ctx->dsi, &pps);
+-	if (ret < 0) {
+-		dev_err(panel->dev, "failed to transmit PPS: %d\n", ret);
+-		return ret;
+-	}
+-
+-	ret = mipi_dsi_compression_mode(ctx->dsi, true);
+-	if (ret < 0) {
+-		dev_err(dev, "failed to enable compression mode: %d\n", ret);
+-		return ret;
+-	}
+-
+ 	msleep(28); /* TODO: Is this panel-dependent? */
+ 
+ 	return 0;
