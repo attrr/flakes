@@ -8,5 +8,6 @@
   imports = [
     ./boot.nix
     ./display.nix
+    ./wireless.nix
   ];
 }
