@@ -1,0 +1,60 @@
+diff --git a/drivers/gpio/qcom_pmic_gpio.c b/drivers/gpio/qcom_pmic_gpio.c
+index 4458c55..a5a13b8 100644
+--- a/drivers/gpio/qcom_pmic_gpio.c
++++ b/drivers/gpio/qcom_pmic_gpio.c
+@@ -56,6 +56,7 @@
+ #define REG_DIG_VIN_VIN0       0
+ 
+ #define REG_DIG_PULL_CTL       0x42
++#define REG_DIG_PULL_UP_30     0x0
+ #define REG_DIG_PULL_NO_PU     0x5
+ 
+ #define REG_LV_MV_OUTPUT_CTL	0x44
+@@ -127,14 +128,17 @@ static int qcom_gpio_set_direction(struct udevice *dev, unsigned int offset,
+ 
+ 	_qcom_gpio_set_direction(dev, offset, input, value);
+ 
+-	/* Set the right pull (no pull) */
+-	ret = pmic_reg_write(plat->pmic, gpio_base + REG_DIG_PULL_CTL,
+-			     REG_DIG_PULL_NO_PU);
+-	if (ret < 0)
+-		return ret;
+-
+ 	/* Configure output pin drivers if needed */
+ 	if (!input) {
++		/*
++		 * No pull on an output. An input keeps the one pinctrl or
++		 * the bootloader set: a key's pull-up, say
++		 */
++		ret = pmic_reg_write(plat->pmic, gpio_base + REG_DIG_PULL_CTL,
++				     REG_DIG_PULL_NO_PU);
++		if (ret < 0)
++			return ret;
++
+ 		/* Select the VIN - VIN0, pin is input so it doesn't matter */
+ 		ret = pmic_reg_write(plat->pmic, gpio_base + REG_DIG_VIN_CTL,
+ 				     REG_DIG_VIN_VIN0);
+@@ -365,6 +369,7 @@ U_BOOT_DRIVER(qcom_pmic_gpio) = {
+ static const struct pinconf_param qcom_pmic_pinctrl_conf_params[] = {
+ 	{ "output-high", PIN_CONFIG_OUTPUT_ENABLE, 1 },
+ 	{ "output-low", PIN_CONFIG_OUTPUT, 0 },
++	{ "bias-pull-up", PIN_CONFIG_BIAS_PULL_UP, 0 },
+ };
+ 
+ static int qcom_pmic_pinctrl_get_pins_count(struct udevice *dev)
+@@ -387,7 +392,14 @@ static const char *qcom_pmic_pinctrl_get_pin_name(struct udevice *dev, unsigned
+ static int qcom_pmic_pinctrl_pinconf_set(struct udevice *dev, unsigned int selector,
+ 					 unsigned int param, unsigned int arg)
+ {
+-	/* We only support configuring the pin as an output, either low or high */
++	struct qcom_pmic_gpio_data *plat = dev_get_plat(dev);
++
++	/* The 30 uA pull-up, as Linux's bias-pull-up */
++	if (param == PIN_CONFIG_BIAS_PULL_UP)
++		return pmic_reg_write(plat->pmic, plat->pid + REG_OFFSET(selector) +
++				      REG_DIG_PULL_CTL, REG_DIG_PULL_UP_30);
++
++	/* Otherwise an output, either low or high */
+ 	return _qcom_gpio_set_direction(dev, selector, false,
+ 					param == PIN_CONFIG_OUTPUT_ENABLE);
+ }
