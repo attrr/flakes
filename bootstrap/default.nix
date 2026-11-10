@@ -122,5 +122,17 @@ in
         nixos = self.nixosConfigurations.yata.extendModules { modules = [ ./images/yata.nix ]; };
         vars = vars self.nixosConfigurations.yata;
       };
+      # the Pixel's userdata, a repart image
+      flame =
+        let
+          nixos = self.nixosConfigurations.flame.extendModules { modules = [ ./images/flame.nix ]; };
+        in
+        identityImage.sd {
+          name = "flame";
+          inherit nixos;
+          vars = vars self.nixosConfigurations.flame;
+          image = "${nixos.config.system.build.image}/${nixos.config.image.filePath}";
+          sectorSize = 4096;
+        };
     };
 }
