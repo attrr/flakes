@@ -1,0 +1,354 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:26:59 +0000
+Subject: [PATCH] Input: cs40l25-vibra - clicks for short rumbles
+
+Themes ask for button and key clicks of 7-12 ms, which the continuous
+effect can't build up in: held to 30 ms, they were a buzz. Play rumbles
+up to click_max_ms (30) from the wavetable's click (index 2, as stock's
+HAL plays its clicks and ticks), at a strength of their own
+(click_atten_strongest/weakest), ending by itself; anything else stays
+the continuous effect, now for the effect's length.
+
+ff-memless gives neither an effect's length nor its delay, so the driver
+handles its effects itself, and takes FF_PERIODIC too (feedbackd's for
+calls and alarms) as the continuous effect.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/input/misc/Kconfig         |   9 +-
+ drivers/input/misc/cs40l25-vibra.c | 189 +++++++++++++++++++++--------
+ 2 files changed, 142 insertions(+), 56 deletions(-)
+
+diff --git a/drivers/input/misc/Kconfig b/drivers/input/misc/Kconfig
+index 7db3af3a29af..a453e8f144d3 100644
+--- a/drivers/input/misc/Kconfig
++++ b/drivers/input/misc/Kconfig
+@@ -163,12 +163,11 @@ config INPUT_CS40L25_VIBRA
+ 	depends on I2C
+ 	select REGMAP_I2C
+ 	select FW_CS_DSP
+-	select INPUT_FF_MEMLESS
+ 	help
+-	  Say Y here to enable force feedback (FF_RUMBLE) on the Cirrus Logic
+-	  CS40L25A boosted haptic driver, as in the Pixel 4 and 6 Pro. Needs
+-	  the RAM firmware (cs40l25a_clab.wmfw, or the device tree's
+-	  firmware-name) and the wavetable cs40l20.bin.
++	  Say Y here to enable force feedback (FF_RUMBLE, FF_PERIODIC) on the
++	  Cirrus Logic CS40L25A boosted haptic driver, as in the Pixel 4 and 6
++	  Pro. Needs the RAM firmware (cs40l25a_clab.wmfw, or the device
++	  tree's firmware-name) and the wavetable cs40l20.bin.
+ 
+ 	  To compile this driver as a module, choose M here: the module will
+ 	  be called cs40l25-vibra.
+diff --git a/drivers/input/misc/cs40l25-vibra.c b/drivers/input/misc/cs40l25-vibra.c
+index 90e0014f6cbf..ac34d71f791c 100644
+--- a/drivers/input/misc/cs40l25-vibra.c
++++ b/drivers/input/misc/cs40l25-vibra.c
+@@ -7,10 +7,12 @@
+  * it, hands it over from basic mode, applies the B0 errata and the board's
+  * boost, loads the RAM firmware (cs40l25a_clab.wmfw, or the board's
+  * firmware-name) and the wavetable (cs40l20.bin) through cs_dsp and plays
+- * vibration through the firmware's trigger mailbox, driven by the
+- * memoryless force-feedback layer (FF_RUMBLE): the strength sets the
+- * firmware's trigger gain, a start plays the continuous effect (index 0)
+- * and a stop ends it (ENDPLAYBACK).
++ * vibration through the firmware's trigger mailbox, as force feedback
++ * (FF_RUMBLE, FF_PERIODIC): the strength sets the firmware's trigger gain;
++ * a short rumble plays the wavetable's click, which ends by itself, as
++ * stock's HAL plays its clicks and ticks; anything else plays the
++ * continuous effect (index 0), for its length or until stopped
++ * (ENDPLAYBACK).
+  *
+  * The sequence and register layout follow Cirrus Logic's GPL driver for this
+  * part as shipped in Google's Pixel 6 kernels (google-modules/amplifiers,
+@@ -242,6 +244,8 @@ static const struct cs_dsp_region cs40l25_dsp_regions[] = {
+ #define CS40L25_HALO_STATE_IDLE		201
+ #define CS40L25_GAIN_TRIG		GENMASK(13, 4)
+ #define CS40L25_ATTEN_WEAKEST		144	/* -18 dB, in 0.125 dB steps */
++#define CS40L25_ATTEN_MAX		1023	/* the trigger gain's field */
++#define CS40L25_EFFECTS			16
+ 
+ static unsigned int atten_strongest = 64;	/* -8 dB */
+ module_param(atten_strongest, uint, 0644);
+@@ -249,13 +253,37 @@ MODULE_PARM_DESC(atten_strongest,
+ 		 "attenuation at full strength, in 0.125 dB steps (default 64, -8 dB; at least 0)");
+ 
+ /*
+- * The actuator needs a few milliseconds to build up, and themes ask for
+- * button clicks of 7-12 ms: a stop earlier than this after the start is
+- * held back, so a short effect is a felt tick rather than nothing.
++ * The actuator needs a few milliseconds to build up: a stop of the
++ * continuous effect earlier than this after its start is held back.
+  */
+ static unsigned int min_on_ms = 30;
+ module_param(min_on_ms, uint, 0644);
+-MODULE_PARM_DESC(min_on_ms, "shortest vibration in ms (default 30)");
++MODULE_PARM_DESC(min_on_ms, "shortest continuous vibration in ms (default 30)");
++
++/*
++ * Themes ask for button and key clicks of 7-12 ms, too short for the
++ * continuous effect to build up: rumbles up to this long play the
++ * wavetable's click instead, at a strength of their own. Stock's HAL
++ * plays its clicks and ticks from index 2, and vibrations under 50 ms
++ * from a short effect of their own.
++ */
++static unsigned int click_max_ms = 30;
++module_param(click_max_ms, uint, 0644);
++MODULE_PARM_DESC(click_max_ms, "longest rumble played as a click, in ms (default 30; 0 for none)");
++
++static unsigned int click_index = 2;
++module_param(click_index, uint, 0644);
++MODULE_PARM_DESC(click_index, "the wavetable's click (default 2, stock's)");
++
++static unsigned int click_atten_strongest;
++module_param(click_atten_strongest, uint, 0644);
++MODULE_PARM_DESC(click_atten_strongest,
++		 "click attenuation at full strength, in 0.125 dB steps (default 0)");
++
++static unsigned int click_atten_weakest = 120;
++module_param(click_atten_weakest, uint, 0644);
++MODULE_PARM_DESC(click_atten_weakest,
++		 "click attenuation at the weakest strength, in 0.125 dB steps (default 120, -15 dB)");
+ 
+ struct cs40l25 {
+ 	struct device *dev;
+@@ -263,13 +291,16 @@ struct cs40l25 {
+ 	struct gpio_desc *reset;
+ 	struct cs_dsp dsp;
+ 	struct input_dev *input;
+-	struct work_struct play_work;
+-	struct delayed_work stop_work;	/* a stop held back to min_on_ms */
+-	unsigned long started;		/* jiffies at the last start */
+-	spinlock_t level_lock;		/* level, set from the ff-memless callback */
+-	unsigned int level;
++	struct delayed_work play_work;	/* the last playback, after its delay */
++	struct delayed_work stop_work;	/* the continuous effect's end */
++	unsigned long started;		/* jiffies at the continuous effect's start */
++	spinlock_t pending_lock;	/* the last playback, set in atomic context */
++	struct ff_effect pending;
++	int pending_id;
++	int pending_value;
+ 	struct mutex lock;		/* playing and the mailbox */
+-	bool playing;
++	bool playing;			/* the continuous effect */
++	int playing_id;
+ 	struct cs_dsp_coeff_ctl *gain_ctl;
+ 	struct cs_dsp_coeff_ctl *end_ctl;
+ 	struct cs_dsp_coeff_ctl *event_ctls[ARRAY_SIZE(cs40l25_event_ctls)];
+@@ -666,15 +697,31 @@ static const struct cs_dsp_client_ops cs40l25_client_ops = {
+ 	.post_run = cs40l25_post_run,
+ };
+ 
+-/* the trigger gain for a strength of 1..255, in 0.125 dB steps of attenuation */
+-static unsigned int cs40l25_atten(unsigned int level)
++/* attenuation for a strength of 1..255, from strongest to weakest, in 0.125 dB steps */
++static unsigned int cs40l25_atten(unsigned int level, unsigned int strongest,
++				  unsigned int weakest)
+ {
+-	unsigned int strongest = min(atten_strongest, CS40L25_ATTEN_WEAKEST);
++	weakest = min(weakest, CS40L25_ATTEN_MAX);
++	strongest = min(strongest, weakest);
++	return strongest + (255 - level) * (weakest - strongest) / 254;
++}
+ 
+-	return strongest + (255 - level) * (CS40L25_ATTEN_WEAKEST - strongest) / 254;
++/* an effect's strength, 0..255 */
++static unsigned int cs40l25_level(const struct ff_effect *effect)
++{
++	switch (effect->type) {
++	case FF_RUMBLE:
++		return max(effect->u.rumble.strong_magnitude,
++			   effect->u.rumble.weak_magnitude) >> 8;
++	case FF_PERIODIC:
++		return min(abs(effect->u.periodic.magnitude) >> 7, 255);
++	default:
++		return 0;
++	}
+ }
+ 
+-static int cs40l25_start(struct cs40l25 *cs40l25, unsigned int level)
++/* the wavetable's index at an attenuation, through the trigger mailbox */
++static int cs40l25_start(struct cs40l25 *cs40l25, unsigned int atten, unsigned int index)
+ {
+ 	__be32 w;
+ 	u32 val;
+@@ -684,7 +731,7 @@ static int cs40l25_start(struct cs40l25 *cs40l25, unsigned int level)
+ 	ret = cs_dsp_coeff_read_ctrl(cs40l25->gain_ctl, 0, &w, sizeof(w));
+ 	if (!ret) {
+ 		val = be32_to_cpu(w) & ~CS40L25_GAIN_TRIG;
+-		val |= FIELD_PREP(CS40L25_GAIN_TRIG, cs40l25_atten(level));
++		val |= FIELD_PREP(CS40L25_GAIN_TRIG, atten);
+ 		w = cpu_to_be32(val);
+ 		ret = cs_dsp_coeff_write_ctrl(cs40l25->gain_ctl, 0, &w, sizeof(w));
+ 	}
+@@ -692,7 +739,7 @@ static int cs40l25_start(struct cs40l25 *cs40l25, unsigned int level)
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	return regmap_write(cs40l25->regmap, CS40L25_MBOX_TRIGGERINDEX, CS40L25_INDEX_VIBE);
++	return regmap_write(cs40l25->regmap, CS40L25_MBOX_TRIGGERINDEX, index);
+ }
+ 
+ static void cs40l25_stop(struct cs40l25 *cs40l25)
+@@ -713,30 +760,61 @@ static void cs40l25_stop_work(struct work_struct *work)
+ 	mutex_unlock(&cs40l25->lock);
+ }
+ 
++/* under the lock */
++static void cs40l25_play(struct cs40l25 *cs40l25, const struct ff_effect *effect, int id)
++{
++	unsigned int level = cs40l25_level(effect);
++	unsigned int length = effect->replay.length;
++
++	if (!level)
++		return;
++	cancel_delayed_work(&cs40l25->stop_work);
++	if (effect->type == FF_RUMBLE && length && length <= click_max_ms) {
++		dev_dbg(cs40l25->dev, "click, strength %u\n", level);
++		if (cs40l25->playing) {
++			cs40l25_stop(cs40l25);
++			cs40l25->playing = false;
++		}
++		cs40l25_start(cs40l25, cs40l25_atten(level, click_atten_strongest,
++						     click_atten_weakest), click_index);
++		return;
++	}
++
++	dev_dbg(cs40l25->dev, "play, strength %u, %u ms\n", level, length);
++	if (cs40l25_start(cs40l25, cs40l25_atten(level, atten_strongest, CS40L25_ATTEN_WEAKEST),
++			  CS40L25_INDEX_VIBE))
++		return;
++	cs40l25->playing = true;
++	cs40l25->playing_id = id;
++	cs40l25->started = jiffies;
++	if (length)
++		mod_delayed_work(system_wq, &cs40l25->stop_work,
++				 msecs_to_jiffies(max(length, min_on_ms)));
++}
++
+ static void cs40l25_play_work(struct work_struct *work)
+ {
+-	struct cs40l25 *cs40l25 = container_of(work, struct cs40l25, play_work);
+-	unsigned int level;
++	struct cs40l25 *cs40l25 = container_of(work, struct cs40l25, play_work.work);
++	struct ff_effect effect;
++	int id, value;
+ 
+-	spin_lock_irq(&cs40l25->level_lock);
+-	level = cs40l25->level;
+-	spin_unlock_irq(&cs40l25->level_lock);
++	spin_lock_irq(&cs40l25->pending_lock);
++	effect = cs40l25->pending;
++	id = cs40l25->pending_id;
++	value = cs40l25->pending_value;
++	spin_unlock_irq(&cs40l25->pending_lock);
+ 
+ 	mutex_lock(&cs40l25->lock);
+-	if (level) {
+-		cancel_delayed_work(&cs40l25->stop_work);
+-		dev_dbg(cs40l25->dev, "play, strength %u\n", level);
+-		if (!cs40l25_start(cs40l25, level)) {
+-			cs40l25->playing = true;
+-			cs40l25->started = jiffies;
+-		}
+-	} else if (cs40l25->playing) {
++	if (value) {
++		cs40l25_play(cs40l25, &effect, id);
++	} else if (cs40l25->playing && cs40l25->playing_id == id) {
+ 		unsigned long until = cs40l25->started + msecs_to_jiffies(min_on_ms);
+ 
+ 		dev_dbg(cs40l25->dev, "stop\n");
+ 		if (time_before(jiffies, until)) {
+ 			mod_delayed_work(system_wq, &cs40l25->stop_work, until - jiffies);
+ 		} else {
++			cancel_delayed_work(&cs40l25->stop_work);
+ 			cs40l25_stop(cs40l25);
+ 			cs40l25->playing = false;
+ 		}
+@@ -744,22 +822,25 @@ static void cs40l25_play_work(struct work_struct *work)
+ 	mutex_unlock(&cs40l25->lock);
+ }
+ 
+-/* ff-memless callback, atomic context */
+-static int cs40l25_play_effect(struct input_dev *dev, void *data, struct ff_effect *effect)
++static int cs40l25_upload(struct input_dev *dev, struct ff_effect *effect, struct ff_effect *old)
+ {
+-	struct cs40l25 *cs40l25 = input_get_drvdata(dev);
+-	unsigned int level = 0;
+-	unsigned long flags;
++	return effect->type == FF_RUMBLE || effect->type == FF_PERIODIC ? 0 : -EINVAL;
++}
+ 
+-	if (effect->type == FF_RUMBLE)
+-		level = max(effect->u.rumble.strong_magnitude,
+-			    effect->u.rumble.weak_magnitude) >> 8;
++/* under the input device's event_lock: the last playback, after its delay */
++static int cs40l25_playback(struct input_dev *dev, int id, int value)
++{
++	struct cs40l25 *cs40l25 = input_get_drvdata(dev);
++	unsigned long delay;
+ 
+-	spin_lock_irqsave(&cs40l25->level_lock, flags);
+-	cs40l25->level = level;
+-	spin_unlock_irqrestore(&cs40l25->level_lock, flags);
++	spin_lock(&cs40l25->pending_lock);
++	cs40l25->pending = dev->ff->effects[id];
++	cs40l25->pending_id = id;
++	cs40l25->pending_value = value;
++	delay = value ? msecs_to_jiffies(cs40l25->pending.replay.delay) : 0;
++	spin_unlock(&cs40l25->pending_lock);
+ 
+-	schedule_work(&cs40l25->play_work);
++	mod_delayed_work(system_wq, &cs40l25->play_work, delay);
+ 	return 0;
+ }
+ 
+@@ -767,7 +848,7 @@ static void cs40l25_close(struct input_dev *input)
+ {
+ 	struct cs40l25 *cs40l25 = input_get_drvdata(input);
+ 
+-	cancel_work_sync(&cs40l25->play_work);
++	cancel_delayed_work_sync(&cs40l25->play_work);
+ 	cancel_delayed_work_sync(&cs40l25->stop_work);
+ 	mutex_lock(&cs40l25->lock);
+ 	if (cs40l25->playing) {
+@@ -781,7 +862,7 @@ static void cs40l25_dsp_remove(void *data)
+ {
+ 	struct cs40l25 *cs40l25 = data;
+ 
+-	cancel_work_sync(&cs40l25->play_work);
++	cancel_delayed_work_sync(&cs40l25->play_work);
+ 	cancel_delayed_work_sync(&cs40l25->stop_work);
+ 	cs_dsp_stop(&cs40l25->dsp);
+ 	cs_dsp_power_down(&cs40l25->dsp);
+@@ -854,10 +935,16 @@ static int cs40l25_input_init(struct cs40l25 *cs40l25, unsigned int devid, unsig
+ 	input->close = cs40l25_close;
+ 	input_set_drvdata(input, cs40l25);
+ 	input_set_capability(input, EV_FF, FF_RUMBLE);
++	input_set_capability(input, EV_FF, FF_PERIODIC);
++	input_set_capability(input, EV_FF, FF_SINE);
++	input_set_capability(input, EV_FF, FF_SQUARE);
++	input_set_capability(input, EV_FF, FF_TRIANGLE);
+ 
+-	ret = input_ff_create_memless(input, NULL, cs40l25_play_effect);
++	ret = input_ff_create(input, CS40L25_EFFECTS);
+ 	if (ret)
+ 		return ret;
++	input->ff->upload = cs40l25_upload;
++	input->ff->playback = cs40l25_playback;
+ 	cs40l25->input = input;
+ 	return input_register_device(input);
+ }
+@@ -876,9 +963,9 @@ static int cs40l25_probe(struct i2c_client *client)
+ 	ret = cs40l25_boost_from_dt(cs40l25);
+ 	if (ret)
+ 		return ret;
+-	spin_lock_init(&cs40l25->level_lock);
++	spin_lock_init(&cs40l25->pending_lock);
+ 	mutex_init(&cs40l25->lock);
+-	INIT_WORK(&cs40l25->play_work, cs40l25_play_work);
++	INIT_DELAYED_WORK(&cs40l25->play_work, cs40l25_play_work);
+ 	INIT_DELAYED_WORK(&cs40l25->stop_work, cs40l25_stop_work);
+ 
+ 	cs40l25->regmap = devm_regmap_init_i2c(client, &cs40l25_regmap);

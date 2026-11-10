@@ -1,0 +1,520 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:42:46 +0000
+Subject: [PATCH] power: supply: qcom_smbx: stock's charge table from the
+ battery's temperature
+
+A charger whose battery's thermistor isn't the PMIC's has no JEITA of
+its own: run stock's charge table instead, as google,chg-temp-limits,
+google,chg-cv-limits and google,chg-cc-limits on the charger's node,
+read every 30s while plugged in from the battery this charger supplies.
+The temperature (in tenths of a degree C) picks a row, the voltage a
+tier of it, each a float voltage and a charge current in hundredths of
+the design capacity an hour. Like stock's google_battery, a tier is
+seeded from the battery's voltage, and the next comes once the current
+at the tier's voltage stays under the next's for 3 polls; a current of
+0 stops charging at its tier, and outside the temperatures it doesn't
+charge, its health cold or overheat. Without stock's IR drop
+compensation the float voltage is never over the tier's.
+
+The table's inhibit and charge_behaviour's are kept apart, so neither
+undoes the other. Until the battery is read, it charges at 500mA to the
+first tier; without a table, at 1.95A to the battery's maximum as
+before.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/qcom_smbx.c | 381 ++++++++++++++++++++++++++++---
+ 1 file changed, 349 insertions(+), 32 deletions(-)
+
+diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
+index cc8cec2b999d..df02f9d1b3e9 100644
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -15,11 +15,14 @@
+ #include <linux/kernel.h>
+ #include <linux/minmax.h>
+ #include <linux/module.h>
++#include <linux/mutex.h>
+ #include <linux/platform_device.h>
+ #include <linux/pm_wakeirq.h>
+ #include <linux/of.h>
+ #include <linux/power_supply.h>
++#include <linux/property.h>
+ #include <linux/regmap.h>
++#include <linux/string.h>
+ #include <linux/types.h>
+ #include <linux/workqueue.h>
+ 
+@@ -205,6 +208,14 @@ enum smb_generation {
+ #define SMB5_CURRENT_SCALE_FACTOR			50000
+ #define SMB5_FLOAT_VOLTAGE_MIN_UV			3600000
+ #define SMB5_FLOAT_VOLTAGE_STEP_UV			10000
++
++/* the charge table's, as stock's google_battery: see smb_table_work() */
++#define TABLE_POLL_MS					30000
++/* stock's 3 of its 25mV float voltage steps */
++#define TABLE_HEADROOM_UV				75000
++#define TABLE_SWITCH_CNT				3
++/* until the battery is read: little, and to the first tier */
++#define TABLE_FALLBACK_UA				500000
+ /* clang-format on */
+ 
+ enum charger_status {
+@@ -249,6 +260,21 @@ struct smb_init_register {
+  * @usb_in_i_chan:	USB_IN current measurement channel
+  * @usb_in_v_chan:	USB_IN voltage measurement channel
+  * @chg_psy:		Charger power supply instance
++ * @lock:		Serialises the charging enable's two inhibits
++ * @user_inhibit:	Charging inhibited by charge_behaviour
++ * @table_inhibit:	Charging inhibited by the charge table
++ * @table_work:		The charge table's poll
++ * @temp_limits:	The table's temperatures, in tenths of a degree C
++ * @volt_limits:	Its tiers' float voltages
++ * @cc_limits:		Its charge currents, a row of tiers per temperature
++ * @n_temps:		The number of @temp_limits, one more than of rows
++ * @n_volts:		The number of tiers
++ * @temp_idx:		The row charging, -1 before one
++ * @volt_idx:		The tier charging, -1 to seed it from the battery
++ * @switch_cnt:		Polls under the next tier's current
++ * @table_health:	The health by the table's temperatures
++ * @fcc_ua:		The fast charge current last set
++ * @fv_uv:		The float voltage last set
+  */
+ struct smb_chip {
+ 	struct device *dev;
+@@ -266,6 +292,23 @@ struct smb_chip {
+ 	struct iio_channel *usb_in_v_chan;
+ 
+ 	struct power_supply *chg_psy;
++
++	struct mutex lock;
++	bool user_inhibit;
++	bool table_inhibit;
++
++	struct delayed_work table_work;
++	int *temp_limits;
++	int *volt_limits;
++	int *cc_limits;
++	int n_temps;
++	int n_volts;
++	int temp_idx;
++	int volt_idx;
++	int switch_cnt;
++	int table_health;
++	int fcc_ua;
++	int fv_uv;
+ };
+ 
+ static unsigned int smb_current_scale(struct smb_chip *chip)
+@@ -499,6 +542,10 @@ static void smb_status_change_work(struct work_struct *work)
+ 
+ 	chip = container_of(work, struct smb_chip, status_change_work.work);
+ 
++	/* to seed its tier on a plug-in, and stop its poll on unplug */
++	if (chip->n_temps)
++		mod_delayed_work(system_wq, &chip->table_work, 0);
++
+ 	smb_get_prop_usb_online(chip, &usb_online);
+ 	if (!usb_online) {
+ 		/* not to start the next plug-in at this one's limit */
+@@ -552,6 +599,17 @@ static void smb_status_change_work(struct work_struct *work)
+ 	power_supply_changed(chip->chg_psy);
+ }
+ 
++/* Charging is enabled unless charge_behaviour or the charge table inhibit it */
++static int smb_update_charging_enable(struct smb_chip *chip)
++{
++	lockdep_assert_held(&chip->lock);
++
++	return regmap_update_bits(chip->regmap, chip->base + CHARGING_ENABLE_CMD,
++				  CHARGING_ENABLE_CMD_BIT,
++				  chip->user_inhibit || chip->table_inhibit ?
++				  0 : CHARGING_ENABLE_CMD_BIT);
++}
++
+ /*
+  * With charging disabled the buck still runs the system from USB_IN and the
+  * battery only makes up what the input limit can't; suspending USB_IN runs
+@@ -559,20 +617,17 @@ static void smb_status_change_work(struct work_struct *work)
+  */
+ static int smb_get_charge_behaviour(struct smb_chip *chip, int *val)
+ {
+-	unsigned int suspend, enable;
++	unsigned int suspend;
+ 	int rc;
+ 
+ 	rc = regmap_read(chip->regmap, chip->base + USBIN_CMD_IL, &suspend);
+ 	if (rc < 0)
+ 		return rc;
+ 
+-	rc = regmap_read(chip->regmap, chip->base + CHARGING_ENABLE_CMD, &enable);
+-	if (rc < 0)
+-		return rc;
+-
++	/* charge_behaviour's own inhibit, not the charge table's */
+ 	if (suspend & USBIN_SUSPEND_BIT)
+ 		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_FORCE_DISCHARGE;
+-	else if (!(enable & CHARGING_ENABLE_CMD_BIT))
++	else if (READ_ONCE(chip->user_inhibit))
+ 		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE;
+ 	else
+ 		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO;
+@@ -587,11 +642,11 @@ static int smb_set_charge_behaviour(struct smb_chip *chip, int val)
+ 	switch (val) {
+ 	case POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO:
+ 	case POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE:
+-		rc = regmap_update_bits(chip->regmap,
+-					chip->base + CHARGING_ENABLE_CMD,
+-					CHARGING_ENABLE_CMD_BIT,
+-					val == POWER_SUPPLY_CHARGE_BEHAVIOUR_AUTO ?
+-					CHARGING_ENABLE_CMD_BIT : 0);
++		mutex_lock(&chip->lock);
++		WRITE_ONCE(chip->user_inhibit,
++			   val == POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE);
++		rc = smb_update_charging_enable(chip);
++		mutex_unlock(&chip->lock);
+ 		if (rc < 0)
+ 			return rc;
+ 		rc = regmap_update_bits(chip->regmap, chip->base + USBIN_CMD_IL,
+@@ -611,6 +666,254 @@ static int smb_set_charge_behaviour(struct smb_chip *chip, int val)
+ 	return 0;
+ }
+ 
++static int smb_set_float_voltage(struct smb_chip *chip, int uv)
++{
++	int val;
++
++	if (chip->gen == SMB5)
++		val = (uv - SMB5_FLOAT_VOLTAGE_MIN_UV) / SMB5_FLOAT_VOLTAGE_STEP_UV;
++	else
++		val = (uv - 3487500) / 7500 + 1;
++
++	return regmap_update_bits(chip->regmap, chip->base + FLOAT_VOLTAGE_CFG,
++				  FLOAT_VOLTAGE_SETTING_MASK, val);
++}
++
++/* This overrides all of the other current limits */
++static int smb_set_fast_charge_current(struct smb_chip *chip, int ua)
++{
++	return regmap_write(chip->regmap, chip->base + FAST_CHARGE_CURRENT_CFG,
++			    min(ua / smb_current_scale(chip), 0xffU));
++}
++
++struct smb_battery {
++	const char *supplier;
++	int temp;
++	int voltage_uv;
++	int current_ua;
++	int rc;
++};
++
++/* The battery this charger supplies, as power_supply_am_i_supplied() finds it */
++static int smb_read_battery(struct power_supply *psy, void *data)
++{
++	struct smb_battery *bat = data;
++	union power_supply_propval val;
++	int i;
++
++	if (psy->desc->type != POWER_SUPPLY_TYPE_BATTERY)
++		return 0;
++	for (i = 0; i < psy->num_supplies; i++)
++		if (!strcmp(psy->supplied_from[i], bat->supplier))
++			break;
++	if (i == psy->num_supplies)
++		return 0;
++
++	bat->rc = power_supply_get_property(psy, POWER_SUPPLY_PROP_TEMP, &val);
++	if (bat->rc)
++		return 1;
++	bat->temp = val.intval;
++
++	bat->rc = power_supply_get_property(psy, POWER_SUPPLY_PROP_VOLTAGE_NOW,
++					    &val);
++	if (bat->rc)
++		return 1;
++	bat->voltage_uv = val.intval;
++
++	bat->rc = power_supply_get_property(psy, POWER_SUPPLY_PROP_CURRENT_NOW,
++					    &val);
++	bat->current_ua = val.intval;
++	return 1;
++}
++
++/*
++ * The tier for a voltage: the first not under it, or the next when too close
++ * under it for its current to get anywhere
++ */
++static int smb_table_volt_idx(struct smb_chip *chip, int uv)
++{
++	int i = 0;
++
++	while (i < chip->n_volts - 1 && uv > chip->volt_limits[i])
++		i++;
++	if (i < chip->n_volts - 1 &&
++	    chip->volt_limits[i] - uv < TABLE_HEADROOM_UV)
++		i++;
++
++	return i;
++}
++
++static bool smb_in_cv(struct smb_chip *chip)
++{
++	unsigned int stat;
++
++	if (regmap_read(chip->regmap, chip->base + BATTERY_CHARGER_STATUS_1,
++			&stat) < 0)
++		return false;
++
++	stat &= BATTERY_CHARGER_STATUS_MASK;
++	if (chip->gen == SMB5)
++		return stat == SMB5_TAPER_CHARGE || stat == SMB5_TERMINATE_CHARGE;
++	return stat == TAPER_CHARGE || stat == TERMINATE_CHARGE;
++}
++
++/*
++ * Stock's charge table (google,chg-{temp,cv,cc}-limits), as its google_battery
++ * runs it, every 30s from the battery this charges: its temperature picks a
++ * row, its voltage a tier, each a float voltage and a charge current. The
++ * next tier comes once the current, at the tier's voltage, stays under the
++ * next's. A current of 0 stops charging at its tier, and outside the table's
++ * temperatures it doesn't charge. Without stock's IR drop compensation, the
++ * float voltage is never over the tier's
++ */
++static void smb_table_work(struct work_struct *work)
++{
++	struct smb_chip *chip = container_of(work, struct smb_chip,
++					     table_work.work);
++	struct smb_battery bat = {
++		.supplier = chip->chg_psy->desc->name,
++		.rc = -ENODEV,
++	};
++	int health = POWER_SUPPLY_HEALTH_GOOD;
++	int fcc = chip->fcc_ua, fv = chip->fv_uv;
++	int t = chip->temp_idx, v = chip->volt_idx;
++	int usb_online = 0;
++	bool inhibit = false, changed;
++
++	smb_get_prop_usb_online(chip, &usb_online);
++	if (!usb_online) {
++		/* the next plug-in seeds it again */
++		chip->temp_idx = chip->volt_idx = -1;
++		chip->switch_cnt = 0;
++		WRITE_ONCE(chip->table_health, POWER_SUPPLY_HEALTH_GOOD);
++		return;
++	}
++
++	power_supply_for_each_psy(&bat, smb_read_battery);
++
++	if (bat.rc) {
++		dev_warn_ratelimited(chip->dev,
++				     "charge table: no battery (%d), %d uA to %d uV\n",
++				     bat.rc, TABLE_FALLBACK_UA,
++				     chip->volt_limits[0]);
++		fcc = TABLE_FALLBACK_UA;
++		fv = chip->volt_limits[0];
++		t = v = -1;
++	} else if (bat.temp < chip->temp_limits[0] ||
++		   bat.temp >= chip->temp_limits[chip->n_temps - 1]) {
++		health = bat.temp < chip->temp_limits[0] ?
++			 POWER_SUPPLY_HEALTH_COLD : POWER_SUPPLY_HEALTH_OVERHEAT;
++		inhibit = true;
++		t = v = -1;
++	} else {
++		t = 0;
++		while (t < chip->n_temps - 2 &&
++		       bat.temp >= chip->temp_limits[t + 1])
++			t++;
++
++		if (v < 0 || chip->table_inhibit || bat.current_ua < 0) {
++			/* seeded, or not charging: the tier by the voltage */
++			v = smb_table_volt_idx(chip, bat.voltage_uv);
++		} else if (v < chip->n_volts - 1 && smb_in_cv(chip) &&
++			   bat.current_ua <=
++			   chip->cc_limits[t * chip->n_volts + v + 1]) {
++			if (++chip->switch_cnt >= TABLE_SWITCH_CNT)
++				v++;
++		} else {
++			chip->switch_cnt = 0;
++		}
++
++		fcc = chip->cc_limits[t * chip->n_volts + v];
++		fv = chip->volt_limits[v];
++		inhibit = !fcc;
++	}
++
++	if (t != chip->temp_idx || v != chip->volt_idx) {
++		chip->switch_cnt = 0;
++		if (!bat.rc)
++			dev_info(chip->dev,
++				 "charge table: temp %d, %d uV: %d uA to %d uV\n",
++				 bat.temp, bat.voltage_uv, inhibit ? 0 : fcc, fv);
++	}
++	chip->temp_idx = t;
++	chip->volt_idx = v;
++
++	mutex_lock(&chip->lock);
++	changed = inhibit != chip->table_inhibit ||
++		  health != chip->table_health;
++	chip->table_inhibit = inhibit;
++	WRITE_ONCE(chip->table_health, health);
++	if (fv != chip->fv_uv && !smb_set_float_voltage(chip, fv))
++		chip->fv_uv = fv;
++	if (fcc && fcc != chip->fcc_ua &&
++	    !smb_set_fast_charge_current(chip, fcc))
++		chip->fcc_ua = fcc;
++	smb_update_charging_enable(chip);
++	mutex_unlock(&chip->lock);
++
++	if (changed)
++		power_supply_changed(chip->chg_psy);
++
++	schedule_delayed_work(&chip->table_work, msecs_to_jiffies(TABLE_POLL_MS));
++}
++
++/*
++ * The charge table from the charger's node, in stock's units: temperatures
++ * in tenths of a degree C, currents in hundredths of the battery's design
++ * capacity an hour. Without one, it charges at probe's current and voltage
++ */
++static int smb_read_table(struct smb_chip *chip)
++{
++	struct device *dev = chip->dev;
++	int cap = chip->batt_info->charge_full_design_uah;
++	int vmax = chip->batt_info->voltage_max_design_uv;
++	int n_temps, n_volts, n_cc, i;
++
++	if (!device_property_present(dev, "google,chg-temp-limits"))
++		return 0;
++
++	n_temps = device_property_count_u32(dev, "google,chg-temp-limits");
++	n_volts = device_property_count_u32(dev, "google,chg-cv-limits");
++	n_cc = device_property_count_u32(dev, "google,chg-cc-limits");
++	if (n_temps < 2 || n_volts < 1 || n_cc != (n_temps - 1) * n_volts ||
++	    cap <= 0)
++		return dev_err_probe(dev, -EINVAL, "Malformed charge table\n");
++
++	chip->temp_limits = devm_kcalloc(dev, n_temps, sizeof(int), GFP_KERNEL);
++	chip->volt_limits = devm_kcalloc(dev, n_volts, sizeof(int), GFP_KERNEL);
++	chip->cc_limits = devm_kcalloc(dev, n_cc, sizeof(int), GFP_KERNEL);
++	if (!chip->temp_limits || !chip->volt_limits || !chip->cc_limits)
++		return -ENOMEM;
++
++	device_property_read_u32_array(dev, "google,chg-temp-limits",
++				       (u32 *)chip->temp_limits, n_temps);
++	device_property_read_u32_array(dev, "google,chg-cv-limits",
++				       (u32 *)chip->volt_limits, n_volts);
++	device_property_read_u32_array(dev, "google,chg-cc-limits",
++				       (u32 *)chip->cc_limits, n_cc);
++
++	for (i = 1; i < n_temps; i++)
++		if (chip->temp_limits[i] <= chip->temp_limits[i - 1])
++			return dev_err_probe(dev, -EINVAL,
++					     "Charge table temperatures not rising\n");
++	for (i = 0; i < n_volts; i++)
++		if ((i && chip->volt_limits[i] <= chip->volt_limits[i - 1]) ||
++		    (vmax > 0 && chip->volt_limits[i] > vmax))
++			return dev_err_probe(dev, -EINVAL,
++					     "Charge table tier %d uV out of order or over the battery's\n",
++					     chip->volt_limits[i]);
++	for (i = 0; i < n_cc; i++) {
++		if (chip->cc_limits[i] < 0)
++			return dev_err_probe(dev, -EINVAL,
++					     "Charge table current under 0\n");
++		chip->cc_limits[i] *= cap / 100;
++	}
++
++	chip->n_temps = n_temps;
++	chip->n_volts = n_volts;
++	return 0;
++}
++
+ static int smb_get_iio_chan(struct smb_chip *chip, struct iio_channel *chan,
+ 			     int *val)
+ {
+@@ -705,6 +1008,11 @@ static int smb2_get_prop_health(struct smb_chip *chip, int *val)
+ 
+ static int smb_get_prop_health(struct smb_chip *chip, int *val)
+ {
++	/* the PMIC's own temperatures, when its thermistor is the battery's */
++	*val = READ_ONCE(chip->table_health);
++	if (*val != POWER_SUPPLY_HEALTH_GOOD)
++		return 0;
++
+ 	switch (chip->gen) {
+ 	case SMB2:
+ 		return smb2_get_prop_health(chip, val);
+@@ -1174,6 +1482,19 @@ static int smb_probe(struct platform_device *pdev)
+ 	if (!desc->name)
+ 		return -ENOMEM;
+ 
++	rc = devm_mutex_init(chip->dev, &chip->lock);
++	if (rc)
++		return rc;
++	chip->temp_idx = chip->volt_idx = -1;
++	chip->table_health = POWER_SUPPLY_HEALTH_GOOD;
++
++	/* before the status change work, which schedules it */
++	rc = devm_delayed_work_autocancel(chip->dev, &chip->table_work,
++					  smb_table_work);
++	if (rc)
++		return dev_err_probe(chip->dev, rc,
++				     "Failed to init charge table work\n");
++
+ 	rc = devm_delayed_work_autocancel(chip->dev, &chip->status_change_work,
+ 					  smb_status_change_work);
+ 	if (rc)
+@@ -1193,15 +1514,25 @@ static int smb_probe(struct platform_device *pdev)
+ 	if (chip->batt_info->constant_charge_current_max_ua == -EINVAL)
+ 		chip->batt_info->constant_charge_current_max_ua = DCP_CURRENT_UA;
+ 
+-	if (chip->gen == SMB5)
+-		rc = (chip->batt_info->voltage_max_design_uv -
+-		      SMB5_FLOAT_VOLTAGE_MIN_UV) / SMB5_FLOAT_VOLTAGE_STEP_UV;
+-	else
+-		rc = (chip->batt_info->voltage_max_design_uv - 3487500) / 7500 + 1;
+-	rc = regmap_update_bits(chip->regmap, chip->base + FLOAT_VOLTAGE_CFG,
+-				FLOAT_VOLTAGE_SETTING_MASK, rc);
++	rc = smb_read_table(chip);
++	if (rc < 0)
++		return rc;
++
++	/*
++	 * With a charge table, its first tier's voltage at its fallback current
++	 * until its first poll. Without, a relatively safe current while still
++	 * allowing a comfortably fast charging rate
++	 */
++	chip->fv_uv = chip->n_temps ? chip->volt_limits[0] :
++		      chip->batt_info->voltage_max_design_uv;
++	chip->fcc_ua = chip->n_temps ? TABLE_FALLBACK_UA : 1950000;
++	rc = smb_set_float_voltage(chip, chip->fv_uv);
+ 	if (rc < 0)
+ 		return dev_err_probe(chip->dev, rc, "Couldn't set vbat max\n");
++	rc = smb_set_fast_charge_current(chip, chip->fcc_ua);
++	if (rc < 0)
++		return dev_err_probe(chip->dev, rc,
++				     "Couldn't write fast charge current cfg");
+ 
+ 	rc = smb_init_irq(chip, &irq, "bat-ov", smb_handle_batt_overvoltage);
+ 	if (rc < 0)
+@@ -1228,20 +1559,6 @@ static int smb_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, chip);
+ 
+-	/*
+-	 * This overrides all of the other current limits and is expected
+-	 * to be used for setting limits based on temperature. We set some
+-	 * relatively safe default value while still allowing a comfortably
+-	 * fast charging rate. Once temperature monitoring is hooked up we
+-	 * would expect this to be changed dynamically based on temperature
+-	 * reporting.
+-	 */
+-	rc = regmap_write(chip->regmap, chip->base + FAST_CHARGE_CURRENT_CFG,
+-			  1950000 / smb_current_scale(chip));
+-	if (rc < 0)
+-		return dev_err_probe(chip->dev, rc,
+-				     "Couldn't write fast charge current cfg");
+-
+ 	rc = regmap_write_bits(chip->regmap, chip->base + AICL_RERUN_TIME_CFG,
+ 			       AICL_RERUN_TIME_MASK, AIC_RERUN_TIME_3_SECS);
+ 	if (rc < 0)

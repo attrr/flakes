@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 19:00:35 +0000
+Subject: [PATCH] interconnect: qcom: sm8150: keep QUP0 and CO1 alive
+
+Nothing on sm8150 votes for the QUP masters' BCM, nor for the NPU's:
+once synced, with their initial bandwidth gone, the serial engines
+froze the SoC (touch, I2C and all, no reset) and the NPU's BCM reset it
+about a second later. Keep both at their minimum while awake, as the
+other keepalive BCMs; the sleep set still drops them.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/interconnect/qcom/sm8150.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/interconnect/qcom/sm8150.c b/drivers/interconnect/qcom/sm8150.c
+index 4b0ee0409391..c9bb020a52d1 100644
+--- a/drivers/interconnect/qcom/sm8150.c
++++ b/drivers/interconnect/qcom/sm8150.c
+@@ -1378,7 +1378,7 @@ static struct qcom_icc_bcm bcm_sn1 = {
+ 
+ static struct qcom_icc_bcm bcm_co1 = {
+ 	.name = "CO1",
+-	.keepalive = false,
++	.keepalive = true,
+ 	.num_nodes = 1,
+ 	.nodes = { &qnm_npu },
+ };
+@@ -1445,7 +1445,7 @@ static struct qcom_icc_bcm bcm_cn0 = {
+ 
+ static struct qcom_icc_bcm bcm_qup0 = {
+ 	.name = "QUP0",
+-	.keepalive = false,
++	.keepalive = true,
+ 	.num_nodes = 3,
+ 	.nodes = { &qhm_qup0, &qhm_qup1, &qhm_qup2 },
+ };

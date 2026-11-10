@@ -1,0 +1,94 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:27:01 +0000
+Subject: [PATCH] power: supply: qcom_smbx: SMB5's current and float voltage
+ steps
+
+pm8150b counts current in 50mA, not pmi8998's 25mA, and float voltage
+from 3.6V in 10mV (downstream's smb5_pm8150b_params): taken as SMB2's,
+a battery's 4.4V max design was set as 4.82V, its 1.95A fast charge
+current as 3.9A, and every input limit doubled. Scale them by the
+generation.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/qcom_smbx.c | 24 +++++++++++++++++++-----
+ 1 file changed, 19 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
+index dfefbc0aa7a9..cc8cec2b999d 100644
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -201,6 +201,10 @@ enum smb_generation {
+ 
+ /* pmi8998 registers represent current in increments of 1/40th of an amp */
+ #define CURRENT_SCALE_FACTOR				25000
++/* pm8150b's in 1/20th, and float voltage from 3.6V in 10mV */
++#define SMB5_CURRENT_SCALE_FACTOR			50000
++#define SMB5_FLOAT_VOLTAGE_MIN_UV			3600000
++#define SMB5_FLOAT_VOLTAGE_STEP_UV			10000
+ /* clang-format on */
+ 
+ enum charger_status {
+@@ -264,6 +268,12 @@ struct smb_chip {
+ 	struct power_supply *chg_psy;
+ };
+ 
++static unsigned int smb_current_scale(struct smb_chip *chip)
++{
++	return chip->gen == SMB5 ? SMB5_CURRENT_SCALE_FACTOR :
++				   CURRENT_SCALE_FACTOR;
++}
++
+ struct smb_match_data {
+ 	const char *name;
+ 	enum smb_generation gen;
+@@ -448,7 +458,7 @@ static inline int smb_get_current_limit(struct smb_chip *chip,
+ 	int rc = regmap_read(chip->regmap, chip->base + ICL_STATUS(chip), val);
+ 
+ 	if (rc >= 0)
+-		*val *= CURRENT_SCALE_FACTOR;
++		*val *= smb_current_scale(chip);
+ 	return rc;
+ }
+ 
+@@ -462,7 +472,7 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
+ 			"Can't set current limit higher than 4800000uA");
+ 		return -EINVAL;
+ 	}
+-	val_raw = val / CURRENT_SCALE_FACTOR;
++	val_raw = val / smb_current_scale(chip);
+ 
+ 	rc = regmap_write(chip->regmap, chip->base + USBIN_CURRENT_LIMIT_CFG,
+ 			  val_raw);
+@@ -938,7 +948,7 @@ static const struct smb_init_register smb5_init_seq[] = {
+ 	 */
+ 	{ .addr = FAST_CHARGE_CURRENT_CFG,
+ 	  .mask = FAST_CHARGE_CURRENT_SETTING_MASK,
+-	  .val = 1950000 / CURRENT_SCALE_FACTOR },
++	  .val = 1950000 / SMB5_CURRENT_SCALE_FACTOR },
+ };
+ 
+ /* Init sequence derived from vendor downstream driver */
+@@ -1183,7 +1193,11 @@ static int smb_probe(struct platform_device *pdev)
+ 	if (chip->batt_info->constant_charge_current_max_ua == -EINVAL)
+ 		chip->batt_info->constant_charge_current_max_ua = DCP_CURRENT_UA;
+ 
+-	rc = (chip->batt_info->voltage_max_design_uv - 3487500) / 7500 + 1;
++	if (chip->gen == SMB5)
++		rc = (chip->batt_info->voltage_max_design_uv -
++		      SMB5_FLOAT_VOLTAGE_MIN_UV) / SMB5_FLOAT_VOLTAGE_STEP_UV;
++	else
++		rc = (chip->batt_info->voltage_max_design_uv - 3487500) / 7500 + 1;
+ 	rc = regmap_update_bits(chip->regmap, chip->base + FLOAT_VOLTAGE_CFG,
+ 				FLOAT_VOLTAGE_SETTING_MASK, rc);
+ 	if (rc < 0)
+@@ -1223,7 +1237,7 @@ static int smb_probe(struct platform_device *pdev)
+ 	 * reporting.
+ 	 */
+ 	rc = regmap_write(chip->regmap, chip->base + FAST_CHARGE_CURRENT_CFG,
+-			  1950000 / CURRENT_SCALE_FACTOR);
++			  1950000 / smb_current_scale(chip));
+ 	if (rc < 0)
+ 		return dev_err_probe(chip->dev, rc,
+ 				     "Couldn't write fast charge current cfg");

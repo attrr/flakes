@@ -1,0 +1,88 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 20:17:30 +0000
+Subject: [PATCH] drm/msm/adreno: bind the GMU so its suppliers can sync
+
+The GPU takes the GMU's resources through of_find_device_by_node, and
+nothing ever binds the GMU's device. fw_devlink then holds back
+sync_state for gcc, gpucc and rpmhpd for good, which keeps every RPMh
+power domain voted at its maximum, in sleep too, so CX never collapses.
+
+Bind an empty driver to it, and have a6xx_gmu_init wait for that before
+it puts devres on the device, since a probe that found them would fail
+and release them.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/msm/adreno/a6xx_gmu.c      |  9 ++++++++
+ drivers/gpu/drm/msm/adreno/adreno_device.c | 27 ++++++++++++++++++++++
+ 2 files changed, 36 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/adreno/a6xx_gmu.c b/drivers/gpu/drm/msm/adreno/a6xx_gmu.c
+index 6d49c51df1a2..7bb23714c5c9 100644
+--- a/drivers/gpu/drm/msm/adreno/a6xx_gmu.c
++++ b/drivers/gpu/drm/msm/adreno/a6xx_gmu.c
+@@ -2293,6 +2293,15 @@ int a6xx_gmu_init(struct a6xx_gpu *a6xx_gpu, struct device_node *node)
+ 	if (!pdev)
+ 		return -ENODEV;
+ 
++	/*
++	 * The GMU's stub driver must bind before we put devres on its
++	 * device, or its probe would fail and free them.
++	 */
++	if (!device_is_bound(&pdev->dev)) {
++		put_device(&pdev->dev);
++		return -EPROBE_DEFER;
++	}
++
+ 	gmu->dev = &pdev->dev;
+ 
+ 	ret = of_dma_configure(gmu->dev, node, true);
+diff --git a/drivers/gpu/drm/msm/adreno/adreno_device.c b/drivers/gpu/drm/msm/adreno/adreno_device.c
+index 05c77fe27e62..f9ab4c1c1cd1 100644
+--- a/drivers/gpu/drm/msm/adreno/adreno_device.c
++++ b/drivers/gpu/drm/msm/adreno/adreno_device.c
+@@ -416,11 +416,37 @@ static struct platform_driver adreno_driver = {
+ 	},
+ };
+ 
++/*
++ * The GPU takes the GMU's resources itself (a6xx_gmu_init), so nothing
++ * binds the GMU's own device, and fw_devlink would hold back the
++ * sync_state of its suppliers (gcc, gpucc, rpmhpd) for good. An empty
++ * driver lets them sync.
++ */
++static int adreno_gmu_probe(struct platform_device *pdev)
++{
++	return 0;
++}
++
++static const struct of_device_id gmu_dt_match[] = {
++	{ .compatible = "qcom,adreno-gmu" },
++	{}
++};
++
++static struct platform_driver adreno_gmu_driver = {
++	.probe = adreno_gmu_probe,
++	.driver = {
++		.name = "adreno-gmu",
++		.of_match_table = gmu_dt_match,
++		.suppress_bind_attrs = true,
++	},
++};
++
+ void __init adreno_register(void)
+ {
+ 	if (skip_gpu)
+ 		return;
+ 
++	platform_driver_register(&adreno_gmu_driver);
+ 	platform_driver_register(&adreno_driver);
+ }
+ 
+@@ -430,4 +456,5 @@ void __exit adreno_unregister(void)
+ 		return;
+ 
+ 	platform_driver_unregister(&adreno_driver);
++	platform_driver_unregister(&adreno_gmu_driver);
+ }

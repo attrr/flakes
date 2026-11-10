@@ -1,29 +1,23 @@
 {
   lib,
   linuxManualConfig,
-  fetchFromGitLab,
+  linux_7_3,
   # NixOS overrides the kernel with kernelPatches, features and randstructSeed;
   # not formals, or callPackage fills kernelPatches with pkgs.kernelPatches
   ...
 }@args:
 
-# pmaports' linux-postmarketos-qcom-sm8150 (7.0.0-r2, pmaports 80c363b5):
-# its config and the one patch that isn't another device's dts. On top of the
-# config: NFT_FIB_INET=m, for the NixOS firewall's reverse path filter, and
-# NET_SCH_CAKE=m, TCP_CONG_BBR=m, for profiles/base's sysctls; SND_SOC_CS35L36=m,
-# flame's speaker amps; INPUT_CS40L25_VIBRA=m, its vibrator
-linuxManualConfig {
-  version = "7.0.0";
-  modDirVersion = "7.0.0-sm8150";
-
-  src = fetchFromGitLab {
-    domain = "gitlab.nura.eco";
-    group = "soc";
-    owner = "qualcomm-sm8150";
-    repo = "linux";
-    tag = "v7.0.0-sm8150";
-    hash = "sha256-UNqp064EqWB05eywNYF/oZJVn7Ar3C7Vl8SymUa6qMI=";
-  };
+# Mainline stable, nixpkgs' source (its point releases come with nixpkgs),
+# with ./patches: nura's sm8150 tree for what flame needs of it (its DT,
+# panel, touchscreen, SMB5 charger, sound card), and flame's own. The config
+# started as pmaports' linux-postmarketos-qcom-sm8150 (7.0.0-r2, pmaports
+# 80c363b5); on top of it: NFT_FIB_INET=m, for the NixOS firewall's reverse
+# path filter, and NET_SCH_CAKE=m, TCP_CONG_BBR=m, for profiles/base's
+# sysctls; SND_SOC_CS35L36=m, flame's speaker amps; INPUT_CS40L25_VIBRA=m,
+# its vibrator
+linuxManualConfig rec {
+  inherit (linux_7_3) version src;
+  modDirVersion = "${version}-sm8150";
 
   configfile = ./config.aarch64;
   randstructSeed = args.randstructSeed or "";
