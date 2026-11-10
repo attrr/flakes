@@ -1,0 +1,34 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 17:47:54 +0000
+Subject: [PATCH] drm/msm: no fault snapshot before the device is registered
+
+With the MDP clock kept, the bootloader's splash still scans out when
+msm attaches its IOMMU domain, and can fault before the splash is mapped
+into it. The snapshot that queues then duplicates CRTC states that don't
+exist yet: a NULL dereference in dpu_crtc_duplicate_state, in the
+snapshot worker, with the modeset locks held, and the boot hangs.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/msm/msm_kms.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/msm_kms.c b/drivers/gpu/drm/msm/msm_kms.c
+index e5d0ea629448..40cce35a85ce 100644
+--- a/drivers/gpu/drm/msm/msm_kms.c
++++ b/drivers/gpu/drm/msm/msm_kms.c
+@@ -169,6 +169,13 @@ static int msm_kms_fault_handler(void *arg, unsigned long iova, int flags, void
+ {
+ 	struct msm_kms *kms = arg;
+ 
++	/*
++	 * A fault can come as soon as the domain is attached: the bootloader's
++	 * splash, still scanning out, before msm has any CRTC state to snapshot
++	 */
++	if (!kms->dev->registered)
++		return -ENOSYS;
++
+ 	if (atomic_read(&kms->fault_snapshot_capture) == 0) {
+ 		msm_disp_snapshot_state(kms->dev);
+ 		atomic_inc(&kms->fault_snapshot_capture);

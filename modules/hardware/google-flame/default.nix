@@ -7,5 +7,6 @@
 {
   imports = [
     ./boot.nix
+    ./display.nix
   ];
 }
