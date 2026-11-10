@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 15:26:58 +0000
+Subject: [PATCH] ASoC: cs35l36: size the ASP slots by the physical width
+
+The ASP RX/TX width sets where each slot starts, so S24_LE in 32-bit
+slots (as the sm8150 DSP's TDM sends it) needs 32, not 24: with 24 the
+amp reads slot 1 from bit 24, 8 bits early.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ sound/soc/codecs/cs35l36.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/cs35l36.c b/sound/soc/codecs/cs35l36.c
+index 89645327945f..12c0a71fad51 100644
+--- a/sound/soc/codecs/cs35l36.c
++++ b/sound/soc/codecs/cs35l36.c
+@@ -875,7 +875,8 @@ static int cs35l36_pcm_hw_params(struct snd_pcm_substream *substream,
+ 					   CS35L36_GLOBAL_FS_SHIFT);
+ 	}
+ 
+-	switch (params_width(params)) {
++	/* the slot's width: S24_LE's samples sit in 32-bit slots */
++	switch (params_physical_width(params)) {
+ 	case 16:
+ 		asp_width = CS35L36_ASP_WIDTH_16;
+ 		break;

@@ -1,0 +1,166 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 16:49:44 +0000
+Subject: [PATCH] power: supply: qcom_smbx: the watchdog on the charge table's
+ poll
+
+With the charge table applied in software, a kernel that stops applying
+it would leave charging at its last current and voltage whatever the
+battery's temperature. With a table, arm SMB5's watchdog as stock's
+timings, barking after 64s and biting 8s later, and have the bite
+disable charging; the table's poll, which now runs plugged in or not,
+pets it. A bark, rather than petting it itself, runs the poll now.
+
+A bite's disable outlasts petting and the charger's reinitialisation,
+a reboot's too, until charging is disabled and enabled again: the poll
+does so when charging should be on but the charger says it's disabled.
+The bark's pet without a table goes to the charger's base, not 0x643.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/qcom_smbx.c | 82 +++++++++++++++++++++++++++++++-
+ 1 file changed, 80 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
+index 866875a93f33..9d419d207bb8 100644
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -197,6 +197,10 @@ enum smb_generation {
+ #define WDOG_TIMER_EN_ON_PLUGIN_BIT			BIT(1)
+ 
+ #define SNARL_BARK_BITE_WD_CFG				0x653
++#define BITE_WDOG_DISABLE_CHARGING_CFG_BIT		BIT(7)
++#define SNARL_WDOG_TMOUT_8S				0x70
++#define BARK_WDOG_TMOUT_64S				0x08
++#define BITE_WDOG_TMOUT_8S				0x03
+ 
+ #define AICL_RERUN_TIME_CFG				0x661
+ #define AICL_RERUN_TIME_MASK				GENMASK(1, 0)
+@@ -814,6 +818,30 @@ static bool smb_in_cv(struct smb_chip *chip)
+ 	return stat == TAPER_CHARGE || stat == TERMINATE_CHARGE;
+ }
+ 
++/*
++ * A bite's disable outlasts petting, and the charger's reinitialisation, a
++ * reboot's: until charging is disabled and enabled again. So when charging
++ * should be on but the charger says it's disabled, it is
++ */
++static void smb_watchdog_recover(struct smb_chip *chip)
++{
++	unsigned int stat;
++
++	lockdep_assert_held(&chip->lock);
++
++	if (chip->gen != SMB5 || chip->user_inhibit || chip->table_inhibit)
++		return;
++	if (regmap_read(chip->regmap, chip->base + BATTERY_CHARGER_STATUS_1,
++			&stat) < 0 ||
++	    (stat & BATTERY_CHARGER_STATUS_MASK) != SMB5_DISABLE_CHARGE)
++		return;
++
++	dev_warn(chip->dev, "charging disabled (watchdog bite?): enabling it again\n");
++	regmap_update_bits(chip->regmap, chip->base + CHARGING_ENABLE_CMD,
++			   CHARGING_ENABLE_CMD_BIT, 0);
++	smb_update_charging_enable(chip);
++}
++
+ /*
+  * Stock's charge table (google,chg-{temp,cv,cc}-limits), as its google_battery
+  * runs it, every 30s from the battery this charges: its temperature picks a
+@@ -839,6 +867,10 @@ static void smb_table_work(struct work_struct *work)
+ 	int usb_online = 0;
+ 	bool inhibit = false, changed;
+ 
++	/* the watchdog's: from here, charging needs the next poll in time */
++	regmap_write(chip->regmap, chip->base + BARK_BITE_WDOG_PET,
++		     BARK_BITE_WDOG_PET_BIT);
++
+ 	/* first: suspended, USBIN isn't online */
+ 	mutex_lock(&chip->lock);
+ 	if (chip->therm_suspend != (state && !therm_ua)) {
+@@ -855,7 +887,7 @@ static void smb_table_work(struct work_struct *work)
+ 		chip->temp_idx = chip->volt_idx = -1;
+ 		chip->switch_cnt = 0;
+ 		WRITE_ONCE(chip->table_health, POWER_SUPPLY_HEALTH_GOOD);
+-		return;
++		goto next;
+ 	}
+ 
+ 	power_supply_for_each_psy(&bat, smb_read_battery);
+@@ -920,14 +952,49 @@ static void smb_table_work(struct work_struct *work)
+ 	    !smb_set_fast_charge_current(chip, fcc))
+ 		chip->fcc_ua = fcc;
+ 	smb_update_charging_enable(chip);
++	smb_watchdog_recover(chip);
+ 	mutex_unlock(&chip->lock);
+ 
+ 	if (changed)
+ 		power_supply_changed(chip->chg_psy);
+ 
++next:
+ 	schedule_delayed_work(&chip->table_work, msecs_to_jiffies(TABLE_POLL_MS));
+ }
+ 
++/*
++ * SMB5's watchdog runs while plugged in: unpetted for 64s it barks, and 8s
++ * later bites, disabling charging. With a charge table its poll pets it, so
++ * should the table stop being applied, so does charging; USB_IN still runs
++ * the system
++ */
++static int smb_init_watchdog(struct smb_chip *chip)
++{
++	int rc;
++
++	if (!chip->n_temps || chip->gen != SMB5)
++		return 0;
++
++	rc = regmap_write(chip->regmap, chip->base + BARK_BITE_WDOG_PET,
++			  BARK_BITE_WDOG_PET_BIT);
++	if (rc < 0)
++		return rc;
++
++	rc = regmap_write(chip->regmap, chip->base + SNARL_BARK_BITE_WD_CFG,
++			  BITE_WDOG_DISABLE_CHARGING_CFG_BIT |
++			  SNARL_WDOG_TMOUT_8S | BARK_WDOG_TMOUT_64S |
++			  BITE_WDOG_TMOUT_8S);
++	if (rc < 0)
++		return rc;
++
++	return regmap_update_bits(chip->regmap, chip->base + WD_CFG,
++				  WATCHDOG_TRIGGER_AFP_EN_BIT |
++				  WDOG_TIMER_EN_ON_PLUGIN_BIT |
++				  BARK_WDOG_INT_EN_BIT,
++				  WDOG_TIMER_EN_ON_PLUGIN_BIT |
++				  BARK_WDOG_INT_EN_BIT);
++}
++
+ /*
+  * The charge table from the charger's node, in stock's units: temperatures
+  * in tenths of a degree C, currents in hundredths of the battery's design
+@@ -1297,7 +1364,14 @@ static irqreturn_t smb_handle_wdog_bark(int irq, void *data)
+ 
+ 	power_supply_changed(chip->chg_psy);
+ 
+-	rc = regmap_write(chip->regmap, BARK_BITE_WDOG_PET,
++	/* only the charge table's poll pets it: late, it is to now */
++	if (chip->n_temps) {
++		dev_warn(chip->dev, "watchdog bark: charge table poll late\n");
++		mod_delayed_work(system_wq, &chip->table_work, 0);
++		return IRQ_HANDLED;
++	}
++
++	rc = regmap_write(chip->regmap, chip->base + BARK_BITE_WDOG_PET,
+ 			  BARK_BITE_WDOG_PET_BIT);
+ 	if (rc < 0)
+ 		dev_err(chip->dev, "Couldn't pet the dog rc=%d\n", rc);
+@@ -1678,6 +1752,10 @@ static int smb_probe(struct platform_device *pdev)
+ 	if (rc < 0)
+ 		return rc;
+ 
++	rc = smb_init_watchdog(chip);
++	if (rc < 0)
++		return dev_err_probe(chip->dev, rc, "Couldn't set up watchdog\n");
++
+ 	/*
+ 	 * With a charge table, its first tier's voltage at its fallback current
+ 	 * until its first poll. Without, a relatively safe current while still
