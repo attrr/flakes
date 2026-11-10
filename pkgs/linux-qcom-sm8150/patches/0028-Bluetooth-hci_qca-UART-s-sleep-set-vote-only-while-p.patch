@@ -1,0 +1,134 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 12:39:27 +0000
+Subject: [PATCH] Bluetooth: hci_qca: UART's sleep-set vote only while powered
+
+On a QUP UART the WCN3990 needs the port's bandwidth voted in the sleep set
+too, or once the CPUs' cluster collapses the QUP's clock stops under bytes
+in flight and the in-band sleep wake acks are lost. Held for as long as the
+port is open, though, which is always, that vote keeps the SoC from CXSD,
+AOSD and DDR sleep for good, Bluetooth powered off (rfkill) included.
+
+Vote in the sleep set from setup on, active-only once the controller is
+powered off, through a qcom_geni_serial helper that switches the port's
+interconnect tag, as the console's suspend does.
+
+Dropping it in in-band sleep as well, through hci_qca's empty clock vote
+hooks, doesn't work: the controller's wake bytes then meet a stopped QUP and
+the link fills with garbage. The vendor kernel gets there with a GPIO wake
+interrupt on RX and the lost wake byte put back (qcom,wakeup-byte).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/bluetooth/hci_qca.c           | 15 +++++++++++++++
+ drivers/tty/serial/qcom_geni_serial.c | 24 ++++++++++++++++++++++++
+ include/linux/soc/qcom/geni-se.h      |  9 +++++++++
+ 3 files changed, 48 insertions(+)
+
+diff --git a/drivers/bluetooth/hci_qca.c b/drivers/bluetooth/hci_qca.c
+index bb9f002aa85e..631dfd0e5630 100644
+--- a/drivers/bluetooth/hci_qca.c
++++ b/drivers/bluetooth/hci_qca.c
+@@ -35,6 +35,7 @@
+ #include <linux/mutex.h>
+ #include <linux/unaligned.h>
+ 
++#include <linux/soc/qcom/geni-se.h>
+ #include <net/bluetooth/bluetooth.h>
+ #include <net/bluetooth/hci_core.h>
+ 
+@@ -294,6 +295,17 @@ static void __serial_clock_off(struct tty_struct *tty)
+ 	 */
+ }
+ 
++/*
++ * The UART's bandwidth on its QUP: in the sleep set too while the controller
++ * is powered, so bytes from it don't meet a stopped QUP once the CPUs' cluster
++ * collapses; active-only while it's off, so it doesn't keep the SoC awake
++ */
++static void qca_sleep_vote(struct hci_uart *hu, bool vote)
++{
++	if (hu->serdev)
++		qcom_geni_serial_vote_in_sleep(hu->serdev->ctrl->host, vote);
++}
++
+ /* serial_clock_vote needs to be called with the ibs lock held */
+ static void serial_clock_vote(unsigned long vote, struct hci_uart *hu)
+ {
+@@ -1924,6 +1936,7 @@ static int qca_setup(struct hci_uart *hu)
+ 	clear_bit(QCA_ROM_FW, &qca->flags);
+ 	/* Patch downloading has to be done without IBS mode */
+ 	set_bit(QCA_IBS_DISABLED, &qca->flags);
++	qca_sleep_vote(hu, true);
+ 
+ 	/* Enable controller to do both LE scan and BR/EDR inquiry
+ 	 * simultaneously.
+@@ -2241,6 +2254,7 @@ static void qca_power_shutdown(struct hci_uart *hu)
+ 	if (power && power->pwrseq) {
+ 		pwrseq_power_off(power->pwrseq);
+ 		set_bit(QCA_BT_OFF, &qca->flags);
++		qca_sleep_vote(hu, false);
+ 		return;
+         }
+ 
+@@ -2270,6 +2284,7 @@ static void qca_power_shutdown(struct hci_uart *hu)
+ 	}
+ 
+ 	set_bit(QCA_BT_OFF, &qca->flags);
++	qca_sleep_vote(hu, false);
+ }
+ 
+ static int qca_power_off(struct hci_dev *hdev)
+diff --git a/drivers/tty/serial/qcom_geni_serial.c b/drivers/tty/serial/qcom_geni_serial.c
+index e6b0a55f0cfb..6aa0784d513f 100644
+--- a/drivers/tty/serial/qcom_geni_serial.c
++++ b/drivers/tty/serial/qcom_geni_serial.c
+@@ -2058,6 +2058,30 @@ static struct platform_driver qcom_geni_serial_platform_driver = {
+ 	},
+ };
+ 
++/**
++ * qcom_geni_serial_vote_in_sleep() - Keep a port's bandwidth through CPU sleep
++ * @dev: the port's device, a serdev controller's host
++ * @vote: whether its vote stays in the sleep set
++ *
++ * For a serdev client with its own sleep protocol (Qualcomm Bluetooth's
++ * in-band sleep): while either end is awake, the bytes in flight need the
++ * QUP's clock after the CPUs' cluster collapses; once both sleep, a vote in
++ * the sleep set only keeps the SoC from its own.
++ */
++void qcom_geni_serial_vote_in_sleep(struct device *dev, bool vote)
++{
++	struct qcom_geni_serial_port *port;
++
++	if (!dev || dev->driver != &qcom_geni_serial_platform_driver.driver)
++		return;
++
++	port = dev_get_drvdata(dev);
++	geni_icc_set_tag(&port->se, vote ? QCOM_ICC_TAG_ALWAYS :
++					   QCOM_ICC_TAG_ACTIVE_ONLY);
++	geni_icc_set_bw(&port->se);
++}
++EXPORT_SYMBOL_GPL(qcom_geni_serial_vote_in_sleep);
++
+ static int __init qcom_geni_serial_init(void)
+ {
+ 	int ret;
+diff --git a/include/linux/soc/qcom/geni-se.h b/include/linux/soc/qcom/geni-se.h
+index 0a984e2579fe..f5ab51f6ff1b 100644
+--- a/include/linux/soc/qcom/geni-se.h
++++ b/include/linux/soc/qcom/geni-se.h
+@@ -536,4 +536,13 @@ int geni_icc_disable(struct geni_se *se);
+ 
+ int geni_load_se_firmware(struct geni_se *se, enum geni_se_protocol_type protocol);
+ #endif
++
++#if IS_REACHABLE(CONFIG_SERIAL_QCOM_GENI)
++void qcom_geni_serial_vote_in_sleep(struct device *dev, bool vote);
++#else
++static inline void qcom_geni_serial_vote_in_sleep(struct device *dev, bool vote)
++{
++}
++#endif
++
+ #endif
