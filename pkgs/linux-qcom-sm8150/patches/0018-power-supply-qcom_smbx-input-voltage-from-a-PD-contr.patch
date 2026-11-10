@@ -1,0 +1,79 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Mon, 9 Nov 2026 16:16:55 +0000
+Subject: [PATCH] power: supply: qcom_smbx: input voltage from a PD contract
+
+SMB5's USBIN_ADAPTER_ALLOW_CFG defaults to 5V, or 9V to 12V once QC has
+authenticated the adapter: a PD source switching to 9V instead trips
+USBIN's overvoltage, and the charger takes nothing from it. As
+downstream, allow 5V up to the contract's voltage from a supplying
+Type-C port as it changes, which also covers the source's transitions
+and hard resets, and the default otherwise.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/qcom_smbx.c | 37 ++++++++++++++++++++++++++++++++
+ 1 file changed, 37 insertions(+)
+
+diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
+index db28171666f2..113e6c47d556 100644
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -108,6 +108,16 @@ enum smb_generation {
+ #define FACTORY_MODE_DETECTION_EN_BIT			BIT(5)
+ #define VCONN_OC_CFG_BIT				BIT(1)
+ 
++/*
++ * The input voltages USBIN takes, others its overvoltage: by default 5V, or
++ * 9V to 12V once QC has authenticated the adapter; a PD contract's needs a
++ * range of its own
++ */
++#define USBIN_ADAPTER_ALLOW_CFG				0x360
++#define USBIN_ADAPTER_ALLOW_5V_OR_9V_TO_12V		0x07
++#define USBIN_ADAPTER_ALLOW_5V_TO_9V			0x08
++#define USBIN_ADAPTER_ALLOW_5V_TO_12V			0x0c
++
+ #define USBIN_OPTIONS_1_CFG				0x362
+ #define AUTO_SRC_DETECT_BIT				BIT(3)
+ #define HVDCP_EN_BIT					BIT(2)
+@@ -532,6 +542,30 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
+ 				  ICL_OVERRIDE_AFTER_APSD_BIT : 0);
+ }
+ 
++/*
++ * As downstream, SMB5 takes a PD contract's voltage, and 5V for the source's
++ * transitions and hard resets, as the contract changes; any other source is
++ * at the default
++ */
++static void smb_set_adapter_allowance(struct smb_chip *chip)
++{
++	union power_supply_propval typec_uv;
++	unsigned int allow = USBIN_ADAPTER_ALLOW_5V_OR_9V_TO_12V;
++
++	if (chip->gen != SMB5)
++		return;
++
++	if (!power_supply_get_property_from_supplier(chip->chg_psy,
++						     POWER_SUPPLY_PROP_VOLTAGE_MAX,
++						     &typec_uv) &&
++	    typec_uv.intval > 5000000)
++		allow = typec_uv.intval <= 9000000 ?
++			USBIN_ADAPTER_ALLOW_5V_TO_9V :
++			USBIN_ADAPTER_ALLOW_5V_TO_12V;
++
++	regmap_write(chip->regmap, chip->base + USBIN_ADAPTER_ALLOW_CFG, allow);
++}
++
+ static void smb_status_change_work(struct work_struct *work)
+ {
+ 	union power_supply_propval typec_ua;
+@@ -546,6 +580,9 @@ static void smb_status_change_work(struct work_struct *work)
+ 	if (chip->n_temps)
+ 		mod_delayed_work(system_wq, &chip->table_work, 0);
+ 
++	/* first: past its voltages, USBIN isn't online */
++	smb_set_adapter_allowance(chip);
++
+ 	smb_get_prop_usb_online(chip, &usb_online);
+ 	if (!usb_online) {
+ 		/* not to start the next plug-in at this one's limit */
