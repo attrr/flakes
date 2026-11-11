@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Wed, 11 Nov 2026 06:48:05 +0000
+Subject: [PATCH] wifi: ath10k: don't wait for a pairwise key's removal
+
+WCN3990's firmware sends no security indication for a key removed with
+cipher NONE, so ath10k_install_key waits out its 3 s timeout and fails
+with -ETIMEDOUT on every disconnect: leaving a network, switching to a
+hotspot, resuming. Group keys are replaced with a junk key instead and
+are still confirmed, so only the cipher NONE removals skip the wait.
+
+The same timeout is reported on the ath10k list for WCN3990 (RB1, RB2,
+RB3); this follows the workaround carried there, of not waiting on
+DISABLE_KEY.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/net/wireless/ath/ath10k/mac.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/net/wireless/ath/ath10k/mac.c b/drivers/net/wireless/ath/ath10k/mac.c
+index 8e604697d6c2..16d5ecaf2a3c 100644
+--- a/drivers/net/wireless/ath/ath10k/mac.c
++++ b/drivers/net/wireless/ath/ath10k/mac.c
+@@ -324,6 +324,13 @@ static int ath10k_install_key(struct ath10k_vif *arvif,
+ 	if (ret)
+ 		return ret;
+ 
++	/* A key removed with cipher NONE (all but group keys, which are
++	 * replaced with junk) isn't confirmed by WCN3990's firmware: waiting
++	 * would time out after 3 s on every disconnect
++	 */
++	if (cmd == DISABLE_KEY && !(flags & WMI_KEY_GROUP))
++		return 0;
++
+ 	time_left = wait_for_completion_timeout(&ar->install_key_done, 3 * HZ);
+ 	if (time_left == 0)
+ 		return -ETIMEDOUT;
