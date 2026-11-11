@@ -13,6 +13,8 @@ The same timeout is reported on the ath10k list for WCN3990 (RB1, RB2,
 RB3); this follows the workaround carried there, of not waiting on
 DISABLE_KEY.
 
+Workaround: WCN3990's firmware doesn't confirm a pairwise key's removal
+Drop-when: ath10k skips or shortens this wait (https://lists.infradead.org/pipermail/ath10k/2025-November/016580.html)
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  drivers/net/wireless/ath/ath10k/mac.c | 7 +++++++

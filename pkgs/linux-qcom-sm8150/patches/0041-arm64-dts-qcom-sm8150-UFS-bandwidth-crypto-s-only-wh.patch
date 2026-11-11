@@ -10,6 +10,7 @@ as its clocks gate; QCE votes once at probe and never drops it, so it
 votes for the active and wake sets only, letting DDR sleep with the
 CPUs.
 
+Workaround: QCE votes once at probe and never drops its vote
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  arch/arm64/boot/dts/qcom/sm8150.dtsi | 8 +++++++-
