@@ -51,7 +51,7 @@ in
     (_: _: {
       inherit (cross) firmware-google-flame u-boot-google-flame;
       linux-qcom-sm8150 = cross.linux-qcom-sm8150.override {
-        linuxManualConfig = args: cross.linuxManualConfig (args // { stdenv = ccacheStdenv; });
+        buildLinux = args: cross.buildLinux (args // { stdenv = ccacheStdenv; });
       };
     })
   ];
