@@ -65,18 +65,25 @@
     installDeviceTree = true;
     # a new U-Boot goes in as a capsule, which U-Boot applies to the active
     # boot slot (and deletes) on the next boot; ABL falls back to the other
-    # slot if it doesn't come up
+    # slot if it doesn't come up. Only when the image changes: a new store
+    # path alone isn't one, and it gets one with any kernel patch (its DT
+    # is from the patched tree) or nixpkgs bump
     extraInstallCommands =
       let
         esp = config.boot.loader.efi.efiSysMountPoint;
         uboot = pkgs.u-boot-google-flame;
+        hash = "${pkgs.coreutils}/bin/sha256sum";
       in
       ''
-        if [ "$(cat ${esp}/loader/u-boot 2>/dev/null)" != ${uboot} ]; then
+        new=$(${hash} < ${uboot}/u-boot.img)
+        old=$(cat ${esp}/loader/u-boot 2>/dev/null)
+        # the store path it used to be
+        if [ -e "$old/u-boot.img" ]; then old=$(${hash} < "$old/u-boot.img"); fi
+        if [ "$old" != "$new" ]; then
           mkdir -p ${esp}/EFI/UpdateCapsule
           cp ${uboot}/u-boot.capsule ${esp}/EFI/UpdateCapsule/u-boot.capsule
-          echo ${uboot} > ${esp}/loader/u-boot
         fi
+        echo "$new" > ${esp}/loader/u-boot
       '';
   };
 
