@@ -12,6 +12,7 @@ Bind an empty driver to it, and have a6xx_gmu_init wait for that before
 it puts devres on the device, since a probe that found them would fail
 and release them.
 
+Workaround: nothing binds the GMU's device, which fw_devlink waits on
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  drivers/gpu/drm/msm/adreno/a6xx_gmu.c      |  9 ++++++++

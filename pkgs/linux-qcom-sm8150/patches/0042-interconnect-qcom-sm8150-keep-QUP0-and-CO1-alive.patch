@@ -9,6 +9,7 @@ froze the SoC (touch, I2C and all, no reset) and the NPU's BCM reset it
 about a second later. Keep both at their minimum while awake, as the
 other keepalive BCMs; the sleep set still drops them.
 
+Workaround: nothing on sm8150 votes for the QUP masters' or the NPU's BCM
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
  drivers/interconnect/qcom/sm8150.c | 4 ++--
