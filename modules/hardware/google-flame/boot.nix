@@ -8,7 +8,8 @@
 }:
 {
   boot.kernelPackages = pkgs.linuxPackagesFor pkgs.linux-qcom-sm8150;
-  # most of the generic initrd modules don't exist in this config
+  # the root's UFS is built in; the generic initrd modules are PCs' disks
+  # and keyboards
   boot.initrd.includeDefaultModules = false;
 
   hardware.firmware = [ pkgs.firmware-google-flame ];
@@ -138,7 +139,7 @@
     options = [ "umask=0077" ];
   };
 
-  # pmOS's config has nftables but not the xtables matches the iptables
-  # firewall uses
+  # the firewall as it's been since pmOS's config, which had nftables but
+  # not the xtables matches the iptables one uses
   networking.nftables.enable = lib.mkDefault true;
 }
