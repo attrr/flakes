@@ -92,6 +92,9 @@ in
   # with `nix run .#gcroots`, gc keeps every host's build graph
   nix.settings.keep-outputs = true;
 
+  # nightly: identical store files hardlinked into one
+  nix.optimise.automatic = true;
+
   # flame's kernel compiles through ccache during its bring-up
   # (hosts/flame): its cache, reachable from the build sandbox
   programs.ccache.enable = true;
