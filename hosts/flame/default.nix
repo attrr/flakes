@@ -58,6 +58,10 @@ in
 
   system.stateVersion = "26.05";
 
+  # a generation's kernel and initrd are 70-80M of the 511M ESP, and a
+  # deploy adds one before the oldest goes
+  boot.loader.systemd-boot.configurationLimit = 4;
+
   networking.hostName = ctx.metadata.hostname;
 
   services.openssh = {
