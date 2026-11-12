@@ -18,7 +18,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 140 insertions(+), 17 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index d86dbd5dec79..866875a93f33 100644
+index d1b7a014a12a..f987dd6e8087 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
 @@ -23,6 +23,7 @@
@@ -251,7 +251,7 @@ index d86dbd5dec79..866875a93f33 100644
  	case POWER_SUPPLY_PROP_CURRENT_MAX:
  		return smb_set_current_limit(chip, val->intval);
  	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
-@@ -1555,6 +1674,10 @@ static int smb_probe(struct platform_device *pdev)
+@@ -1570,6 +1689,10 @@ static int smb_probe(struct platform_device *pdev)
  	if (rc < 0)
  		return rc;
  

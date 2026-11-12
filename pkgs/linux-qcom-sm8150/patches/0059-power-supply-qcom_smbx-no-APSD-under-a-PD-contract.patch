@@ -1,0 +1,83 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 11:37:33 +0000
+Subject: [PATCH] power: supply: qcom_smbx: no APSD under a PD contract
+
+SMB5 keeps to its own input limit until APSD (BC1.2 detection) is
+done, ~1.5s after VBUS, so a PD contract settled 0.5s after VBUS had
+its current held back for another second. As downstream's
+smblib_set_prop_pd_active(), turn APSD off while the supplying Type-C
+port has a PD contract, and back on once it hasn't, and size the input
+limit from the contract alone meanwhile.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/qcom_smbx.c | 34 ++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
+index a073dfbfc376..b1ff4398ab2d 100644
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -560,6 +560,21 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
+ 				  ICL_OVERRIDE_AFTER_APSD_BIT : 0);
+ }
+ 
++/* A PD contract from the supplying Type-C port, downstream's pd_active */
++static bool smb_pd_active(struct smb_chip *chip)
++{
++	union power_supply_propval type;
++
++	if (power_supply_get_property_from_supplier(chip->chg_psy,
++						    POWER_SUPPLY_PROP_USB_TYPE,
++						    &type))
++		return false;
++
++	return type.intval == POWER_SUPPLY_USB_TYPE_PD ||
++	       type.intval == POWER_SUPPLY_USB_TYPE_PD_DRP ||
++	       type.intval == POWER_SUPPLY_USB_TYPE_PD_PPS;
++}
++
+ /*
+  * As downstream, SMB5 takes a PD contract's voltage, and 5V for the source's
+  * transitions and hard resets, as the contract changes; any other source is
+@@ -608,6 +623,12 @@ static void smb_status_change_work(struct work_struct *work)
+ 		return;
+ 	}
+ 
++	/* APSD is off under a PD contract: the contract's current alone */
++	if (chip->gen == SMB5 && smb_pd_active(chip)) {
++		current_ua = SDP_CURRENT_UA;
++		goto typec;
++	}
++
+ 	for (count = 0; count < 3; count++) {
+ 		dev_dbg(chip->dev, "get charger type retry %d\n", count);
+ 		rc = smb_apsd_get_charger_type(chip, &charger_type);
+@@ -643,6 +664,7 @@ static void smb_status_change_work(struct work_struct *work)
+ 		break;
+ 	}
+ 
++typec:
+ 	/* A source saying more for itself, by PD or Rp, has the last word */
+ 	if (!power_supply_get_property_from_supplier(chip->chg_psy,
+ 						     POWER_SUPPLY_PROP_CURRENT_MAX,
+@@ -1412,6 +1434,18 @@ static void smb_external_power_changed(struct power_supply *psy)
+ 	 * APSD, which that wait is for
+ 	 */
+ 	smb_set_adapter_allowance(chip);
++
++	/*
++	 * As downstream, no APSD (BC1.2) under a PD contract: SMB5 keeps to
++	 * its own input limit until APSD is done, ~1.5s after VBUS, holding
++	 * the contract's current back that long
++	 */
++	if (chip->gen == SMB5)
++		regmap_update_bits(chip->regmap,
++				   chip->base + USBIN_OPTIONS_1_CFG,
++				   AUTO_SRC_DETECT_BIT,
++				   smb_pd_active(chip) ? 0 : AUTO_SRC_DETECT_BIT);
++
+ 	if (!power_supply_get_property_from_supplier(psy,
+ 						     POWER_SUPPLY_PROP_CURRENT_MAX,
+ 						     &typec_ua) &&
