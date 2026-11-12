@@ -1,0 +1,309 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 08:40:42 +0000
+Subject: [PATCH] usb: typec: qcom-pmic-typec: the port as a cooling device
+
+Stock disables Type-C when the port overheats (overheat_mitigation's
+disable_power_role_switch vote), opening CC so the partner sees a
+detach and drops VBUS. Suspending USB_IN only stops the phone drawing
+current: VBUS stays on the pins, and a short through liquid or debris
+in the port is fed by the charger, not by USB_IN. With #cooling-cells,
+register the port as a cooling device whose state 1 writes
+TYPEC_DISABLE_CMD and keeps it there while tcpm asks to toggle again.
+
+As stock, the port comes back only once it's cool and unplugged: the
+phone has no sensor for what made it hot, and enabling it while that's
+still there heats it again. A disabled port doesn't see a cable, so, as
+stock, every 6 s enable it in its toggling mode for 200 ms, with the
+interrupts kept from tcpm meanwhile, and look for what stock looks for:
+VBUS (stock's USBIN plugin status; here the Type-C block's VBUS detect)
+or, sourcing, a sink's Rd. Two checks in a row without either are an
+unplug, and the last toggling mode is restored.
+
+As stock, the replug check is best effort: stock's a9df3534dd12b
+("overheat: replug to resume charging") looks for VBUS because its
+window is too short for USB to come online, tested with the in-box
+charger, and the requirement ab9791445f632 ("dts: overheat_mitigation:
+optimize dtsi settings") states is at least 6 s disconnected before
+charging resumes. Here, with a PD charger whose VBUS came within the
+200 ms, the port stayed disabled until it was unplugged; with one
+whose came later (the Type-C spec allows tCCDebounce then tVBUSON),
+the port came back 13 s after cooling down, still plugged in, and a
+port that heats again is disabled again.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../typec/tcpm/qcom/qcom_pmic_typec_port.c    | 199 +++++++++++++++++-
+ 1 file changed, 197 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+index d3523435f3e0..11594a41efe6 100644
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <linux/delay.h>
++#include <linux/devm-helpers.h>
+ #include <linux/err.h>
+ #include <linux/interrupt.h>
+ #include <linux/kernel.h>
+@@ -14,6 +15,7 @@
+ #include <linux/regulator/consumer.h>
+ #include <linux/slab.h>
+ #include <linux/string_choices.h>
++#include <linux/thermal.h>
+ #include <linux/usb/tcpm.h>
+ #include <linux/usb/typec_mux.h>
+ #include <linux/workqueue.h>
+@@ -158,6 +160,10 @@
+ #define PMIC_TYPEC_LEGACY_CABLE_IRQ			0x6
+ #define PMIC_TYPEC_TRY_SNK_SRC_IRQ			0x7
+ 
++/* stock's overheat_mitigation: 200 ms in 3 polls of 2 s */
++#define REPLUG_CHECK_MS					6000
++#define REPLUG_CHECK_ON_MS				200
++
+ struct pmic_typec_port_irq_data {
+ 	int				virq;
+ 	int				irq;
+@@ -180,6 +186,13 @@ struct pmic_typec_port {
+ 	bool				debouncing_cc;
+ 	struct delayed_work		cc_debounce_dwork;
+ 
++	u8				toggle_mode;
++	bool				overheat;
++	bool				disabled;
++	bool				probing;
++	unsigned int			unplugged;
++	struct delayed_work		replug_dwork;
++
+ 	spinlock_t			lock;	/* Register atomicity */
+ };
+ 
+@@ -250,6 +263,10 @@ static irqreturn_t pmic_typec_port_isr(int irq, void *dev_id)
+ 	if (ret)
+ 		goto done;
+ 
++	/* a replug check's, tcpm sees the port disabled throughout */
++	if (pmic_typec_port->probing)
++		goto done;
++
+ 	switch (irq_data->virq) {
+ 	case PMIC_TYPEC_VBUS_IRQ:
+ 		vbus_change = true;
+@@ -612,6 +629,11 @@ static int qcom_pmic_typec_port_start_toggling(struct tcpc_dev *tcpc,
+ 	if (ret)
+ 		goto done;
+ 
++	/* a disabled port stays so, and toggles once it's enabled */
++	pmic_typec_port->toggle_mode = mode;
++	if (pmic_typec_port->disabled)
++		goto done;
++
+ 	ret = regmap_write(pmic_typec_port->regmap,
+ 			   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
+ 			   mode);
+@@ -656,9 +678,11 @@ static int qcom_pmic_typec_port_start(struct pmic_typec *tcpm,
+ 	if (ret)
+ 		goto done;
+ 
+-	/* start in TRY_SNK mode */
++	/* start in TRY_SNK mode, unless the port is disabled already */
+ 	ret = regmap_write(pmic_typec_port->regmap,
+-			   pmic_typec_port->base + TYPEC_MODE_CFG_REG, EN_TRY_SNK);
++			   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
++			   pmic_typec_port->disabled ? TYPEC_DISABLE_CMD :
++						       EN_TRY_SNK);
+ 	if (ret)
+ 		goto done;
+ 
+@@ -700,6 +724,172 @@ static void qcom_pmic_typec_port_stop(struct pmic_typec *tcpm)
+ 	disable_delayed_work_sync(&pmic_typec_port->cc_debounce_dwork);
+ }
+ 
++/*
++ * As stock's overheat_mitigation, a port disabled for overheating comes back
++ * once it's cool and unplugged, as there's no telling that what made it hot
++ * (liquid, debris) is gone otherwise. Disabled, a cable doesn't show: every
++ * REPLUG_CHECK_MS enable it in its toggling mode for REPLUG_CHECK_ON_MS, with
++ * tcpm none the wiser, and look for what stock does: VBUS (a source), or a
++ * sink's Rd while sourcing. Two checks in a row without either are an unplug
++ */
++static void pmic_typec_port_replug_check(struct work_struct *work)
++{
++	struct pmic_typec_port *pmic_typec_port =
++		container_of(work, struct pmic_typec_port, replug_dwork.work);
++	unsigned int misc = 0, src = 0;
++	bool present, enabled = false;
++	unsigned long flags;
++	int ret;
++
++	spin_lock_irqsave(&pmic_typec_port->lock, flags);
++	if (!pmic_typec_port->disabled || pmic_typec_port->overheat) {
++		spin_unlock_irqrestore(&pmic_typec_port->lock, flags);
++		return;
++	}
++	pmic_typec_port->probing = true;
++	regmap_write(pmic_typec_port->regmap,
++		     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
++		     pmic_typec_port->toggle_mode);
++	spin_unlock_irqrestore(&pmic_typec_port->lock, flags);
++
++	msleep(REPLUG_CHECK_ON_MS);
++
++	spin_lock_irqsave(&pmic_typec_port->lock, flags);
++	ret = regmap_read(pmic_typec_port->regmap,
++			  pmic_typec_port->base + TYPEC_MISC_STATUS_REG, &misc) ?:
++	      regmap_read(pmic_typec_port->regmap,
++			  pmic_typec_port->base + TYPEC_SRC_STATUS_REG, &src);
++	/* a failed read counts as a partner: the port stays disabled */
++	present = ret || (misc & TYPEC_VBUS_DETECT) ||
++		  ((misc & SNK_SRC_MODE) &&
++		   (src & (SRC_RD_OPEN | SRC_RD_RA_VCONN)));
++	regmap_write(pmic_typec_port->regmap,
++		     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
++		     TYPEC_DISABLE_CMD);
++	pmic_typec_port->probing = false;
++
++	/* hot again meanwhile: the next cool down checks afresh */
++	if (pmic_typec_port->overheat) {
++		spin_unlock_irqrestore(&pmic_typec_port->lock, flags);
++		return;
++	}
++
++	pmic_typec_port->unplugged = present ? 0 :
++					       pmic_typec_port->unplugged + 1;
++	if (pmic_typec_port->unplugged >= 2) {
++		pmic_typec_port->disabled = false;
++		regmap_write(pmic_typec_port->regmap,
++			     pmic_typec_port->base + TYPEC_MODE_CFG_REG,
++			     pmic_typec_port->toggle_mode);
++		enabled = true;
++	}
++	spin_unlock_irqrestore(&pmic_typec_port->lock, flags);
++
++	dev_dbg(pmic_typec_port->dev,
++		"replug check: misc 0x%02x src 0x%02x: %s\n",
++		misc, src, present ? "partner" : "none");
++
++	if (enabled)
++		dev_info(pmic_typec_port->dev, "cooling: port unplugged, enabled\n");
++	else
++		schedule_delayed_work(&pmic_typec_port->replug_dwork,
++				      msecs_to_jiffies(REPLUG_CHECK_MS));
++}
++
++static int pmic_typec_port_cooling_get_max_state(struct thermal_cooling_device *cdev,
++						 unsigned long *state)
++{
++	*state = 1;
++	return 0;
++}
++
++static int pmic_typec_port_cooling_get_cur_state(struct thermal_cooling_device *cdev,
++						 unsigned long *state)
++{
++	struct pmic_typec_port *pmic_typec_port = cdev->devdata;
++
++	*state = READ_ONCE(pmic_typec_port->overheat);
++	return 0;
++}
++
++static int pmic_typec_port_cooling_set_cur_state(struct thermal_cooling_device *cdev,
++						 unsigned long state)
++{
++	struct pmic_typec_port *pmic_typec_port = cdev->devdata;
++	unsigned long flags;
++	int ret = 0;
++
++	if (state > 1)
++		return -EINVAL;
++
++	spin_lock_irqsave(&pmic_typec_port->lock, flags);
++	if (state == pmic_typec_port->overheat)
++		goto unlock;
++
++	if (state) {
++		ret = regmap_write(pmic_typec_port->regmap,
++				   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
++				   TYPEC_DISABLE_CMD);
++		if (ret)
++			goto unlock;
++		pmic_typec_port->disabled = true;
++		pmic_typec_port->unplugged = 0;
++	}
++	pmic_typec_port->overheat = state;
++	spin_unlock_irqrestore(&pmic_typec_port->lock, flags);
++
++	if (state) {
++		dev_warn(pmic_typec_port->dev, "cooling: port disabled\n");
++	} else {
++		dev_info(pmic_typec_port->dev,
++			 "cooling: port cool, enabled once unplugged\n");
++		mod_delayed_work(system_wq, &pmic_typec_port->replug_dwork,
++				 msecs_to_jiffies(REPLUG_CHECK_MS));
++	}
++	return 0;
++
++unlock:
++	spin_unlock_irqrestore(&pmic_typec_port->lock, flags);
++	return ret;
++}
++
++static const struct thermal_cooling_device_ops pmic_typec_port_cooling_ops = {
++	.get_max_state = pmic_typec_port_cooling_get_max_state,
++	.get_cur_state = pmic_typec_port_cooling_get_cur_state,
++	.set_cur_state = pmic_typec_port_cooling_set_cur_state,
++};
++
++/*
++ * The port as a cooling device, as stock's overheat_mitigation for a hot
++ * port: state 1 disables Type-C, opening CC, so the partner sees a detach
++ * and drops VBUS, which suspending USB_IN alone leaves on the pins. It stays
++ * disabled after state 0 until unplugged
++ */
++static int pmic_typec_port_register_cooling(struct pmic_typec_port *pmic_typec_port)
++{
++	struct device *dev = pmic_typec_port->dev;
++	struct thermal_cooling_device *cdev;
++	int ret;
++
++	if (!of_property_present(dev->of_node, "#cooling-cells"))
++		return 0;
++
++	/* before the cooling device, so it's cancelled after it's gone */
++	ret = devm_delayed_work_autocancel(dev, &pmic_typec_port->replug_dwork,
++					   pmic_typec_port_replug_check);
++	if (ret)
++		return ret;
++
++	cdev = devm_thermal_of_cooling_device_register(dev, 0, dev_name(dev),
++						       pmic_typec_port,
++						       &pmic_typec_port_cooling_ops);
++	if (IS_ERR(cdev))
++		return dev_err_probe(dev, PTR_ERR(cdev),
++				     "Couldn't register cooling device\n");
++
++	return 0;
++}
++
+ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
+ 			       struct pmic_typec *tcpm,
+ 			       const struct pmic_typec_port_resources *res,
+@@ -743,10 +933,15 @@ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
+ 	pmic_typec_port->regmap = regmap;
+ 	pmic_typec_port->nr_irqs = res->nr_irqs;
+ 	pmic_typec_port->irq_data = irq_data;
++	pmic_typec_port->toggle_mode = EN_TRY_SNK;
+ 	spin_lock_init(&pmic_typec_port->lock);
+ 	INIT_DELAYED_WORK(&pmic_typec_port->cc_debounce_dwork,
+ 			  qcom_pmic_typec_port_cc_debounce);
+ 
++	ret = pmic_typec_port_register_cooling(pmic_typec_port);
++	if (ret)
++		return ret;
++
+ 	irq = platform_get_irq(pdev, 0);
+ 	if (irq < 0)
+ 		return irq;

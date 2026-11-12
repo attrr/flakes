@@ -1,0 +1,69 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 08:58:06 +0000
+Subject: [PATCH] power: supply: qcom_smbx: a hot port's suspend lasts until
+ unplugged
+
+Stock's overheat_mitigation keeps USB input off after the port cools
+down, until it's unplugged. Disabling Type-C removes VBUS from a
+compliant partner, but a legacy cable's stays on: resuming then heats
+whatever made the port hot again. Keep the cooling device's USB_IN
+suspend while VBUS is present, read from the plugin interrupt's level,
+which holds while suspended; an unplug's status change runs the poll
+that resumes it.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/power/supply/qcom_smbx.c | 26 ++++++++++++++++++++++----
+ 1 file changed, 22 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
+index 819266ff7168..b2391ba655a0 100644
+--- a/drivers/power/supply/qcom_smbx.c
++++ b/drivers/power/supply/qcom_smbx.c
+@@ -845,6 +845,17 @@ static void smb_watchdog_recover(struct smb_chip *chip)
+ 	smb_update_charging_enable(chip);
+ }
+ 
++/* VBUS on USB_IN, suspended or not: the plugin interrupt's level */
++static bool smb_usb_present(struct smb_chip *chip)
++{
++	bool present;
++
++	if (irq_get_irqchip_state(chip->cable_irq, IRQCHIP_STATE_LINE_LEVEL,
++				  &present))
++		return true;
++	return present;
++}
++
+ /*
+  * Stock's charge table (google,chg-{temp,cv,cc}-limits), as its google_battery
+  * runs it, every 30s from the battery this charges: its temperature picks a
+@@ -868,16 +879,23 @@ static void smb_table_work(struct work_struct *work)
+ 	unsigned long state = READ_ONCE(chip->therm_state);
+ 	int therm_ua = state ? chip->therm_limits[state - 1] : 0;
+ 	int usb_online = 0;
+-	bool inhibit = false, changed;
++	bool inhibit = false, changed, suspend;
+ 
+ 	/* the watchdog's: from here, charging needs the next poll in time */
+ 	regmap_write(chip->regmap, chip->base + BARK_BITE_WDOG_PET,
+ 		     BARK_BITE_WDOG_PET_BIT);
+ 
+-	/* first: suspended, USBIN isn't online */
++	/*
++	 * first: suspended, USBIN isn't online. As stock's overheat_mitigation,
++	 * once the port cools down it stays suspended until unplugged: VBUS
++	 * that a disabled Type-C port doesn't remove (a legacy cable's) heats
++	 * whatever made it hot again
++	 */
+ 	mutex_lock(&chip->lock);
+-	if (chip->therm_suspend != (state && !therm_ua)) {
+-		chip->therm_suspend = state && !therm_ua;
++	suspend = (state && !therm_ua) ||
++		  (chip->therm_suspend && smb_usb_present(chip));
++	if (chip->therm_suspend != suspend) {
++		chip->therm_suspend = suspend;
+ 		dev_info(chip->dev, "cooling: USB input %s\n",
+ 			 chip->therm_suspend ? "suspended" : "resumed");
+ 	}

@@ -165,8 +165,9 @@ in
           };
         };
 
-        /* As stock's usbc-therm-adc: no USB input from 55 degrees at the
-         * port until under 45 */
+        /* As stock's usbc-therm-adc and overheat_mitigation: no USB input
+         * from 55 degrees at the port until under 45, and Type-C disabled
+         * so the partner drops VBUS */
         &{/thermal-zones/usbc-therm} {
           polling-delay-passive = <1000>;
 
@@ -181,15 +182,18 @@ in
           cooling-maps {
             usb-overheat {
               trip = <&usb_overheat>;
-              cooling-device = <&pm8150b_charger 5 5>;
+              cooling-device = <&pm8150b_charger 5 5>,
+                               <&pm8150b_typec 1 1>;
             };
           };
         };
 
         /* tcpm wants sink-vdos-v1, the PD 2.0 identity, wherever sink-vdos is,
          * and fails the port without it. As stock, 9V at up to 2.2A, which
-         * the table's 1C at 4.2V takes */
+         * the table's 1C at 4.2V takes. A cooling device for usbc-therm */
         &pm8150b_typec {
+          #cooling-cells = <2>;
+
           connector {
             sink-vdos-v1 = <VDO_IDH(1, 1, IDH_PTYPE_PERIPH, 0, 0, 0, 0x18d1)
                             VDO_CERT(0x0)
