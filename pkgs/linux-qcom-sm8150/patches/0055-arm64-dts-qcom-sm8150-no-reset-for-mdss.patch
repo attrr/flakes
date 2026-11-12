@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 02:18:23 +0000
+Subject: [PATCH] arm64: dts: qcom: sm8150: no reset for mdss
+
+The mdss node's reset pointed at gcc with a dispcc index, so it named
+GCC_EMAC_BCR (index 0 in gcc), and msm_mdss_init() held the Ethernet
+MAC's block reset for 20 ms on every probe. The display subsystem was
+never reset by it. Drop it, as upstream's sm8150.dtsi has none.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8150.dtsi | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150.dtsi b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+index 87579145918b..e85890923e63 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -3840,8 +3840,6 @@ mdss: display-subsystem@ae00000 {
+ 
+ 			iommus = <&apps_smmu 0x800 0x420>;
+ 
+-			resets = <&gcc DISP_CC_MDSS_CORE_BCR>;
+-
+ 			status = "disabled";
+ 
+ 			#address-cells = <2>;

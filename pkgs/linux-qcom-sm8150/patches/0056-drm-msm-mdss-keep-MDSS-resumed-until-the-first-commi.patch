@@ -1,0 +1,108 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 03:16:43 +0000
+Subject: [PATCH] drm/msm/mdss: keep MDSS resumed until the first commit
+
+A bootloader's splash can still be scanning out when MDSS probes. Its
+children's probes (the DSI PHY's, say) resume MDSS and release it, and
+each release runs msm_mdss_disable(): on flame that gated
+disp_cc_mdss_mdp_clk, disp_cc_mdss_ahb_clk and disp_cc_pll0 three times
+before DPU took over, under ABL's live scanout. About one boot in eight
+then crawled from that point on: every memory access from the CPUs
+~1000x slower (a 256K copy at a few MB/s), the display underflowing,
+CPU and L3 clocks normal. Cutting the MDP off mid-fetch can wedge the
+memory NoC.
+
+Hold a runtime PM reference from probe until msm's first commit is done
+(or MDSS goes away). In unattended reboot loops, 15 of 107 boots
+crawled without this, none of 80 with it.
+
+Workaround: msm has no handover of a bootloader's running display
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c |  1 +
+ drivers/gpu/drm/msm/msm_drv.h           |  2 ++
+ drivers/gpu/drm/msm/msm_mdss.c          | 22 ++++++++++++++++++++++
+ 3 files changed, 25 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+index 2ece0e49d0d4..bb171f552b60 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.c
+@@ -489,6 +489,7 @@ static void dpu_kms_complete_commit(struct msm_kms *kms, unsigned crtc_mask)
+ 		dpu_crtc_complete_commit(crtc);
+ 
+ 	_dpu_kms_unmap_boot_fb(dpu_kms);
++	msm_mdss_boot_handover_done(dpu_kms->pdev->dev.parent);
+ 
+ 	DPU_ATRACE_END("kms_complete_commit");
+ }
+diff --git a/drivers/gpu/drm/msm/msm_drv.h b/drivers/gpu/drm/msm/msm_drv.h
+index eb4bbae8557b..06a6d7d9f397 100644
+--- a/drivers/gpu/drm/msm/msm_drv.h
++++ b/drivers/gpu/drm/msm/msm_drv.h
+@@ -418,9 +418,11 @@ static inline void msm_dpu_unregister(void) {}
+ #ifdef CONFIG_DRM_MSM_MDSS
+ void msm_mdss_register(void);
+ void msm_mdss_unregister(void);
++void msm_mdss_boot_handover_done(struct device *dev);
+ #else
+ static inline void msm_mdss_register(void) {}
+ static inline void msm_mdss_unregister(void) {}
++static inline void msm_mdss_boot_handover_done(struct device *dev) {}
+ #endif
+ 
+ #ifdef CONFIG_DEBUG_FS
+diff --git a/drivers/gpu/drm/msm/msm_mdss.c b/drivers/gpu/drm/msm/msm_mdss.c
+index 9087c4b290db..9c23b0ac3668 100644
+--- a/drivers/gpu/drm/msm/msm_mdss.c
++++ b/drivers/gpu/drm/msm/msm_mdss.c
+@@ -44,6 +44,8 @@ struct msm_mdss {
+ 	struct icc_path *mdp_path[2];
+ 	u32 num_mdp_paths;
+ 	struct icc_path *reg_bus_path;
++	/* held from probe until msm's first commit, see mdss_probe() */
++	bool boot_hold;
+ };
+ 
+ static int msm_mdss_parse_data_bus_icc_path(struct device *dev,
+@@ -479,6 +481,16 @@ static int mdss_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, mdss);
+ 
++	/*
++	 * A bootloader's splash may still be scanning out. Its children's
++	 * probes (the DSI PHY's, say) resume and release MDSS, and each
++	 * release would gate the MDP and AHB clocks under that scanout until
++	 * DPU takes over: cutting the MDP off mid-fetch can wedge the memory
++	 * NoC. Keep MDSS resumed until msm's first commit is done.
++	 */
++	if (!pm_runtime_resume_and_get(dev))
++		mdss->boot_hold = true;
++
+ 	/*
+ 	 * MDP5/DPU based devices don't have a flat hierarchy. There is a top
+ 	 * level parent: MDSS, and children: MDP5/DPU, DSI, HDMI, eDP etc.
+@@ -495,11 +507,21 @@ static int mdss_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
++/* msm's first commit is done: the bootloader's scanout is gone */
++void msm_mdss_boot_handover_done(struct device *dev)
++{
++	struct msm_mdss *mdss = dev_get_drvdata(dev);
++
++	if (mdss && xchg(&mdss->boot_hold, false))
++		pm_runtime_put(dev);
++}
++
+ static void mdss_remove(struct platform_device *pdev)
+ {
+ 	struct msm_mdss *mdss = platform_get_drvdata(pdev);
+ 
+ 	of_platform_depopulate(&pdev->dev);
++	msm_mdss_boot_handover_done(&pdev->dev);
+ 
+ 	msm_mdss_destroy(mdss);
+ }
