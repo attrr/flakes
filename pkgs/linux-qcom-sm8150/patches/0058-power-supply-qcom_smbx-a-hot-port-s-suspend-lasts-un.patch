@@ -18,7 +18,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 22 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 819266ff7168..b2391ba655a0 100644
+index aba449e46efe..a073dfbfc376 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
 @@ -845,6 +845,17 @@ static void smb_watchdog_recover(struct smb_chip *chip)

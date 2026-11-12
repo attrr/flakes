@@ -8,15 +8,18 @@ authenticated the adapter: a PD source switching to 9V instead trips
 USBIN's overvoltage, and the charger takes nothing from it. As
 downstream, allow 5V up to the contract's voltage from a supplying
 Type-C port as it changes, which also covers the source's transitions
-and hard resets, and the default otherwise.
+and hard resets, and the default otherwise. Set it, and the contract's
+current, as soon as the port's supply changes: the status change work
+a plug-in queues runs 1.5s later, for APSD, and a contract settled in
+the meantime (0.5s after VBUS) left USBIN refusing 9V until then.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- drivers/power/supply/qcom_smbx.c | 37 ++++++++++++++++++++++++++++++++
- 1 file changed, 37 insertions(+)
+ drivers/power/supply/qcom_smbx.c | 52 ++++++++++++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index df02f9d1b3e9..d86dbd5dec79 100644
+index df02f9d1b3e9..d1b7a014a12a 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
 @@ -108,6 +108,16 @@ enum smb_generation {
@@ -77,3 +80,25 @@ index df02f9d1b3e9..d86dbd5dec79 100644
  	smb_get_prop_usb_online(chip, &usb_online);
  	if (!usb_online) {
  		/* not to start the next plug-in at this one's limit */
+@@ -1152,6 +1189,21 @@ static irqreturn_t smb_handle_wdog_bark(int irq, void *data)
+ static void smb_external_power_changed(struct power_supply *psy)
+ {
+ 	struct smb_chip *chip = power_supply_get_drvdata(psy);
++	union power_supply_propval typec_ua;
++
++	/*
++	 * A contract's voltage and current at once: a plug-in's status change
++	 * is still 1.5s off when the source moves to the contract's voltage,
++	 * which the default allowance refuses until then. Neither depends on
++	 * APSD, which that wait is for
++	 */
++	smb_set_adapter_allowance(chip);
++	if (!power_supply_get_property_from_supplier(psy,
++						     POWER_SUPPLY_PROP_CURRENT_MAX,
++						     &typec_ua) &&
++	    typec_ua.intval > 0)
++		smb_set_current_limit(chip, min(typec_ua.intval,
++						TYPEC_CURRENT_MAX_UA));
+ 
+ 	/* not before it has the battery's info, which the work reads */
+ 	if (chip->batt_info)

@@ -22,7 +22,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 83 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 866875a93f33..819266ff7168 100644
+index f987dd6e8087..aba449e46efe 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
 @@ -197,6 +197,10 @@ enum smb_generation {
@@ -156,7 +156,7 @@ index 866875a93f33..819266ff7168 100644
  			  BARK_BITE_WDOG_PET_BIT);
  	if (rc < 0)
  		dev_err(chip->dev, "Couldn't pet the dog rc=%d\n", rc);
-@@ -1678,6 +1755,10 @@ static int smb_probe(struct platform_device *pdev)
+@@ -1693,6 +1770,10 @@ static int smb_probe(struct platform_device *pdev)
  	if (rc < 0)
  		return rc;
  
