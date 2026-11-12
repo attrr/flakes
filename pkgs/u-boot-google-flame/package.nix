@@ -37,6 +37,9 @@ in
     # volume up is a gpio-keys key on pm8150's GPIO 6 (volume down is
     # PON's RESIN): the menus' up, sd-boot's too through button-kbd
     CONFIG_BUTTON_GPIO=y
+    # fdt_fixup, and setexpr's sub for it
+    CONFIG_OF_ENV_SETUP=y
+    CONFIG_REGEX=y
   '';
 
   # and with its pull-up: the PMIC GPIO driver dropped an input's pull and
@@ -52,11 +55,19 @@ in
     # map userdata (on LUN 0) as a whole disk, so the GPT inside it is scanned
     substituteInPlace board/qualcomm/qcom-phone.env --replace-fail \
       'preboot=scsi scan' \
-      'preboot=scsi scan; part start scsi 0 userdata userdata_start; part size scsi 0 userdata userdata_size; blkmap create root; blkmap map root 0 0x''${userdata_size} linear scsi 0 0x''${userdata_start}'
+      'preboot=scsi scan; part start scsi 0 userdata userdata_start; part size scsi 0 userdata userdata_size; blkmap create root; blkmap map root 0 0x''${userdata_size} linear scsi 0 0x''${userdata_start}; run get_abl_mode'
     # fdt has no working tree until fdt addr; ABL's bootargs are in the control one
     substituteInPlace board/qualcomm/qcom-phone.env --replace-fail \
       'bootmenu_9=Dump bootargs=fdt print /chosen bootargs; pause' \
       'bootmenu_9=Dump bootargs=fdt addr ''${fdtcontroladdr}; fdt print /chosen bootargs; pause'
+
+    # ABL's androidboot.mode, charger when it was powered on by a plug-in,
+    # is passed on as /chosen's u-boot,abl-mode. fdt_fixup runs on every
+    # devicetree booted, sd-boot's included (its EFI DT fixup)
+    cat >> board/qualcomm/qcom-phone.env <<'EOF'
+    get_abl_mode=fdt addr ''${fdtcontroladdr}; if fdt get value abl_mode /chosen bootargs && setexpr abl_mode sub "^.*androidboot.mode=" ""; then setexpr abl_mode sub " .*" ""; else setenv abl_mode; fi
+    fdt_fixup=if test -n "''${abl_mode}"; then fdt set /chosen u-boot,abl-mode "''${abl_mode}"; fi
+    EOF
   '';
 
   filesToInstall = [
