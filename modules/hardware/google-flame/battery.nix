@@ -46,6 +46,37 @@ let
       *) echo $to > $behaviour ;;
     esac
   '';
+
+  # As stock's USB port overheat notification: while the port is disabled
+  # for overheating (pkgs/linux-qcom-sm8150's typec patch), until it's cool
+  # and unplugged
+  overheat = pkgs.writeShellScript "flame-usb-overheat" ''
+    PATH=${pkgs.systemd}/bin:${pkgs.glib.bin}/bin:${pkgs.coreutils}/bin
+    attr=/sys/bus/platform/devices/c440000.spmi:pmic@2:typec@1500/overheat
+    notify() {
+      gdbus call --session --dest org.freedesktop.Notifications \
+        --object-path /org/freedesktop/Notifications \
+        --method org.freedesktop.Notifications."$@"
+    }
+    id=
+    update() {
+      read -r hot < $attr || return
+      if [ "$hot" = 1 ] && [ -z "$id" ]; then
+        id=$(notify Notify "USB port" 0 dialog-warning "Unplug your phone" \
+          "The USB port got hot and is disabled. Unplug the charger or accessory, and take care as the cable may also be warm. The port works again once it has cooled down and is unplugged." \
+          '[]' "{'urgency': <byte 2>, 'category': <'device.error'>}" 0)
+        id=''${id#(uint32 } id=''${id%,)}
+      elif [ "$hot" != 1 ] && [ -n "$id" ]; then
+        notify CloseNotification "$id" > /dev/null
+        id=
+      fi
+    }
+    coproc udevadm monitor --kernel --subsystem-match=platform
+    update
+    while read -r line <&"''${COPROC[0]}"; do
+      case $line in *" change "*typec@1500*) update ;; esac
+    done
+  '';
 in
 {
   services.udev.extraRules = ''
@@ -64,6 +95,17 @@ in
     timerConfig = {
       OnBootSec = "5min";
       OnUnitActiveSec = "5min";
+    };
+  };
+
+  systemd.user.services.flame-usb-overheat = {
+    description = "USB port overheat notification";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    after = [ "graphical-session.target" ];
+    serviceConfig = {
+      ExecStart = overheat;
+      Restart = "on-failure";
     };
   };
 

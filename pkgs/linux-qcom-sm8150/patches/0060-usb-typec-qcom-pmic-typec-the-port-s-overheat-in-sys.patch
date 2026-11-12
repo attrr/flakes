@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 12:37:24 +0000
+Subject: [PATCH] usb: typec: qcom-pmic-typec: the port's overheat in sysfs
+
+A port disabled for overheating doesn't detect a cable, so nothing tells
+the user why their charger stopped, nor to unplug it, which is what
+enables the port again. Show it as the port's overheat attribute, 1
+from the trip until it's cool and unplugged, with a change uevent and
+sysfs_notify() as it changes, for userspace to tell the user: as
+stock's USB port overheat notification.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../typec/tcpm/qcom/qcom_pmic_typec_port.c    | 40 +++++++++++++++++--
+ 1 file changed, 37 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+index 11594a41efe6..c18200dee952 100644
+--- a/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
++++ b/drivers/usb/typec/tcpm/qcom/qcom_pmic_typec_port.c
+@@ -732,6 +732,12 @@ static void qcom_pmic_typec_port_stop(struct pmic_typec *tcpm)
+  * tcpm none the wiser, and look for what stock does: VBUS (a source), or a
+  * sink's Rd while sourcing. Two checks in a row without either are an unplug
+  */
++static void pmic_typec_port_overheat_notify(struct pmic_typec_port *pmic_typec_port)
++{
++	sysfs_notify(&pmic_typec_port->dev->kobj, NULL, "overheat");
++	kobject_uevent(&pmic_typec_port->dev->kobj, KOBJ_CHANGE);
++}
++
+ static void pmic_typec_port_replug_check(struct work_struct *work)
+ {
+ 	struct pmic_typec_port *pmic_typec_port =
+@@ -789,9 +795,10 @@ static void pmic_typec_port_replug_check(struct work_struct *work)
+ 		"replug check: misc 0x%02x src 0x%02x: %s\n",
+ 		misc, src, present ? "partner" : "none");
+ 
+-	if (enabled)
++	if (enabled) {
+ 		dev_info(pmic_typec_port->dev, "cooling: port unplugged, enabled\n");
+-	else
++		pmic_typec_port_overheat_notify(pmic_typec_port);
++	} else
+ 		schedule_delayed_work(&pmic_typec_port->replug_dwork,
+ 				      msecs_to_jiffies(REPLUG_CHECK_MS));
+ }
+@@ -817,6 +824,7 @@ static int pmic_typec_port_cooling_set_cur_state(struct thermal_cooling_device *
+ {
+ 	struct pmic_typec_port *pmic_typec_port = cdev->devdata;
+ 	unsigned long flags;
++	bool disabled;
+ 	int ret = 0;
+ 
+ 	if (state > 1)
+@@ -826,6 +834,7 @@ static int pmic_typec_port_cooling_set_cur_state(struct thermal_cooling_device *
+ 	if (state == pmic_typec_port->overheat)
+ 		goto unlock;
+ 
++	disabled = pmic_typec_port->disabled;
+ 	if (state) {
+ 		ret = regmap_write(pmic_typec_port->regmap,
+ 				   pmic_typec_port->base + TYPEC_MODE_CFG_REG,
+@@ -840,6 +849,8 @@ static int pmic_typec_port_cooling_set_cur_state(struct thermal_cooling_device *
+ 
+ 	if (state) {
+ 		dev_warn(pmic_typec_port->dev, "cooling: port disabled\n");
++		if (!disabled)
++			pmic_typec_port_overheat_notify(pmic_typec_port);
+ 	} else {
+ 		dev_info(pmic_typec_port->dev,
+ 			 "cooling: port cool, enabled once unplugged\n");
+@@ -853,6 +864,29 @@ static int pmic_typec_port_cooling_set_cur_state(struct thermal_cooling_device *
+ 	return ret;
+ }
+ 
++/* 1 while the port is disabled for overheating: until it's cool and unplugged */
++static ssize_t overheat_show(struct device *dev, struct device_attribute *attr,
++			     char *buf)
++{
++	struct pmic_typec *tcpm = dev_get_drvdata(dev);
++
++	/* set once the whole probe is done */
++	if (!tcpm)
++		return -ENODEV;
++
++	return sysfs_emit(buf, "%d\n", READ_ONCE(tcpm->pmic_typec_port->disabled));
++}
++static DEVICE_ATTR_RO(overheat);
++
++static struct attribute *pmic_typec_port_overheat_attrs[] = {
++	&dev_attr_overheat.attr,
++	NULL
++};
++
++static const struct attribute_group pmic_typec_port_overheat_group = {
++	.attrs = pmic_typec_port_overheat_attrs,
++};
++
+ static const struct thermal_cooling_device_ops pmic_typec_port_cooling_ops = {
+ 	.get_max_state = pmic_typec_port_cooling_get_max_state,
+ 	.get_cur_state = pmic_typec_port_cooling_get_cur_state,
+@@ -887,7 +921,7 @@ static int pmic_typec_port_register_cooling(struct pmic_typec_port *pmic_typec_p
+ 		return dev_err_probe(dev, PTR_ERR(cdev),
+ 				     "Couldn't register cooling device\n");
+ 
+-	return 0;
++	return devm_device_add_group(dev, &pmic_typec_port_overheat_group);
+ }
+ 
+ int qcom_pmic_typec_port_probe(struct platform_device *pdev,
