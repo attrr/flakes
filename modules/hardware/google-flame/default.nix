@@ -10,6 +10,7 @@
     ./audio.nix
     ./battery.nix
     ./boot.nix
+    ./charger.nix
     ./display.nix
     ./haptics.nix
     ./wireless.nix
