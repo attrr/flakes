@@ -26,7 +26,8 @@ let
     dmesg -D
     setfont ${pkgs.terminus_font}/share/consolefonts/ter-v32b.psf.gz
     printf '\e[?25l'
-    coproc evtest $key 2>/dev/null
+    # grabbed: logind, if anything starts it, would power off on a press
+    coproc evtest --grab $key 2>/dev/null
 
     show() {
       read -r capacity < $bat/capacity
