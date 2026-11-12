@@ -47,9 +47,17 @@ in
   # what the module leaves out: GNOME's apps, stevia's completion dictionary
   services.gnome.core-apps.enable = true;
   environment.systemPackages = [ pkgs.hunspellDicts.en_US ];
-  # phosh shows stevia only with this set
   programs.dconf.profiles.user.databases = [
-    { settings."org/gnome/desktop/a11y/applications".screen-keyboard-enabled = true; }
+    {
+      settings = {
+        # phosh shows stevia only with this set
+        "org/gnome/desktop/a11y/applications".screen-keyboard-enabled = true;
+        # gsd-power warns of its idle suspend in a critical notification,
+        # which phosh woke the screen for: that reset the idle time, so it
+        # never suspended
+        "sm/puri/phosh/notifications".wakeup-screen-triggers = lib.gvariant.mkEmptyArray lib.gvariant.type.string;
+      };
+    }
   ];
   # gnome's core-os-services turns on ibus, whose GTK_IM_MODULE sends GTK's
   # input to it instead of text-input, so stevia never sees a focused field
