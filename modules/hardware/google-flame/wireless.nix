@@ -82,8 +82,15 @@
          * acks are lost. Stock votes QUP_2 in both sets while an engine
          * is on. qcom,sm8150.h: MASTER_QUP_2 4, SLAVE_QUP_2 31,
          * MASTER_AMPSS_M0 0
+         *
+         * No wake IRQ on RX (gpio46): it's armed whenever the port is
+         * suspended, and the sleep state leaves RX floating, so it fires
+         * at random (~130/s, even awake) and wakes suspend within a
+         * second. BT can't wake the phone without stock's wake-byte
+         * handling anyway. GIC_SPI 585 IRQ_TYPE_LEVEL_HIGH alone
          */
         &uart13 {
+          interrupts-extended = <&intc 0 585 4>;
           pinctrl-0 = <&qup_uart13_default>;
           interconnects = <&aggre2_noc 4 0 &config_noc 31 0>,
                           <&gem_noc 0 0 &config_noc 31 0>;
