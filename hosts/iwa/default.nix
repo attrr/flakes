@@ -6,14 +6,20 @@
 {
   imports = [
     ./hardware.nix
-    ./disko.nix
-    ./bao.nix
+    ./dns.nix
   ];
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 
+  infra.disko = {
+    layout = "btrfs-subvol";
+    device = "/dev/sda";
+    espSize = "512M";
+  };
+
   infra.server = {
     containers = false;
+    auto-resize = true;
   };
   services.openssh.lockRootLogin = false;
   users.users.root.hashedPassword = ctx.ssh.hashed-password;
