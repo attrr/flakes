@@ -100,20 +100,26 @@ in
       dns = {
         servers = [
           {
-            type = "https";
-            server = "1.0.0.1";
+            type = "local";
             tag = "local";
+          }
+          {
+            type = "https";
+            server = "cloudflare-dns.com";
+            domain_resolver = "local";
+            tag = "doh";
             detour = "direct";
           }
         ];
         strategy = "prefer_ipv6";
-        final = "local";
+        final = "doh";
       };
+      route.default_domain_resolver = "doh";
       outbounds = [
         {
           type = "direct";
           tag = "direct";
-          domain_resolver = "local";
+          domain_resolver = "doh";
         }
       ];
       log.level = lib.mkDefault "error";

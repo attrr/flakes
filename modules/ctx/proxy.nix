@@ -13,12 +13,15 @@ in
 {
   infra.sing-box = lib.mkIf (shadowsocks.enable || hysteria2.enable || vless.enable) {
     enable = lib.mkDefault true;
-    usque.enable = lib.mkDefault true;
+    usque = {
+      enable = lib.mkDefault true;
+      ipv6 = lib.mkDefault (builtins.elem "ipv6-only" ctx.metadata.tags);
+    };
 
-    shadowsocks = lib.mkIf shadowsocks.enable {
-      enable = true;
-      port = shadowsocks.port;
-      passwordPath = shadowsocks.password.path;
+    shadowsocks = {
+      enable = lib.mkDefault shadowsocks.enable;
+      port = lib.mkIf shadowsocks.enable shadowsocks.port;
+      passwordPath = lib.mkIf shadowsocks.enable shadowsocks.password.path;
     };
 
     hysteria2 = lib.mkIf hysteria2.enable {
