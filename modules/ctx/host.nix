@@ -9,6 +9,7 @@
 {
   imports = [
     ./librechat.nix
+    ./mediawiki.nix
   ];
 
   nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;

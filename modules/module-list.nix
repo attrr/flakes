@@ -9,6 +9,7 @@
   ./services/unfree.nix
   ./services/librechat
   ./services/librechat-rag-api
+  ./services/mediawiki.nix
   ./services/sing-box
   ./services/pooper-scooper
   ./services/quadlet
