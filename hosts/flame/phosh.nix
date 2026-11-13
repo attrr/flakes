@@ -39,6 +39,9 @@ in
     # loaders.cache, which has no JXL loader: the background comes out
     # black
     package = pkgs.phosh.overrideAttrs (old: {
+      # after an idle suspend that ends without input, gsd-power stayed in
+      # its sleep mode and never suspended again
+      patches = old.patches or [ ] ++ [ ./patches/phosh-idle-reset-fires-active-watches.patch ];
       preFixup = old.preFixup + ''
         gappsWrapperArgs+=(--set GDK_PIXBUF_MODULE_FILE ${pixbufLoaders})
       '';
