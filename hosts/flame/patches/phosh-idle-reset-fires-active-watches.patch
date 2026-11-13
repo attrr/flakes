@@ -1,0 +1,41 @@
+Subject: [PATCH] idle-manager: Fire active watches on reset
+
+On resume the idle timers are reset, but user active watches are
+skipped. gnome-settings-daemon only leaves its sleep idle mode through
+one, so after an idle suspend that ends without input it never
+suspends again. mutter fires them when resetting the idle time.
+---
+--- a/src/idle-manager.c
++++ b/src/idle-manager.c
+@@ -377,6 +377,7 @@
+   DBusWatch *watch;
+   PhoshWayland *wl = phosh_wayland_get_default ();
+   struct ext_idle_notifier_v1 *idle_manager = phosh_wayland_get_ext_idle_notifier_v1 (wl);
++  g_autoptr (GPtrArray) active = g_ptr_array_new ();
+ 
+   g_return_if_fail (PHOSH_IS_IDLE_MANAGER (self));
+ 
+@@ -384,8 +385,11 @@
+ 
+   g_hash_table_iter_init (&iter, self->watches);
+   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &watch)) {
+-    if (watch->active)
++    /* A reset is activity: fire the active watches, as mutter does */
++    if (watch->active) {
++      g_ptr_array_add (active, watch);
+       continue;
++    }
+ 
+     /* Recreate the idle timers to reset their interval */
+     ext_idle_notification_v1_destroy (watch->idle_noti);
+@@ -394,6 +398,10 @@
+                                                                    phosh_wayland_get_wl_seat (wl));
+     ext_idle_notification_v1_add_listener (watch->idle_noti, &idle_notification_listener, watch);
+   }
++
++  /* Firing removes the watch, so not while iterating */
++  for (guint i = 0; i < active->len; i++)
++    idle_notification_resumed_cb (g_ptr_array_index (active, i), NULL);
+ }
+ 
+ static void
