@@ -7,6 +7,7 @@
   ./services/restic.nix
   ./services/ssh.nix
   ./services/unfree.nix
+  ./services/librechat
   ./services/librechat-rag-api
   ./services/sing-box
   ./services/pooper-scooper
