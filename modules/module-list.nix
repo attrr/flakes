@@ -10,6 +10,7 @@
   ./services/librechat
   ./services/librechat-rag-api
   ./services/mediawiki.nix
+  ./services/openbao.nix
   ./services/sing-box
   ./services/pooper-scooper
   ./services/quadlet

@@ -10,6 +10,7 @@
   imports = [
     ./librechat.nix
     ./mediawiki.nix
+    ./openbao.nix
   ];
 
   nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
