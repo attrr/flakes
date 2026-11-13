@@ -7,6 +7,10 @@
   ...
 }:
 {
+  imports = [
+    ./librechat.nix
+  ];
+
   nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
 
   infra.alerts = lib.mkIf ctx.alerts.enable {
