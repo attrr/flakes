@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 11:20:58 +0000
+Subject: [PATCH] rtc: pm8xxx: clear expired hardware alarms on probe and
+ shutdown
+
+An alarm left enabled in the PMIC hardware past its expiry time never
+triggers a rising edge on the edge-triggered alarm IRQ after boot, and
+rtc_initialize_alarm() ignores past alarms without disabling them in
+hardware. On PM8150, a pending enabled RTC alarm causes PSCI SYSTEM_OFF
+to immediately power the device back on with PON_REASON1 = RTC.
+
+Disable and clear any expired hardware alarm in probe and shutdown.
+---
+ drivers/rtc/rtc-pm8xxx.c | 38 ++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 38 insertions(+)
+
+diff --git a/drivers/rtc/rtc-pm8xxx.c b/drivers/rtc/rtc-pm8xxx.c
+index e624f848c22b..30c6076cea81 100644
+--- a/drivers/rtc/rtc-pm8xxx.c
++++ b/drivers/rtc/rtc-pm8xxx.c
+@@ -512,6 +512,40 @@ static int pm8xxx_rtc_enable(struct pm8xxx_rtc *rtc_dd)
+ 				  PM8xxx_RTC_ENABLE);
+ }
+ 
++static void pm8xxx_rtc_clear_expired_alarm(struct pm8xxx_rtc *rtc_dd)
++{
++	const struct pm8xxx_rtc_regs *regs = rtc_dd->regs;
++	u8 value[NUM_8_BIT_RTC_REGS];
++	unsigned int ctrl_reg;
++	u32 now, alarm;
++	int rc;
++
++	if (!rtc_dd->alarm_irq)
++		return;
++
++	rc = regmap_read(rtc_dd->regmap, regs->alarm_ctrl, &ctrl_reg);
++	if (rc || !(ctrl_reg & regs->alarm_en))
++		return;
++
++	rc = pm8xxx_rtc_read_raw(rtc_dd, &now);
++	if (rc)
++		return;
++
++	rc = regmap_bulk_read(rtc_dd->regmap, regs->alarm_rw, value,
++			      sizeof(value));
++	if (rc)
++		return;
++
++	alarm = get_unaligned_le32(value);
++	if (alarm > now)
++		return;
++
++	regmap_update_bits(rtc_dd->regmap, regs->alarm_ctrl, regs->alarm_en, 0);
++	regmap_update_bits(rtc_dd->regmap, regs->alarm_ctrl2,
++			   PM8xxx_RTC_ALARM_CLEAR, 0);
++	dev_info(rtc_dd->dev, "cleared expired hardware alarm\n");
++}
++
+ static const struct pm8xxx_rtc_regs pm8921_regs = {
+ 	.ctrl		= 0x11d,
+ 	.write		= 0x11f,
+@@ -631,6 +665,8 @@ static int pm8xxx_rtc_probe(struct platform_device *pdev)
+ 	if (rc)
+ 		return rc;
+ 
++	pm8xxx_rtc_clear_expired_alarm(rtc_dd);
++
+ 	platform_set_drvdata(pdev, rtc_dd);
+ 
+ 	rtc_dd->rtc = devm_rtc_allocate_device(&pdev->dev);
+@@ -664,6 +700,8 @@ static void pm8xxx_shutdown(struct platform_device *pdev)
+ {
+ 	struct pm8xxx_rtc *rtc_dd = platform_get_drvdata(pdev);
+ 
++	pm8xxx_rtc_clear_expired_alarm(rtc_dd);
++
+ 	if (rtc_dd->offset_dirty) {
+ 		if (rtc_dd->nvmem_cell)
+ 			pm8xxx_rtc_write_nvmem_offset(rtc_dd, rtc_dd->offset);
