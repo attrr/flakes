@@ -41,14 +41,6 @@
 
   home.packages =
     (with pkgsUnstable; [
-      codex
-      claude-code
-      opencode
-      opencode-desktop
-      pi-coding-agent
-      antigravity-cli
-      antigravity-hub
-      antigravity-acp
       # 26.05's is a release behind the flatpak it replaced
       android-studio
     ])
@@ -61,10 +53,6 @@
 
   allowUnfree.packages =
     (with pkgsUnstable; [
-      claude-code
-      antigravity-cli
-      antigravity-hub
-      antigravity-acp
       android-studio
       vscode
     ])

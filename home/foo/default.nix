@@ -15,6 +15,7 @@
 
   imports = [
     "${self}/modules/services/unfree.nix"
+    ./agents
     ./apps.nix
     ./emacs
     ./git.nix
