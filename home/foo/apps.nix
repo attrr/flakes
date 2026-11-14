@@ -19,6 +19,9 @@
         knot-dns
         gh
         qrencode
+        wl-clipboard
+        unzip
+        unrar
         # gui
         google-chrome
         chromium
@@ -27,7 +30,10 @@
         # 2.8 (qt6); the NixOS desktop profile has it system-wide too, for polkit
         pkgsUnstable.keepassxc
       ];
-      allowUnfree.packages = [ pkgs.google-chrome ];
+      allowUnfree.packages = [
+        pkgs.google-chrome
+        pkgs.unrar
+      ];
 
       programs.direnv.enable = true;
       programs.direnv.nix-direnv.enable = true;
@@ -61,7 +67,6 @@
         git-repo
         android-tools # adb, fastboot
         libguestfs-with-appliance
-        temurin-bin-25
         tpm2-tools
         libheif
         mecab
@@ -71,6 +76,7 @@
         pkgsCross.aarch64-multiplatform.buildPackages.gcc
       ];
       home.sessionVariables.ELECTRON_OZONE_PLATFORM_HINT = "auto";
+      programs.java.enable = true;
     })
 
     # what NixOS has system-wide
