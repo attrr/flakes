@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: attrr <110731994+attrr@users.noreply.github.com>
+Date: Thu, 12 Nov 2026 17:58:24 +0000
+Subject: [PATCH] arm64: dts: qcom: sm8150: no crypto engine
+
+QCE's driver depends on BROKEN since df373d39c6f0, so its node never
+binds, and the aggre2 and mc_virt interconnects it's a consumer of wait
+for it: their sync_state never runs and they keep their boot-time votes,
+the sleep set's included. The SoC never reached CXSD in s2idle; with
+their sync_state forced (fw_devlink.sync_state=timeout) a 60 s suspend
+spent 55.7 s in it.
+
+Workaround: QCE's driver is BROKEN, and its node still waits the interconnects' sync_state
+Drop-when: QCE binds again without registering its algorithms (its v7 fix series), or the node is disabled upstream
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ arch/arm64/boot/dts/qcom/sm8150.dtsi | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150.dtsi b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+index e85890923e63..73c742cbe999 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -2186,6 +2186,8 @@ crypto: crypto@1dfa000 {
+ 			interconnects = <&aggre2_noc MASTER_CRYPTO_CORE_0 QCOM_ICC_TAG_ACTIVE_ONLY
+ 					 &mc_virt SLAVE_EBI_CH0 QCOM_ICC_TAG_ACTIVE_ONLY>;
+ 			interconnect-names = "memory";
++			/* its driver is BROKEN, and the interconnects would wait for it */
++			status = "disabled";
+ 		};
+ 
+ 		tcsr_mutex: hwlock@1f40000 {
