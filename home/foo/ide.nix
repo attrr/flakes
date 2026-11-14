@@ -6,6 +6,8 @@
 {
   programs.vscode = {
     enable = true;
+    # 26.05's 1.144 still removes rg from the pre-1.122 path
+    package = pkgsUnstable.vscode;
     profiles.default.extensions = with pkgs.vscode-extensions; [
       jnoortheen.nix-ide
       enkia.tokyo-night
@@ -15,13 +17,12 @@
       redhat.vscode-yaml
       golang.go
       mkhl.direnv
-      anthropic.claude-code
     ];
     profiles.default = {
       userSettings = {
         # update
         "update.mode" = "none";
-        "extensions.autoUpdate" = false;
+        "extensions.autoUpdate" = "off";
         # theme
         "workbench.colorTheme" = "Tokyo Night Light";
         # pranthese
@@ -34,7 +35,6 @@
         # python
         "python.analysis.typeCheckingMode" = "standard";
         "redhat.telemetry.enabled" = false;
-        "claudeCode.preferredLocation" = "panel";
       };
     };
   };
@@ -66,10 +66,9 @@
       antigravity-hub
       antigravity-acp
       android-studio
+      vscode
     ])
     ++ (with pkgs; [
-      vscode
       vscode-extensions.ms-python.vscode-pylance
-      vscode-extensions.anthropic.claude-code
     ]);
 }
