@@ -14,10 +14,10 @@ in
   config = lib.mkIf (cfg.enable && cfg.lowend) (
     lib.mkMerge [
       {
-        systemd.services."container@sing-box" = {
+        systemd.services.${if cfg.isolated then "container@sing-box" else "sing-box"} = {
           serviceConfig = {
             MemoryMax = "128M";
-            MemoryHigh = "80%";
+            MemoryHigh = "96M";
           };
         };
         boot.kernel.sysctl = {
