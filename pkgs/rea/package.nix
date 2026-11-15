@@ -4,6 +4,11 @@
   fetchurl,
   jq,
   nodejs_24,
+  makeWrapper,
+  procps,
+  jdk21,
+  ghidra,
+  jadx-headless-mcp,
 }:
 
 let
@@ -27,6 +32,16 @@ buildNpmPackage {
   # The npm tarball already ships compiled dist/ and npm-shrinkwrap.json.
   dontNpmBuild = true;
   npmFlags = [ "--ignore-scripts" ];
+
+  nativeBuildInputs = [ makeWrapper ];
+
+  postFixup = ''
+    wrapProgram $out/bin/rea \
+      --prefix PATH : ${lib.makeBinPath [ procps ]} \
+      --set-default JAVA_HOME ${jdk21.home} \
+      --set-default GHIDRA_INSTALL_DIR ${ghidra}/lib/ghidra \
+      --set-default REA_JADX_MCP_JAR ${jadx-headless-mcp}/share/java/jadx-headless-mcp-all.jar
+  '';
 
   meta = {
     description = "Reverse engineer anything with agents, from app behavior down to native binaries";
