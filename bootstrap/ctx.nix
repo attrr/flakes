@@ -22,10 +22,10 @@ in
   rescue.ssh = lib.mkDefault {
     port = lib.head ctx.ssh.ports;
     authorizedKeys =
-      if global.rescue-keys != [ ] then
-        global.rescue-keys
+      if global.deploy-keys != [ ] then
+        global.deploy-keys
       else
-        throw "ctx: global.rescue-keys is empty, add a key in ctx/common/default.nix";
+        throw "ctx: global.deploy-keys is empty, add a key in ctx/common/default.nix";
   };
 
   # mkDefault per field: on the whole network, any host override would drop all of it
