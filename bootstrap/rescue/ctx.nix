@@ -1,7 +1,7 @@
 # ctx -> rescue: global rescue-only keys, the host's port, and its static
 # addresses so hosts without DHCP (ipv6-only, static v4) are reachable right after boot.
 # Every value is mkDefault, and the network sits at 50 (before the 99 DHCP fallback),
-# so bootstrap/hosts/<host>.nix can override fields or add an earlier 10-* network.
+# so bootstrap/rescue/hosts/<host>.nix can override fields or add an earlier 10-* network.
 {
   lib,
   ctx,

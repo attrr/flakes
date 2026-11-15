@@ -144,7 +144,7 @@ no second deploy. `images.<name>` exists for every config whose host has an ssh 
 in `ctx/vars/<host>/`; they are scripts, not derivations:
 
 ```sh
-nix run .#bootstrap.images.<name>   # ./<name>.raw.zst, .qcow2 (VMs) or .img (sd card hosts)
+nix run .#bootstrap.images.<name>   # ./<name>.raw.zst, .qcow2 (VMs), .img (sd card) or .tar.gz (containers)
 nix run .#bootstrap.images.<name> -- --format qcow2   # disko hosts: raw.zst | qcow2
 ```
 
@@ -161,6 +161,17 @@ temp dir under `$PWD`.
   ```
 - sd card hosts: the config's `sdImage`, the files written into its root partition
   offline with `debugfs`.
+- container hosts (`boot.isContainer`): a `.tar.gz` containing the closure,
+  `/nix-path-registration`, `/nix/var/nix/profiles/system`, `/etc/NIXOS`, and the host's
+  identity. Stream it onto a running stock container and switch `/sbin/init`:
+
+  ```sh
+  ssh root@<host> 'tar -xzpf - -C / --numeric-owner && ln -sfn /nix/var/nix/profiles/system/init /sbin/init && sync && reboot' < <name>.tar.gz
+  ```
+
+  On first boot, `boot.postBootCommands` loads `/nix-path-registration` into the Nix DB.
+  After rebooting into NixOS, leftover stock OS directories (`/usr`, `/lib`, `/lib64`,
+  `/var/cache/apt`, `/var/lib/apt`, `/var/lib/dpkg`) can be deleted to reclaim disk space.
 
 | in `ctx/vars/<host>/` | lands at |
 |---|---|
