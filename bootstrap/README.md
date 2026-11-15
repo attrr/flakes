@@ -27,7 +27,7 @@ ls result/
 
 ### Access
 
-- `rescue.<host>`: root, port `ctx.ssh.ports[0]`, keys from `global.rescue-keys`
+- `rescue.<host>`: root, port `ctx.ssh.ports[0]`, keys from `global.deploy-keys`
   (`ctx/common/default.nix`). These keys are meant for rescue only, never for running hosts.
   The build fails while that list is empty.
 - Any variant: extra keys can be added at boot with `ssh_key="ssh-ed25519 AAAA..."` on the
