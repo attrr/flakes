@@ -6,25 +6,49 @@
 {
   imports = [
     ./pi.nix
-    ./rea.nix
     ./skills.nix
   ];
 
-  home.sessionVariables = {
-    AGENT_BROWSER_EXECUTABLE_PATH = "${pkgs.google-chrome}/bin/google-chrome-stable";
+  agents.tools.agent-browser = {
+    package = pkgsUnstable.agent-browser;
+    env.AGENT_BROWSER_EXECUTABLE_PATH = "${pkgs.google-chrome}/bin/google-chrome-stable";
+    skills.agent-browser = {
+      source = "skill-data/core";
+      targets = [
+        "pi"
+        "opencode"
+      ];
+    };
   };
 
-  agents.skills.agent-browser = "${pkgsUnstable.agent-browser}/skill-data/core";
+  agents.tools.rea = {
+    package = pkgs.rea.override { ghidra = pkgsUnstable.ghidra; };
+    skills.reverse-engineer-anything = "lib/node_modules/rea-agents/skills/reverse-engineer-anything";
+    mcp.rea.args = [ "mcp" ];
+  };
+
+  programs.opencode.enable = true;
+
+  programs.codex = {
+    enable = true;
+    package = pkgsUnstable.codex;
+  };
+
+  programs.claude-code = {
+    enable = true;
+    package = pkgsUnstable.claude-code;
+    enableMcpIntegration = true;
+  };
+
+  programs.antigravity-cli = {
+    enable = true;
+    package = pkgsUnstable.antigravity-cli;
+    enableMcpIntegration = true;
+  };
 
   home.packages = with pkgsUnstable; [
-    codex
-    claude-code
-    opencode
-    opencode-desktop
-    antigravity-cli
     antigravity-hub
     antigravity-acp
-    agent-browser
   ];
 
   allowUnfree.packages = with pkgsUnstable; [
