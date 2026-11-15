@@ -4,8 +4,10 @@
 # and copied in. Outputs are mode 600 in $PWD: they hold private keys.
 #   disko  ./<name>.raw.zst (or .qcow2 with zstd clusters), from the config's
 #          disko image script
-#   sd     ./<name>.img, the config's sdImage (or another raw image) with the
-#          files written into its root partition (ext4, edited offline with debugfs)
+#   sd       ./<name>.img, the config's sdImage (or another raw image) with the
+#            files written into its root partition (ext4, edited offline with debugfs)
+#   tarball  ./<name>.tar.gz, system closure + /nix-path-registration + identity
+#            for taking over / on a running container host
 { lib, pkgs }:
 let
   # <generator>/<file> -> where it lands; .pub files are public (plain) in vars
@@ -137,6 +139,57 @@ in
         dd if="$work/root" of="$img" bs=${toString sectorSize} seek="$start" conv=notrunc,sparse status=none
 
         mv "$img" "$out"
+        echo "$out"
+      '';
+    };
+
+  tarball =
+    {
+      name,
+      nixos,
+      vars,
+    }:
+    let
+      toplevel = nixos.config.system.build.toplevel;
+      closure = pkgs.closureInfo { rootPaths = [ toplevel ]; };
+      files = present vars;
+    in
+    pkgs.writeShellApplication {
+      name = "${name}-image";
+      runtimeInputs = with pkgs; [
+        sops
+        gnutar
+        gzip
+        gnused
+      ];
+      text = ''
+        out=$PWD/${name}.tar.gz
+        ${decrypt vars}
+
+        umask 022
+        root=$work/root
+        mkdir -p "$root/etc" "$root/nix/var/nix/profiles"
+        touch "$root/etc/NIXOS"
+        cp ${closure}/registration "$root/nix-path-registration"
+        ln -s ${toplevel} "$root/nix/var/nix/profiles/system-1-link"
+        ln -s system-1-link "$root/nix/var/nix/profiles/system"
+        ${lib.concatMapStrings (
+          n:
+          let
+            dst = "$root${files.${n}}";
+          in
+          ''
+            mkdir -p "${dirOf dst}"
+            cp -p "${local n}" "${dst}"
+          ''
+        ) (lib.attrNames files)}
+        if [ -d "$root/var/lib/tailscale" ]; then
+          chmod 0700 "$root/var/lib/tailscale"
+        fi
+
+        sed 's|^/||' ${closure}/store-paths > "$work/paths"
+        umask 077
+        tar --owner=0 --group=0 --numeric-owner -cf - -C "$root" . -C / -T "$work/paths" | gzip -c > "$out"
         echo "$out"
       '';
     };
