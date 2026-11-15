@@ -51,7 +51,7 @@ in
       security.sudo.wheelNeedsPassword = false;
 
       # resource journald saving
-      services.journald.extraConfig = ''
+      services.journald.extraConfig = lib.mkDefault ''
         Storage=persistent
         SystemMaxUse=100M
         SystemMaxFileSize=10M
