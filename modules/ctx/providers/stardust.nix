@@ -1,11 +1,14 @@
 {
   modulesPath,
   ctx,
+  self,
   ...
 }:
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
+    "${self}/modules/profiles/server"
+    "${self}/modules/ctx/server.nix"
   ];
 
   infra.disko = {
