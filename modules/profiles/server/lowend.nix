@@ -26,6 +26,11 @@ in
         # podman & co (~200M) only when something runs containers (oci-containers
         # brings podman along by itself)
         infra.server.containers = lib.mkDefault false;
+        system.disableInstallerTools = lib.mkDefault true;
+        i18n.supportedLocales = lib.mkDefault [
+          "C.UTF-8/UTF-8"
+          "en_US.UTF-8/UTF-8"
+        ];
         # nixpkgs source (~200M) for the registry/NIX_PATH; `nix shell nixpkgs#x`
         # falls back to the global registry
         nixpkgs.flake = {
