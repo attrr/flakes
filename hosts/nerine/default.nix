@@ -1,6 +1,5 @@
 {
   modulesPath,
-  ctx,
   self,
   ...
 }:
@@ -31,20 +30,5 @@
     };
   };
 
-  # networking
-  networking.useNetworkd = true;
-  systemd.network.networks."10-default" = {
-    matchConfig.Name = "e*";
-    address = ctx.network.ipv4.cidr ++ ctx.network.ipv6.cidr;
-    gateway = [
-      ctx.network.ipv4.gateway
-      ctx.network.ipv6.gateway
-    ];
-    # since no dhcp
-    networkConfig.DNS = [
-      "1.1.1.1"
-      "8.8.8.8"
-      "2606:4700:4700::1111"
-    ];
-  };
+  infra.network.topology = "static";
 }
