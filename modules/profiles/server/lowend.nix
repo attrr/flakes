@@ -47,6 +47,7 @@ in
           randomizedDelaySec = "1h";
         };
         nix.settings = {
+          auto-optimise-store = lib.mkDefault true;
           min-free = lib.mkDefault (512 * 1024 * 1024);
           max-free = lib.mkDefault (1024 * 1024 * 1024);
         };

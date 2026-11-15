@@ -4,6 +4,7 @@
   inputs = {
     self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    nixpkgs-25_11.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
@@ -35,6 +36,7 @@
     {
       self,
       nixpkgs,
+      nixpkgs-25_11,
       disko,
       sops-nix,
       home-manager,
@@ -92,10 +94,53 @@
           };
         };
 
-      variants =
+      # container compat hosts on NixOS 25.11 (systemd/kernel compatibility)
+      mkContainerCompat =
+        hostname: entry:
+        nixpkgs-25_11.lib.nixosSystem {
+          modules = [
+            sops-nix.nixosModules.sops
+            ctx.nixosModules.${hostname}
+            ./lib/default.nix
+            ./modules/ctx/network.nix
+            ./modules/ctx/server.nix
+            ./modules/ctx/proxy.nix
+            ./modules/profiles/container/compat.nix
+            { nixpkgs.overlays = [ self.overlays.default ]; }
+            (
+              { ctx, lib, ... }:
+              {
+                nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
+                infra.network.topology = lib.mkDefault "static";
+              }
+            )
+            (
+              { pkgs, config, ... }:
+              {
+                _module.args.pkgsMainline = import inputs.nixpkgs {
+                  inherit (pkgs.stdenv.hostPlatform) system;
+                  inherit (config.nixpkgs) config;
+                };
+              }
+            )
+          ]
+          ++ nixpkgs.lib.optional (builtins.pathExists entry) entry;
+          specialArgs = {
+            inherit inputs self;
+          };
+        };
+
+      hostDir =
         hostname:
+        if builtins.pathExists ./hosts/drifting/${hostname} then
+          ./hosts/drifting/${hostname}
+        else
+          ./hosts/${hostname};
+
+      variants =
+        builder: hostname:
         let
-          dir = ./hosts/${hostname};
+          dir = hostDir hostname;
         in
         nixpkgs.lib.optionalAttrs (builtins.pathExists dir) (
           nixpkgs.lib.concatMapAttrs (
@@ -104,9 +149,15 @@
               m = builtins.match "default-(.+)\\.nix" f;
             in
             nixpkgs.lib.optionalAttrs (m != null) {
-              "${hostname}+${builtins.head m}" = mkSystem hostname (dir + "/${f}");
+              "${hostname}+${builtins.head m}" = builder hostname (dir + "/${f}");
             }
           ) (builtins.readDir dir)
+        );
+
+      mkHosts =
+        builder:
+        nixpkgs.lib.concatMapAttrs (
+          name: _: { ${name} = builder name ((hostDir name) + "/default.nix"); } // variants builder name
         );
 
       # <user>: NixOS; <user>+generic: other distros
@@ -181,9 +232,12 @@
     in
     {
       # every ctx host, plus its variants
-      nixosConfigurations = nixpkgs.lib.concatMapAttrs (
-        name: _: { ${name} = mkSystem name ./hosts/${name}/default.nix; } // variants name
-      ) hosts;
+      nixosConfigurations =
+        let
+          compatHosts = nixpkgs.lib.filterAttrs (_: h: h.metadata.compat) hosts;
+          normalHosts = nixpkgs.lib.filterAttrs (_: h: !h.metadata.compat) hosts;
+        in
+        (mkHosts mkSystem normalHosts) // (mkHosts mkContainerCompat compatHosts);
 
       deploy.nodes = nixpkgs.lib.mapAttrs mkDeployNode hosts;
 
@@ -219,6 +273,7 @@
                 ++ lib.filter (x: x != null) [
                   h.metadata.group
                   h.metadata.provider
+                  (lib.last (lib.splitString "-" name))
                 ]
               ) (_: [ name ])
             ) hosts
