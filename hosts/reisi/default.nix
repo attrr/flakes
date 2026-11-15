@@ -1,6 +1,7 @@
 {
   modulesPath,
   ctx,
+  self,
   ...
 }:
 {
@@ -8,6 +9,8 @@
     (modulesPath + "/profiles/qemu-guest.nix")
     (modulesPath + "/profiles/headless.nix")
     (modulesPath + "/profiles/minimal.nix")
+    "${self}/modules/profiles/server"
+    "${self}/modules/ctx/server.nix"
   ];
 
   infra.disko = {

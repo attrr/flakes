@@ -1,5 +1,5 @@
-# What every host takes from its ctx entry. flake.nix (mkSystem) also picks
-# imports from it: profiles/<tag> + ./<tag>.nix per tag, ./providers/<provider>.nix.
+# What every host takes from its ctx entry. flake.nix (mkSystem) also adds
+# ./proxy.nix for every host and ./providers/<provider>.nix when set.
 {
   lib,
   config,

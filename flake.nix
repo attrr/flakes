@@ -61,15 +61,6 @@
         let
           lib = nixpkgs.lib;
           host = hosts.${hostname};
-          # profiles/<tag> and its ctx glue ctx/<tag>.nix, for the host's tags
-          byTag =
-            dir:
-            lib.filter builtins.pathExists (
-              lib.concatMap (t: [
-                (dir + "/${t}")
-                (dir + "/${t}.nix")
-              ]) host.metadata.tags
-            );
         in
         lib.nixosSystem {
           modules = [
@@ -92,8 +83,6 @@
               }
             )
           ]
-          ++ byTag ./modules/profiles
-          ++ byTag ./modules/ctx
           ++ lib.optional (
             host.metadata.provider != null
           ) ./modules/ctx/providers/${host.metadata.provider}.nix

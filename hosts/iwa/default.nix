@@ -1,10 +1,13 @@
 {
   ctx,
   registry,
+  self,
   ...
 }:
 {
   imports = [
+    "${self}/modules/profiles/server"
+    "${self}/modules/ctx/server.nix"
     ./hardware.nix
     ./dns.nix
   ];

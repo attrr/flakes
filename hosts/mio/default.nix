@@ -4,6 +4,7 @@
   ctx,
   lib,
   pkgs,
+  self,
   ...
 }:
 let
@@ -16,6 +17,8 @@ in
 {
   imports = [
     inputs.lanzaboote.nixosModules.lanzaboote
+    "${self}/modules/profiles/desktop"
+    "${self}/modules/ctx/desktop.nix"
     ./hardware.nix
     ./disko.nix
     ./network.nix

@@ -2,10 +2,13 @@
 {
   lib,
   ctx,
+  self,
   ...
 }:
 {
   imports = [
+    "${self}/modules/profiles/server"
+    "${self}/modules/ctx/server.nix"
     ./services/sing-box
     ./services/loadbalance
     ./services/caddy.nix
