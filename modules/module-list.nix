@@ -1,6 +1,7 @@
 # option modules, inert until enabled; opinionated config lives in ./profiles
 [
   ./disko
+  ./network
   ./services/acme.nix
   ./services/alerts.nix
   ./services/containers.nix

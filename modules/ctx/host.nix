@@ -10,6 +10,7 @@
   imports = [
     ./librechat.nix
     ./mediawiki.nix
+    ./network.nix
     ./openbao.nix
   ];
 
