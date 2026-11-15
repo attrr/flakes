@@ -41,6 +41,11 @@ in
       type = lib.types.bool;
       default = true;
     };
+    isolated = lib.mkOption {
+      type = lib.types.bool;
+      default = !config.boot.isContainer;
+      description = "Run sing-box inside an ephemeral systemd-nspawn container instead of directly on the host.";
+    };
 
     # internal only
     inbounds = lib.mkOption {
@@ -126,7 +131,7 @@ in
     };
 
     # to match permission inside/outside of container
-    users = {
+    users = lib.mkIf cfg.isolated {
       users.sing-box = {
         isSystemUser = true;
         uid = cfg.uid;
@@ -137,7 +142,7 @@ in
       };
     };
 
-    containers.sing-box = {
+    containers.sing-box = lib.mkIf cfg.isolated {
       autoStart = true;
       ephemeral = true;
       privateNetwork = false;
@@ -160,6 +165,11 @@ in
           };
           system.stateVersion = config.system.stateVersion;
         };
+    };
+
+    services.sing-box = lib.mkIf (!cfg.isolated) {
+      enable = true;
+      settings = cfg.settings;
     };
 
     networking.firewall = lib.mkIf cfg.openFirewall {

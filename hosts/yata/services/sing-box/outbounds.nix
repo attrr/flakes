@@ -44,7 +44,7 @@ let
     {
       inherit tag;
       server = address;
-      server_port = 443;
+      server_port = outbound.port;
       uuid._secret = outbound.uuid.path;
       tls.server_name = outbound.server-name;
       tls.reality.public_key = outbound.public-key;

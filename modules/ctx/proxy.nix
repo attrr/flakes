@@ -35,6 +35,7 @@ in
 
     vless = lib.mkIf vless.enable {
       enable = true;
+      port = vless.port;
       uuidPath = vless.uuid.path;
       privateKey = vless.private-key.path;
       shortIdPath = vless.short-id.path;
