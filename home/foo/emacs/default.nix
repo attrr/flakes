@@ -79,7 +79,6 @@
     go
     gopls
     # python
-    python3
     black
     pyright
   ];

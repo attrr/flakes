@@ -27,6 +27,7 @@
     ./mpv.nix
     ./ssh.nix
     ./zsh
+    ./script.nix
   ];
 
   config = {
