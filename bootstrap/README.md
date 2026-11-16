@@ -169,9 +169,18 @@ temp dir under `$PWD`.
   ssh root@<host> 'tar -xzpf - -C / --numeric-owner && ln -sfn /nix/var/nix/profiles/system/init /sbin/init && sync && reboot' < <name>.tar.gz
   ```
 
+  For systemd-based OCI/Podman images whose entrypoint is `/lib/systemd/systemd`
+  (Debian, Ubuntu, etc.), redirect `/lib/systemd/systemd` instead of `/sbin/init`:
+
+  ```sh
+  ssh root@<host> 'tar -xzpf - -C / --numeric-owner && ln -sfn /nix/var/nix/profiles/system/init /lib/systemd/systemd && sync && reboot' < <name>.tar.gz
+  ```
+
   On first boot, `boot.postBootCommands` loads `/nix-path-registration` into the Nix DB.
   After rebooting into NixOS, leftover stock OS directories (`/usr`, `/lib`, `/lib64`,
-  `/var/cache/apt`, `/var/lib/apt`, `/var/lib/dpkg`) can be deleted to reclaim disk space.
+  `/var/cache/apt`, `/var/lib/apt`, `/var/lib/dpkg`) can be deleted to reclaim disk space
+  (keep `/lib/systemd/systemd` — and `/usr/lib/systemd/systemd` when `/lib -> usr/lib` — on
+  Podman images that boot via `/lib/systemd/systemd`).
 
 | in `ctx/vars/<host>/` | lands at |
 |---|---|
