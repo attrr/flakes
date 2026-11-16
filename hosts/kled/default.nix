@@ -10,8 +10,17 @@
     "${self}/modules/ctx/desktop.nix"
     "${self}/modules/hardware/kled.nix"
     ./hardware.nix
-    ./disko.nix
   ];
+
+  infra.disko = {
+    layout = "luks-lvm-btrfs-subvol";
+    device = "/dev/nvme0n1";
+    espSize = "1G";
+    extraArgs = {
+      luksName = "env";
+      swapSize = "16G";
+    };
+  };
 
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
