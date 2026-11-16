@@ -42,13 +42,13 @@ in
   # <host>+<variant> configs included (same identity), so never run both at once
   images =
     let
-      hostKey = cfg: ../ctx/vars + "/${cfg.config.networking.hostName}/ssh-host-key/ssh_host_ed25519_key";
-      vars = cfg: ../ctx/vars + "/${cfg.config.networking.hostName}";
+      vars = name: ../ctx/vars + "/${builtins.head (lib.splitString "+" name)}";
+      hostKey = name: vars name + "/ssh-host-key/ssh_host_ed25519_key";
       disko = lib.filterAttrs (
-        _: cfg: (cfg.config.disko.devices.disk or { }) != { } && builtins.pathExists (hostKey cfg)
+        name: cfg: (cfg.config.disko.devices.disk or { }) != { } && builtins.pathExists (hostKey name)
       ) self.nixosConfigurations;
       containers = lib.filterAttrs (
-        _: cfg: cfg.config.boot.isContainer && builtins.pathExists (hostKey cfg)
+        name: cfg: cfg.config.boot.isContainer && builtins.pathExists (hostKey name)
       ) self.nixosConfigurations;
     in
     lib.mapAttrs (
@@ -56,7 +56,7 @@ in
       identityImage.disko {
         inherit name;
         nixos = cfg;
-        vars = vars cfg;
+        vars = vars name;
         # <host>+vm configs run as VMs, the rest get dd'ed from rescue
         format = if lib.hasSuffix "+vm" name then "qcow2" else "raw.zst";
       }
@@ -66,25 +66,25 @@ in
       identityImage.tarball {
         inherit name;
         nixos = cfg;
-        vars = vars cfg;
+        vars = vars name;
       }
     ) containers
     // {
       # the Pi boots an sd image instead
-      yata = identityImage.sd {
+      yata = identityImage.sd rec {
         name = "yata";
         nixos = self.nixosConfigurations.yata.extendModules { modules = [ ./images/yata.nix ]; };
-        vars = vars self.nixosConfigurations.yata;
+        vars = vars name;
       };
       # the Pixel's userdata, a repart image
       flame =
         let
           nixos = self.nixosConfigurations.flame.extendModules { modules = [ ./images/flame.nix ]; };
         in
-        identityImage.sd {
+        identityImage.sd rec {
           name = "flame";
           inherit nixos;
-          vars = vars self.nixosConfigurations.flame;
+          vars = vars name;
           image = "${nixos.config.system.build.image}/${nixos.config.image.filePath}";
           sectorSize = 4096;
         };

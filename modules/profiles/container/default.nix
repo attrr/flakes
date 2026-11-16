@@ -51,6 +51,9 @@
   '';
 
   systemd.coredump.enable = false;
+  systemd.tmpfiles.rules = [
+    "c /dev/net/tun 0666 root root - 10:200"
+  ];
   systemd.suppressedSystemUnits = [
     "console-getty.service"
     "sys-kernel-debug.mount"
