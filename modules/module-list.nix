@@ -7,6 +7,7 @@
   ./services/containers.nix
   ./services/restic.nix
   ./services/ssh.nix
+  ./services/tunnelbroker
   ./services/unfree.nix
   ./services/librechat
   ./services/librechat-rag-api
