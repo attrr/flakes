@@ -103,7 +103,6 @@
             ctx.nixosModules.${hostname}
             ./lib/default.nix
             ./modules/ctx/network.nix
-            ./modules/ctx/server.nix
             ./modules/ctx/proxy.nix
             ./modules/profiles/container/compat.nix
             { nixpkgs.overlays = [ self.overlays.default ]; }
@@ -111,7 +110,6 @@
               { ctx, lib, ... }:
               {
                 nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
-                infra.network.topology = lib.mkDefault "static";
               }
             )
             (
