@@ -14,6 +14,7 @@
     "${self}/modules/network"
     "${self}/modules/services/alerts.nix"
     "${self}/modules/services/sing-box"
+    "${self}/modules/services/tunnelbroker"
     "${self}/modules/services/ssh.nix"
     "${self}/modules/services/unfree.nix"
   ];
