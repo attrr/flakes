@@ -9,8 +9,25 @@ let
   shadowsocks = ctx.services.shadowsocks;
   hysteria2 = ctx.services.hysteria2;
   vless = ctx.services.vless;
+
+  secretNames =
+    lib.optional shadowsocks.enable shadowsocks.password.name
+    ++ lib.optionals hysteria2.enable [
+      hysteria2.password.name
+      hysteria2.tls.key.name
+      hysteria2.tls.ech-key.name
+    ]
+    ++ lib.optionals vless.enable [
+      vless.uuid.name
+      vless.private-key.name
+      vless.short-id.name
+    ];
 in
 {
+  sops.secrets = lib.genAttrs secretNames (_: {
+    owner = lib.mkDefault "sing-box";
+  });
+
   infra.sing-box = lib.mkIf (shadowsocks.enable || hysteria2.enable || vless.enable) {
     enable = lib.mkDefault true;
     usque = {

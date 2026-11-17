@@ -163,6 +163,10 @@ in
             enable = true;
             settings = cfg.settings;
           };
+          services.journald.extraConfig = ''
+            Storage=volatile
+            RuntimeMaxUse=32M
+          '';
           system.stateVersion = config.system.stateVersion;
         };
     };
