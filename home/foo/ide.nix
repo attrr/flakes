@@ -4,6 +4,7 @@
   ...
 }:
 {
+  home.sessionVariables.ELECTRON_OZONE_PLATFORM_HINT = "auto";
   programs.vscode = {
     enable = true;
     # 26.05's 1.144 still removes rg from the pre-1.122 path
