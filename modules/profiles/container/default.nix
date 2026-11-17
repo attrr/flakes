@@ -5,6 +5,7 @@
   config,
   lib,
   pkgs,
+  options,
   ...
 }:
 let
@@ -205,6 +206,16 @@ in
       };
       # User=nscd + RestrictSUIDSGID=true triggers 217/USER without CAP_SYS_ADMIN.
       systemd.services.nscd.serviceConfig.RestrictSUIDSGID = lib.mkForce false;
+      # /run is already tmpfs; skip mounting /run/secrets.d when already on tmpfs.
+      sops.package = lib.mkDefault (
+        options.sops.package.default.overrideAttrs (old: {
+          postPatch = (old.postPatch or "") + ''
+            substituteInPlace pkgs/sops-install-secrets/linux.go \
+              --replace-fail 'mounted, err := mountinfo.Mounted(mountpoint)' '_, err := mountinfo.Mounted(mountpoint)' \
+              --replace-fail 'if !mounted || int32(buf.Type) != fsmagic {' 'if int32(buf.Type) != fsmagic {'
+          '';
+        })
+      );
       # Runtime already mounts /dev, /proc, /run; remounting fails without CAP_SYS_ADMIN.
       system.activationScripts.specialfs = lib.mkForce ''
         mkdir -p -m 0750 /run/keys
