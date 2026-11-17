@@ -45,25 +45,10 @@ in
     "amd_iommu=on"
     "vfio-pci.ids=${lib.concatStringsSep "," vfioIds}"
   ];
-  virtualisation.libvirtd = {
-    enable = true;
-    qemu.swtpm.enable = true;
-  };
-  programs.virt-manager.enable = true;
+  infra.desktop.enableLibvirtd = true;
 
   # forgejo has 22 on the wg address
   services.endlessh.enable = false;
-
-  users.groups.foo.gid = 1000;
-  users.users.foo = {
-    # matches Fedora, for the shared /home
-    uid = 1000;
-    group = "foo";
-    extraGroups = [
-      "libvirtd"
-      "tss"
-    ];
-  };
 
   # ssh-tpm-agent keys are sealed in the TPM
   security.tpm2.enable = true;

@@ -1,71 +1,65 @@
-# GNOME workstation; ctx parts in modules/ctx/desktop.nix
 {
+  lib,
   pkgs,
-  pkgsUnstable,
   self,
+  config,
   ...
 }:
 let
-  # as Fedora builds it: named "Terminal", with the generic icon
-  ptyxis = pkgs.ptyxis.overrideAttrs (old: {
-    mesonFlags = (old.mesonFlags or [ ]) ++ [ "-Dgeneric=terminal" ];
-  });
+  cfg = config.infra.desktop;
 in
 {
   imports = [
     "${self}/modules/profiles/base"
     ./boot.nix
     ./i18n.nix
+    ./gnome.nix
+    ./printing.nix
   ];
 
-  programs.git.package = pkgs.git;
+  options.infra.desktop = {
+    primaryUser = lib.mkOption {
+      type = lib.types.str;
+      default = "foo";
+    };
 
-  time.timeZone = "UTC";
-
-  services.displayManager.gdm.enable = true;
-  services.desktopManager.gnome.enable = true;
-  # Ptyxis instead of Console, as in Fedora
-  environment.gnome.excludePackages = [ pkgs.gnome-console ];
-  environment.systemPackages = [
-    ptyxis
-    # 2.8 (qt6); system-wide so polkit sees its quick unlock action
-    pkgsUnstable.keepassxc
-  ];
-  xdg.terminal-exec = {
-    enable = true;
-    settings.GNOME = [ "org.gnome.Ptyxis.desktop" ];
+    enableLibvirtd = lib.mkEnableOption "";
   };
 
-  # nautilus' own "Open in Terminal" only knows Console; custom is labelled Terminal
-  programs.nautilus-open-any-terminal = {
-    enable = true;
-    terminal = "custom";
-  };
-  programs.dconf.profiles.user.databases = [
+  config = lib.mkMerge [
     {
-      settings."com/github/stunkymonkey/nautilus-open-any-terminal" = {
-        custom-local-command = "ptyxis --new-window -d %s";
-        custom-remote-command = "ptyxis --new-window -- %s";
+      time.timeZone = "UTC";
+      networking.networkmanager.enable = true;
+
+      programs.zsh.enable = true;
+      programs.git.package = pkgs.git;
+      programs.firefox.enable = true;
+
+      users.groups."${cfg.primaryUser}".gid = 1000;
+      users.users."${cfg.primaryUser}" = {
+        uid = 1000;
+        group = "${cfg.primaryUser}";
+        shell = pkgs.zsh;
+
+        extraGroups = [
+          "users"
+          "wheel"
+          "dialout" # serial
+        ]
+        ++ lib.optional config.security.tpm2.enable "tss";
       };
-      lockAll = true;
+
+      # for system-wide polkit rules
+      environment.systemPackages = [ pkgs.keepassxc ];
     }
+
+    (lib.mkIf cfg.enableLibvirtd {
+      virtualisation.libvirtd = {
+        enable = true;
+        qemu.swtpm.enable = lib.mkDefault true;
+      };
+      programs.virt-manager.enable = lib.mkDefault true;
+      users.users."${cfg.primaryUser}".extraGroups = [ "libvirtd" ];
+    })
   ];
-
-  # Fedora's org.gnome.Ptyxis.fedora.gschema.override
-  services.desktopManager.gnome = {
-    extraGSettingsOverridePackages = [ ptyxis ];
-    extraGSettingsOverrides = ''
-      [org.gnome.Ptyxis]
-      enable-a11y=true
-      inhibit-logout=false
-      interface-style='dark'
-    '';
-  };
-
-  networking.networkmanager.enable = true;
-  services.printing.enable = true;
-  programs.firefox.enable = true;
-
-  users.users.foo.shell = pkgs.zsh;
-  programs.zsh.enable = true;
 }
