@@ -247,7 +247,7 @@
       overlays.default =
         final: prev:
         prev.lib.packagesFromDirectoryRecursive {
-          inherit (prev) callPackage;
+          callPackage = prev.lib.callPackageWith (final // { inherit prev; });
           directory = ./pkgs;
         };
 
@@ -342,7 +342,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         pkgs.lib.packagesFromDirectoryRecursive {
-          inherit (pkgs) callPackage;
+          callPackage = pkgs.lib.callPackageWith (pkgs // { prev = pkgs; });
           directory = ./pkgs;
         }
         // {
