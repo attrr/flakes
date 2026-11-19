@@ -17,6 +17,7 @@
     "${self}/modules/services/unfree.nix"
     ./agents
     ./apps.nix
+    ./cli.nix
     ./emacs
     ./git.nix
     ./gnome.nix
