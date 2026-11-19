@@ -9,7 +9,6 @@
     "${self}/modules/profiles/server"
     "${self}/modules/ctx/server.nix"
     ./hardware.nix
-    ./dns.nix
   ];
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;

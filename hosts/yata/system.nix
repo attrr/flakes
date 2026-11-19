@@ -12,7 +12,6 @@
     ./services/sing-box
     ./services/loadbalance
     ./services/caddy.nix
-    ./services/dns.nix
   ];
 
   system.stateVersion = "25.11";
