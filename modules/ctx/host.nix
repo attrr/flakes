@@ -12,6 +12,7 @@
     ./librechat.nix
     ./mediawiki.nix
     ./network.nix
+    ./nix.nix
     ./openbao.nix
   ];
 
