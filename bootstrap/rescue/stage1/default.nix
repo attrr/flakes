@@ -124,7 +124,7 @@ in
         eval "set -- $(cat /proc/cmdline)"
         for arg do
           case "$arg" in
-            ssh_key=*) echo "''${arg#ssh_key=}" >> "$keys.new" ;;
+            ssh_key=*) printf '\n%s\n' "''${arg#ssh_key=}" >> "$keys.new" ;;
           esac
         done
         chmod 644 "$keys.new"
