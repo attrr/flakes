@@ -11,6 +11,7 @@
     (modulesPath + "/profiles/minimal.nix")
     "${self}/modules/profiles/server"
     "${self}/modules/ctx/server.nix"
+    ./fl-watch.nix
   ];
 
   infra.disko = {
@@ -71,6 +72,7 @@
           domain_suffix = [
             "animebytes.tv"
             "gazellegames.net"
+            "filelist.io"
           ];
           outbound = "direct";
         }
