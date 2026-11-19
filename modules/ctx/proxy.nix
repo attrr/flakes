@@ -44,6 +44,8 @@ in
     hysteria2 = lib.mkIf hysteria2.enable {
       enable = true;
       port = hysteria2.port;
+      upMbps = hysteria2.up-mbps;
+      downMbps = hysteria2.down-mbps;
       passwordPath = hysteria2.password.path;
       tlsCertificatePath = hysteria2.tls.cert;
       tlsKeyPath = hysteria2.tls.key.path;

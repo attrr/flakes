@@ -11,6 +11,12 @@ in
       description = "vless inbound tag";
     };
 
+    listen = lib.mkOption {
+      type = lib.types.str;
+      default = "::";
+      description = "address vless listens on";
+    };
+
     port = lib.mkOption {
       type = lib.types.port;
       default = 443;
@@ -69,7 +75,7 @@ in
       {
         type = "vless";
         tag = cfg.tag;
-        listen = "::";
+        listen = cfg.listen;
         listen_port = cfg.port;
         tcp_fast_open = true;
         users = [

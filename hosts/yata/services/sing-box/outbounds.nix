@@ -26,10 +26,17 @@ let
       address,
       outbound,
     }:
+    let
+      # Proxy traffic traverses both server ingress (down-mbps) and egress (up-mbps),
+      # so either direction is bounded by the server's slower link.
+      proxyMbps = lib.min outbound.up-mbps outbound.down-mbps;
+    in
     {
       inherit tag;
       server = address;
       server_port = outbound.port;
+      up_mbps = lib.min 30 proxyMbps;
+      down_mbps = lib.min 100 proxyMbps;
       password._secret = outbound.password.path;
       tls.server_name = outbound.tls.sni;
       tls.ech.config_path = outbound.tls.ech-config;
