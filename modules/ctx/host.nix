@@ -8,6 +8,7 @@
 }:
 {
   imports = [
+    ./knot.nix
     ./librechat.nix
     ./mediawiki.nix
     ./network.nix

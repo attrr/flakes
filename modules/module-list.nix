@@ -5,6 +5,7 @@
   ./services/acme.nix
   ./services/alerts.nix
   ./services/containers.nix
+  ./services/knot
   ./services/restic.nix
   ./services/ssh.nix
   ./services/tunnelbroker

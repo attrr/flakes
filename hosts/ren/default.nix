@@ -2,7 +2,6 @@
 {
   imports = [
     ./acme-dns.nix
-    ./dns.nix
     ./ntfy.nix
   ];
 
