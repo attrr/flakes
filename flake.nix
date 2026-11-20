@@ -4,7 +4,6 @@
   inputs = {
     self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    nixpkgs-25_11.url = "github:NixOS/nixpkgs/nixos-25.11";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
@@ -30,18 +29,19 @@
       url = "github:nix-community/nixGL";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    finix.url = "github:finix-community/finix";
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      nixpkgs-25_11,
       disko,
       sops-nix,
       home-manager,
       nixgl,
       deploy-rs,
+      finix,
       ...
     }@inputs:
     let
@@ -89,40 +89,6 @@
             host.metadata.provider != null
           ) ./modules/ctx/providers/${host.metadata.provider}.nix
           ++ lib.optional (builtins.pathExists entry) entry;
-          specialArgs = {
-            inherit inputs self;
-          };
-        };
-
-      # container compat hosts on NixOS 25.11 (systemd/kernel compatibility)
-      mkContainerCompat =
-        hostname: entry:
-        nixpkgs-25_11.lib.nixosSystem {
-          modules = [
-            sops-nix.nixosModules.sops
-            ctx.nixosModules.${hostname}
-            ./lib/default.nix
-            ./modules/ctx/network.nix
-            ./modules/ctx/proxy.nix
-            ./modules/profiles/container/compat.nix
-            { nixpkgs.overlays = [ self.overlays.default ]; }
-            (
-              { ctx, lib, ... }:
-              {
-                nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
-              }
-            )
-            (
-              { pkgs, config, ... }:
-              {
-                _module.args.pkgsMainline = import inputs.nixpkgs {
-                  inherit (pkgs.stdenv.hostPlatform) system;
-                  inherit (config.nixpkgs) config;
-                };
-              }
-            )
-          ]
-          ++ nixpkgs.lib.optional (builtins.pathExists entry) entry;
           specialArgs = {
             inherit inputs self;
           };
@@ -230,12 +196,7 @@
     in
     {
       # every ctx host, plus its variants
-      nixosConfigurations =
-        let
-          compatHosts = nixpkgs.lib.filterAttrs (_: h: h.metadata.compat) hosts;
-          normalHosts = nixpkgs.lib.filterAttrs (_: h: !h.metadata.compat) hosts;
-        in
-        (mkHosts mkSystem normalHosts) // (mkHosts mkContainerCompat compatHosts);
+      nixosConfigurations = mkHosts mkSystem hosts;
 
       deploy.nodes = nixpkgs.lib.mapAttrs mkDeployNode hosts;
 
