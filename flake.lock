@@ -57,6 +57,21 @@
         "type": "github"
       }
     },
+    "finix": {
+      "locked": {
+        "lastModified": 1795140187,
+        "narHash": "sha256-EMBohlfv8ig21dVX7uQd/5kegeXjVZRRBIHWU7VJBrk=",
+        "owner": "finix-community",
+        "repo": "finix",
+        "rev": "e14b321ba5ffb3082604f015281b2075ce0f98a1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "finix-community",
+        "repo": "finix",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -189,22 +204,6 @@
         "type": "github"
       }
     },
-    "nixpkgs-25_11": {
-      "locked": {
-        "lastModified": 1782847189,
-        "narHash": "sha256-twXPFqFsrrY5r28Zh7Homgcp2gUMBgQ6WDS98Q/3xFI=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "b6018f87da91d19d0ab4cf979885689b469cdd41",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-25.11",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "nixpkgs-unstable": {
       "locked": {
         "lastModified": 1794537146,
@@ -247,11 +246,11 @@
       "inputs": {
         "deploy-rs": "deploy-rs",
         "disko": "disko",
+        "finix": "finix",
         "home-manager": "home-manager",
         "lanzaboote": "lanzaboote",
         "nixgl": "nixgl",
         "nixpkgs": "nixpkgs",
-        "nixpkgs-25_11": "nixpkgs-25_11",
         "nixpkgs-unstable": "nixpkgs-unstable",
         "sops-nix": "sops-nix"
       }
