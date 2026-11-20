@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 let
@@ -42,48 +41,9 @@ in
       }
     ];
 
-    users.users.usque = {
-      isSystemUser = true;
-      group = "usque";
-      home = "/var/lib/usque";
-      description = "usque WARP MASQUE daemon";
-    };
-    users.groups.usque = { };
-
-    systemd.services.usque = {
-      description = "usque — Cloudflare WARP MASQUE client";
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
-      wantedBy = [ "multi-user.target" ];
-
-      serviceConfig = {
-        User = "usque";
-        Group = "usque";
-        StateDirectory = "usque";
-        WorkingDirectory = "/var/lib/usque";
-
-        # Register once on first boot; subsequent starts skip this.
-        ExecStartPre = pkgs.writeShellScript "usque-register" ''
-          if [ ! -f /var/lib/usque/config.json ]; then
-            echo "usque: no config.json found, registering new WARP account..."
-            ${lib.getExe pkgs.usque} register --accept-tos
-          fi
-        '';
-
-        ExecStart =
-          "${lib.getExe pkgs.usque} socks -b ${socksAddr} -p ${toString socksPort} --always-reconnect"
-          + lib.optionalString cfg.ipv6 " -6";
-
-        Restart = "on-failure";
-        RestartSec = "5s";
-
-        # Hardening
-        NoNewPrivileges = true;
-        PrivateTmp = true;
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        ReadWritePaths = [ "/var/lib/usque" ];
-      };
+    services.usque = {
+      enable = true;
+      inherit (cfg) port ipv6;
     };
   };
 }
