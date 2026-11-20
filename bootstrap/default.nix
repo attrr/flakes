@@ -48,7 +48,10 @@ in
         name: cfg: (cfg.config.disko.devices.disk or { }) != { } && builtins.pathExists (hostKey name)
       ) self.nixosConfigurations;
       containers = lib.filterAttrs (
-        name: cfg: cfg.config.boot.isContainer && builtins.pathExists (hostKey name)
+        name: cfg: cfg.config.boot.isContainer && !(cfg.config ? finit) && builtins.pathExists (hostKey name)
+      ) self.nixosConfigurations;
+      minimalContainers = lib.filterAttrs (
+        name: cfg: (cfg.config ? finit) && builtins.pathExists (hostKey name)
       ) self.nixosConfigurations;
     in
     lib.mapAttrs (
@@ -69,6 +72,14 @@ in
         vars = vars name;
       }
     ) containers
+    // lib.mapAttrs (
+      name: cfg:
+      identityImage.tarball.minimal {
+        inherit name;
+        nixos = cfg;
+        vars = vars name;
+      }
+    ) minimalContainers
     // {
       # the Pi boots an sd image instead
       yata = identityImage.sd rec {

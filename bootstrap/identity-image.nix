@@ -40,6 +40,62 @@ let
         ''
     ) (lib.attrNames (present vars))}
   '';
+  mkTarball =
+    {
+      name,
+      nixos,
+      vars,
+      withRegistration ? true,
+      extraRoot ? "",
+    }:
+    let
+      toplevel = nixos.config.system.build.toplevel;
+      closure = pkgs.closureInfo { rootPaths = [ toplevel ]; };
+      files = present vars;
+    in
+    pkgs.writeShellApplication {
+      name = "${name}-image";
+      runtimeInputs = with pkgs; [
+        sops
+        gnutar
+        gzip
+        gnused
+      ];
+      text = ''
+        out=$PWD/${name}.tar.gz
+        ${decrypt vars}
+
+        umask 022
+        root=$work/root
+        mkdir -p "$root/etc" "$root/nix/var/nix/profiles"
+        chmod 0755 "$root"
+        touch "$root/etc/NIXOS"
+        ${lib.optionalString withRegistration ''
+          cp ${closure}/registration "$root/nix-path-registration"
+        ''}
+        ln -s ${toplevel} "$root/nix/var/nix/profiles/system-1-link"
+        ln -s system-1-link "$root/nix/var/nix/profiles/system"
+        ${lib.concatMapStrings (
+          n:
+          let
+            dst = "$root${files.${n}}";
+          in
+          ''
+            mkdir -p "${dirOf dst}"
+            cp -p "${local n}" "${dst}"
+          ''
+        ) (lib.attrNames files)}
+        if [ -d "$root/var/lib/tailscale" ]; then
+          chmod 0700 "$root/var/lib/tailscale"
+        fi
+        ${extraRoot}
+
+        sed 's|^/||' ${closure}/store-paths > "$work/paths"
+        umask 077
+        tar --owner=0 --group=0 --numeric-owner -cf - -C "$root" . -C / -T "$work/paths" | gzip -c > "$out"
+        echo "$out"
+      '';
+    };
 in
 {
   disko =
@@ -143,54 +199,45 @@ in
       '';
     };
 
-  tarball =
-    {
-      name,
-      nixos,
-      vars,
-    }:
-    let
-      toplevel = nixos.config.system.build.toplevel;
-      closure = pkgs.closureInfo { rootPaths = [ toplevel ]; };
-      files = present vars;
-    in
-    pkgs.writeShellApplication {
-      name = "${name}-image";
-      runtimeInputs = with pkgs; [
-        sops
-        gnutar
-        gzip
-        gnused
-      ];
-      text = ''
-        out=$PWD/${name}.tar.gz
-        ${decrypt vars}
+  tarball = {
+    __functor = _: args: mkTarball args;
 
-        umask 022
-        root=$work/root
-        mkdir -p "$root/etc" "$root/nix/var/nix/profiles"
-        touch "$root/etc/NIXOS"
-        cp ${closure}/registration "$root/nix-path-registration"
-        ln -s ${toplevel} "$root/nix/var/nix/profiles/system-1-link"
-        ln -s system-1-link "$root/nix/var/nix/profiles/system"
-        ${lib.concatMapStrings (
-          n:
-          let
-            dst = "$root${files.${n}}";
-          in
-          ''
-            mkdir -p "${dirOf dst}"
-            cp -p "${local n}" "${dst}"
-          ''
-        ) (lib.attrNames files)}
-        if [ -d "$root/var/lib/tailscale" ]; then
-          chmod 0700 "$root/var/lib/tailscale"
-        fi
-
-        sed 's|^/||' ${closure}/store-paths > "$work/paths"
-        umask 077
-        tar --owner=0 --group=0 --numeric-owner -cf - -C "$root" . -C / -T "$work/paths" | gzip -c > "$out"
-        echo "$out"
-      '';
-    };
+    minimal =
+      {
+        name,
+        nixos,
+        vars,
+      }:
+      let
+        secretList = lib.attrValues (nixos.config.sops.secrets or { });
+      in
+      mkTarball {
+        inherit name nixos vars;
+        withRegistration = false;
+        extraRoot = ''
+          ${lib.optionalString (secretList != [ ]) ''
+            mkdir -p "$root/var/lib/secrets"
+            chmod 0755 "$root/var" "$root/var/lib"
+            chmod 0751 "$root/var/lib/secrets"
+            ${lib.concatMapStrings (
+              s:
+              let
+                relPath = lib.removePrefix "/run/secrets/" s.path;
+                dst = "$root/var/lib/secrets/${relPath}";
+                extractArg =
+                  if s.format == "binary" then
+                    "--input-type binary --output-type binary"
+                  else
+                    ''--extract '["${s.key}"]' --output-type binary'';
+              in
+              ''
+                mkdir -p "$(dirname "${dst}")"
+                sops decrypt ${extractArg} ${lib.escapeShellArg (toString s.sopsFile)} > "${dst}"
+                chmod ${s.mode} "${dst}"
+              ''
+            ) secretList}
+          ''}
+        '';
+      };
+  };
 }

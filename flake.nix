@@ -94,6 +94,30 @@
           };
         };
 
+      mkContainerMinimal =
+        hostname: entry:
+        let
+          host = hosts.${hostname};
+          system = host.metadata.arch;
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [ self.overlays.default ];
+          };
+        in
+        nixpkgs.lib.evalModules {
+          specialArgs = {
+            inherit inputs self pkgs finix;
+            modules = finix.nixosModules;
+          };
+          modules = [
+            ctx.nixosModules.${hostname}
+            ./modules/profiles/container-minimal
+          ]
+          ++ nixpkgs.lib.optional (entry != null && builtins.pathExists entry) entry;
+        };
+
+      isContainerMinimal = name: hosts.${name}.metadata.minimal;
+
       hostDir =
         hostname:
         if builtins.pathExists ./hosts/drifting/${hostname} then
@@ -196,9 +220,16 @@
     in
     {
       # every ctx host, plus its variants
-      nixosConfigurations = mkHosts mkSystem hosts;
+      nixosConfigurations =
+        let
+          minimalHosts = nixpkgs.lib.filterAttrs (n: _: isContainerMinimal n) hosts;
+          normalHosts = nixpkgs.lib.filterAttrs (n: _: !isContainerMinimal n) hosts;
+        in
+        (mkHosts mkSystem normalHosts) // (mkHosts mkContainerMinimal minimalHosts);
 
-      deploy.nodes = nixpkgs.lib.mapAttrs mkDeployNode hosts;
+      deploy.nodes = nixpkgs.lib.mapAttrs mkDeployNode (
+        nixpkgs.lib.filterAttrs (n: _: !isContainerMinimal n) hosts
+      );
 
       homeConfigurations = mkHomes {
         foo = { };
