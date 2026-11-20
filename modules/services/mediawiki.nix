@@ -24,7 +24,8 @@ let
     '';
   };
 
-  phpAssoc = attrs: lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "        '${k}' => '${v}',") attrs);
+  phpAssoc =
+    attrs: lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "        '${k}' => '${v}',") attrs);
 in
 {
   options.infra.mediawiki = {
@@ -225,7 +226,9 @@ in
         ${phpAssoc (lib.listToAttrs (map (s: lib.nameValuePair s.dbName s.sitename) sitesList))}
             ],
             'wgUploadDirectory' => [
-        ${phpAssoc (lib.listToAttrs (map (s: lib.nameValuePair s.dbName "${uploads-dir}/${s.dbName}") sitesList))}
+        ${phpAssoc (
+          lib.listToAttrs (map (s: lib.nameValuePair s.dbName "${uploads-dir}/${s.dbName}") sitesList)
+        )}
             ],
             'wgUploadPath' => [
         ${phpAssoc (lib.listToAttrs (map (s: lib.nameValuePair s.dbName "/images/${s.dbName}") sitesList))}
