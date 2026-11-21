@@ -11,6 +11,7 @@
     ./knot.nix
     ./librechat.nix
     ./mediawiki.nix
+    ./telemetry.nix
     ./network.nix
     ./nix.nix
     ./openbao.nix

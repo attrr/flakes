@@ -37,12 +37,15 @@ in
   imports = [
     ./base
     ./deploy.nix
+    ./services/node-exporter.nix
     ./services/sing-box.nix
     ./services/usque.nix
+    ./services/vmagent.nix
     ./infra/server.nix
     ./infra/network.nix
     ./infra/tunnelbroker.nix
     ./infra/sing-box.nix
+    ./infra/telemetry.nix
   ];
 
   options = {

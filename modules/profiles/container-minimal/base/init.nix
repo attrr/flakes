@@ -312,6 +312,10 @@ in
       '';
     };
 
+    finit.tmpfiles.rules = lib.mapAttrsToList (
+      name: _: "d /run/service/${name}/supervise 0755 - -"
+    ) enabledServices;
+
     # 1. Execute `finit.tmpfiles.rules` (`d`, `f`, `L+`, `R!`)
     system.activation.scripts.tmpfiles = {
       deps = [

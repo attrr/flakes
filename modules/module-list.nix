@@ -8,6 +8,7 @@
   ./services/knot
   ./services/restic.nix
   ./services/ssh.nix
+  ./services/telemetry
   ./services/tunnelbroker
   ./services/unfree.nix
   ./services/librechat
