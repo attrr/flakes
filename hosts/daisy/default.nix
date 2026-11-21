@@ -6,6 +6,7 @@
 {
   imports = [
     ./nix.nix
+    ./observability
   ];
 
   infra.acme = {
