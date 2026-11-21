@@ -48,7 +48,8 @@ in
         name: cfg: (cfg.config.disko.devices.disk or { }) != { } && builtins.pathExists (hostKey name)
       ) self.nixosConfigurations;
       containers = lib.filterAttrs (
-        name: cfg: cfg.config.boot.isContainer && !(cfg.config ? finit) && builtins.pathExists (hostKey name)
+        name: cfg:
+        cfg.config.boot.isContainer && !(cfg.config ? finit) && builtins.pathExists (hostKey name)
       ) self.nixosConfigurations;
       minimalContainers = lib.filterAttrs (
         name: cfg: (cfg.config ? finit) && builtins.pathExists (hostKey name)

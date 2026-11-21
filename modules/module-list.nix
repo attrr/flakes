@@ -18,4 +18,5 @@
   ./services/pooper-scooper
   ./services/quadlet
   ./services/tgu
+  ./services/usque.nix
 ]

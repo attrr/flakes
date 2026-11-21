@@ -58,7 +58,8 @@ in
         # gsd-power warns of its idle suspend in a critical notification,
         # which phosh woke the screen for: that reset the idle time, so it
         # never suspended
-        "sm/puri/phosh/notifications".wakeup-screen-triggers = lib.gvariant.mkEmptyArray lib.gvariant.type.string;
+        "sm/puri/phosh/notifications".wakeup-screen-triggers =
+          lib.gvariant.mkEmptyArray lib.gvariant.type.string;
       };
     }
   ];

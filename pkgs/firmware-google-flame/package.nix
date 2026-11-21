@@ -18,7 +18,8 @@ let
       inherit hash;
     };
   haptics = {
-    "cs40l25a.wmfw" = vendorFirmware "cs40l25a.wmfw" "sha256-DuBs7I533BVBoOJKV8nif8n3SVwegSySHk3JnDUB9VQ=";
+    "cs40l25a.wmfw" =
+      vendorFirmware "cs40l25a.wmfw" "sha256-DuBs7I533BVBoOJKV8nif8n3SVwegSySHk3JnDUB9VQ=";
     "cs40l20.bin" = vendorFirmware "cs40l20.bin" "sha256-JXU5AMMSf2va3k3bw47St5rW5Rdgo8Knly6Rlt/k9Tg=";
   };
 in

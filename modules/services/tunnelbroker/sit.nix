@@ -39,10 +39,7 @@ in
           matchConfig.Name = cfg.interface;
           address = cfg.addresses;
           routes = [
-            (
-              { Destination = "::/0"; }
-              // lib.optionalAttrs (cfg.gateway != null) { Gateway = cfg.gateway; }
-            )
+            ({ Destination = "::/0"; } // lib.optionalAttrs (cfg.gateway != null) { Gateway = cfg.gateway; })
           ];
         };
       })

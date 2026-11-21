@@ -49,14 +49,10 @@ buildLinux {
   # in its order
   kernelPatches =
     linux_7_3.kernelPatches
-    ++ map
-      (file: {
-        name = lib.removeSuffix ".patch" file;
-        patch = ./patches + "/${file}";
-      })
-      (
-        builtins.filter (lib.hasSuffix ".patch") (builtins.attrNames (builtins.readDir ./patches))
-      )
+    ++ map (file: {
+      name = lib.removeSuffix ".patch" file;
+      patch = ./patches + "/${file}";
+    }) (builtins.filter (lib.hasSuffix ".patch") (builtins.attrNames (builtins.readDir ./patches)))
     ++ args.kernelPatches or [ ];
 
   extraMeta.platforms = [ "aarch64-linux" ];
