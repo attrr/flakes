@@ -91,7 +91,8 @@ in
   '';
 
   extraMeta.platforms = [ "aarch64-linux" ];
-}).overrideAttrs (old: {
-  # CONFIG_ENV_DEFAULT_ENV_TEXT_FILE is embedded with xxd
-  nativeBuildInputs = old.nativeBuildInputs ++ [ xxd ];
-})
+}).overrideAttrs
+  (old: {
+    # CONFIG_ENV_DEFAULT_ENV_TEXT_FILE is embedded with xxd
+    nativeBuildInputs = old.nativeBuildInputs ++ [ xxd ];
+  })

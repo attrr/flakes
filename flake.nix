@@ -106,7 +106,12 @@
         in
         nixpkgs.lib.evalModules {
           specialArgs = {
-            inherit inputs self pkgs finix;
+            inherit
+              inputs
+              self
+              pkgs
+              finix
+              ;
             modules = finix.nixosModules;
           };
           modules = [
@@ -274,11 +279,19 @@
             type = "app";
             program = toString (
               pkgs.writeShellScript "deploy-selected" ''
+                set -euo pipefail
                 declare -A sel=(${
                   lib.concatStrings (
                     lib.mapAttrsToList (
                       n: hs: "[${lib.escapeShellArg n}]=${lib.escapeShellArg (toString (lib.unique hs))} "
                     ) selectors
+                  )
+                })
+                declare -A mini=(${
+                  lib.concatStrings (
+                    lib.mapAttrsToList (
+                      n: h: "[${lib.escapeShellArg n}]=${lib.escapeShellArg "${h.deploy.user}@${h.deploy.hostname}"} "
+                    ) (lib.filterAttrs (n: _: isContainerMinimal n) hosts)
                   )
                 })
                 targets=()
@@ -293,16 +306,35 @@
                     echo "unknown selector '$1', one of: ''${!sel[*]}" >&2
                     exit 1
                   fi
-                  for h in ''${sel[$1]}; do targets+=(".#$h"); done
+                  for h in ''${sel[$1]}; do targets+=("$h"); done
                   shift
                 done
                 [ "''${1:-}" = -- ] && shift
                 [ ''${#targets[@]} -gt 0 ] || { echo "usage: nix run .#deploy -- [--checks] <selector>... [-- <deploy-rs args>]" >&2; exit 1; }
                 mapfile -t targets < <(printf '%s\n' "''${targets[@]}" | sort -u)
-                echo "deploying: ''${targets[*]#.#}" >&2
-                exec ${
-                  deploy-rs.packages.${system}.default
-                }/bin/deploy "''${checks[@]}" --targets "''${targets[@]}" "$@"
+                rs_targets=()
+                mini_targets=()
+                for h in "''${targets[@]}"; do
+                  if [ -n "''${mini[$h]+x}" ]; then
+                    mini_targets+=("$h")
+                  else
+                    rs_targets+=(".#$h")
+                  fi
+                done
+                if [ ''${#rs_targets[@]} -gt 0 ]; then
+                  echo "deploying: ''${rs_targets[*]#.#}" >&2
+                  ${
+                    deploy-rs.packages.${system}.default
+                  }/bin/deploy "''${checks[@]}" --targets "''${rs_targets[@]}" "$@"
+                fi
+                for h in "''${mini_targets[@]}"; do
+                  echo "deploying (minimal): $h" >&2
+                  if [ $# -gt 0 ] && [ "''${1#-}" = "$1" ]; then
+                    nix run ".#nixosConfigurations.$h.config.system.build.deploy" -- "$@"
+                  else
+                    nix run ".#nixosConfigurations.$h.config.system.build.deploy" -- "''${mini[$h]}" "$@"
+                  fi
+                done
               ''
             );
           };
