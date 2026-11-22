@@ -1,4 +1,6 @@
-# First-boot takeover: move everything that is not Nix or container state into `/old-root`.
+# First-boot takeover: sweep everything that is not Nix or container state.
+# On overlayfs (Podman/Docker), delete swept entries (whiteouts, avoiding EXDEV full copies
+# of lowerdir trees into `/old-root`); elsewhere, move them to `/old-root`.
 { config, lib, ... }:
 let
   cfg = config.infra.container.lustrate;
@@ -8,7 +10,7 @@ let
     for d in ${lib.removeSuffix "/" dir}/*; do
       case "$d" in
         ${lib.concatMapStringsSep "|" (name: "${lib.removeSuffix "/" dir}/${name}") keep}) ;;
-        *) mv "$d" ${dest dir}/ 2>/dev/null || true ;;
+        *) sweep_entry "$d" ${dest dir} ;;
       esac
     done
   '';
@@ -18,7 +20,7 @@ in
     type = with lib.types; attrsOf (listOf str);
     description = ''
       Directory -> entry names (shell globs) left in place by the first-boot lustrate.
-      Every other entry of that directory moves to the same path under `/old-root`.
+      Every other entry of that directory is removed (on overlayfs) or moved to `/old-root`.
     '';
   };
 
@@ -28,6 +30,7 @@ in
         "nix"
         "sbin"
         "bin"
+        "lib"
         "proc"
         "sys"
         "dev"
@@ -65,15 +68,43 @@ in
     # Directories are swept in path order, so parents run before children.
     system.activation.scripts.containerLustrate = ''
       if [ ! -L /etc/static ]; then
-        mkdir -p ${lib.concatMapStringsSep " " dest (lib.attrNames cfg.keep)}
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList sweep cfg.keep)}
-        # On usr-merged distros (Debian 12+, Ubuntu 22.04+, Arch, Fedora), `/bin` and `/sbin`
-        # are symlinks into `/usr` (just moved to `/old-root/usr`), leaving them dangling.
-        for d in /bin /sbin; do
-          if [ -L "$d" ] && [ ! -e "$d" ]; then
-            rm -f "$d"
+        is_overlay=0
+        if awk '$2 == "/" { fs = $3 } END { exit (fs != "overlay") }' /proc/mounts 2>/dev/null; then
+          is_overlay=1
+        else
+          mkdir -p ${lib.concatMapStringsSep " " dest (lib.attrNames cfg.keep)}
+        fi
+
+        sweep_entry() {
+          if [ "$is_overlay" = 1 ]; then
+            rm -rf "$1" 2>/dev/null || true
+          else
+            mv "$1" "$2/" 2>/dev/null || true
           fi
-        done
+        }
+
+        # Replace `/lib` and usr-merged `/sbin` with real init paths before sweeping `/usr`,
+        # avoiding an init-less window if activation is interrupted (OOM / SIGKILL).
+        if [ -e /lib ] || [ -L /lib ]; then
+          if [ "$is_overlay" = 1 ] || [ -e /old-root/lib ] || [ -L /old-root/lib ]; then
+            rm -rf /lib 2>/dev/null || true
+          else
+            mv /lib /old-root/ 2>/dev/null || rm -rf /lib 2>/dev/null || true
+          fi
+        fi
+        [ -L /sbin ] && rm -f /sbin
+        mkdir -p /sbin /lib/systemd
+        ln -sfn "$systemConfig/init" /sbin/init
+        ln -sfn "$systemConfig/init" /lib/systemd/systemd
+
+        ${lib.concatStringsSep "\n" (lib.mapAttrsToList sweep cfg.keep)}
+
+        # On usr-merged distros (Debian 12+, Ubuntu 22.04+, Arch, Fedora), `/bin -> usr/bin`
+        # is now dangling after `/usr` is swept.
+        if [ -L /bin ] && [ ! -e /bin ]; then
+          rm -f /bin
+        fi
+        ${config.providers.bootloader.installHook} "$systemConfig"
       fi
     '';
     system.activation.scripts.binsh.deps = [ "containerLustrate" ];
