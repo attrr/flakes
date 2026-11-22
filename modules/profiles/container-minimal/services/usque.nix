@@ -12,7 +12,7 @@ in
   options.services.usque = {
     enable = lib.mkEnableOption "usque Cloudflare WARP MASQUE client";
 
-    package = lib.mkPackageOption pkgs "usque-static" { };
+    package = lib.mkPackageOption pkgs "usque-strip" { };
 
     socksAddr = lib.mkOption {
       type = lib.types.str;

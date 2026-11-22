@@ -1,6 +1,6 @@
 { prev }:
 prev.usque.overrideAttrs (old: {
-  pname = "usque-static";
+  pname = "usque-strip";
   env = (old.env or { }) // {
     CGO_ENABLED = "0";
   };

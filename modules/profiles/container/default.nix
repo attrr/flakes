@@ -160,8 +160,6 @@ in
         Storage=volatile
         RuntimeMaxUse=32M
       '';
-      services.sing-box.package = lib.mkDefault pkgs.sing-box-minimal;
-      services.usque.package = lib.mkDefault pkgs.usque-static;
       services.fail2ban.enable = lib.mkForce false;
       programs.neovim.enable = lib.mkForce false;
       programs.git.enable = lib.mkForce false;
