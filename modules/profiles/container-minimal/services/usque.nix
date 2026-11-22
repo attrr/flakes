@@ -27,6 +27,8 @@ in
     };
 
     ipv6 = lib.mkEnableOption "use IPv6 for MASQUE connection";
+
+    http2 = lib.mkEnableOption "use HTTP/2 over TCP+TLS instead of HTTP/3 over QUIC";
   };
 
   config = lib.mkIf cfg.enable {
@@ -70,6 +72,7 @@ in
               "--always-reconnect"
             ]
             ++ lib.optional cfg.ipv6 "-6"
+            ++ lib.optional cfg.http2 "--http2"
           )
         }
       '';
