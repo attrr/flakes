@@ -50,13 +50,13 @@ lib.mkIf ctx.alerts.enable {
             };
           }
           {
-            alert = "RunitServiceDown";
+            alert = "ServiceDown";
             expr = "node_service_state == 0 and node_service_desired_state == 1";
             for = "2m";
             labels.severity = "warning";
             annotations = {
               summary = "{{ $labels.host }}: {{ $labels.service }} down";
-              description = "Runit service {{ $labels.service }} on {{ $labels.host }} is down while desired up.";
+              description = "{{ $labels.supervisor }} service {{ $labels.service }} on {{ $labels.host }} is down while desired up.";
             };
           }
           {

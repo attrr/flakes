@@ -41,11 +41,12 @@ in
 
     finit.services.usque = {
       description = "usque Cloudflare WARP MASQUE client";
+      conditions = lib.optionals config.programs.ifupdown-ng.enable [ "task/ifupdown-ng/success" ];
       user = "usque";
       group = "usque";
       state-dir = "usque";
       state-dir-mode = "0700";
-      workingDirectory = "/var/lib/usque";
+      reload-signal = "none";
       environment = {
         GOMEMLIMIT = lib.mkDefault "48MiB";
         GOGC = lib.mkDefault 50;
@@ -53,19 +54,25 @@ in
       exec-start-pre = pkgs.writeScript "usque-register" ''
         #!${coreutils}/bin/sh
         if [ ! -f /var/lib/usque/config.json ]; then
-          ${coreutils}/bin/chpst -u usque:usque ${lib.getExe cfg.package} register --accept-tos
+          cd /var/lib/usque
+          ${lib.getExe cfg.package} register --accept-tos
         fi
       '';
-      command = lib.concatStringsSep " " (
-        [
-          (lib.getExe cfg.package)
-          "socks"
-          "-b ${cfg.socksAddr}"
-          "-p ${toString cfg.port}"
-          "--always-reconnect"
-        ]
-        ++ lib.optional cfg.ipv6 "-6"
-      );
+      script = ''
+        cd /var/lib/usque
+        exec ${
+          lib.concatStringsSep " " (
+            [
+              (lib.getExe cfg.package)
+              "socks"
+              "-b ${cfg.socksAddr}"
+              "-p ${toString cfg.port}"
+              "--always-reconnect"
+            ]
+            ++ lib.optional cfg.ipv6 "-6"
+          )
+        }
+      '';
     };
   };
 }

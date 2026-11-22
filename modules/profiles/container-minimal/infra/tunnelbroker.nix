@@ -17,8 +17,7 @@ let
     set -eu
     ${coreutils}/bin/pkill -9 -x boringtun-cli 2>/dev/null || true
     ${ip} link del ${iface} 2>/dev/null || true
-    mkdir -p /var/run/wireguard /run/wireguard
-    rm -f /var/run/wireguard/${tun.interface}.sock /run/wireguard/${tun.interface}.sock
+    rm -f /run/wireguard/${tun.interface}.sock
 
     WG_SUDO=1 WG_THREADS=1 ${boringtun} --disable-drop-privileges -t 1 ${iface}
     ${wg} set ${iface} \
@@ -63,11 +62,6 @@ in
       type = lib.types.nullOr lib.types.str;
       default = null;
     };
-    nameservers = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ "2606:4700:4700::1111" ];
-      description = "Resolvers used while the tunnel is the only uplink (IPv6-only).";
-    };
     mtu = lib.mkOption {
       type = lib.types.int;
       default = 1420;
@@ -89,9 +83,14 @@ in
   };
 
   config = lib.mkIf tun.enable {
+    finit.tmpfiles.rules = lib.mkIf cap.net_admin [
+      "d /run/wireguard 0755 - -"
+    ];
+
     finit.tasks.tunnelbroker = lib.mkIf cap.net_admin {
       description = "bring up WireGuard tunnel (${tun.interface}) via boringtun-cli";
-      priority = 1100;
+      conditions = lib.optionals config.programs.ifupdown-ng.enable [ "task/ifupdown-ng/success" ];
+      remain-after-exit = true;
       command = "${tunnelUp}";
     };
   };

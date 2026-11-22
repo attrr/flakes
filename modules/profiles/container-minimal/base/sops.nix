@@ -30,15 +30,14 @@ in
       "d /var/lib/secrets 0751 - -"
       "L+ /run/secrets - - - - /var/lib/secrets"
     ]
-    ++ lib.optional (secretsWithRestart != [ ]) "d /run/sops-hashes 0755 - -"
     ++ map (s: "z ${secretDst s} ${s.mode} ${secretUser s} ${secretGroup s}") secretList;
 
     system.activation.scripts.sopsRestartUnits = lib.mkIf (secretsWithRestart != [ ]) {
       deps = [
-        "tmpfiles"
-        "services"
+        "tmpfiles-z"
       ];
       text = ''
+        mkdir -p /run/sops-hashes
         _sops_restart_units=""
 
         check_secret() {
@@ -70,8 +69,8 @@ in
         ) secretsWithRestart}
 
         for _u in $_sops_restart_units; do
-          if [ -e "/run/service/$_u/supervise/ok" ]; then
-            sv restart "/etc/service/$_u" || true
+          if [ -S /run/finit/socket ]; then
+            ${config.finit.package}/bin/initctl restart "$_u" || true
           fi
         done
       '';

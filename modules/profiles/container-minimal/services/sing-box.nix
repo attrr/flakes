@@ -7,22 +7,16 @@
 }:
 let
   cfg = config.services.sing-box;
-  coreutils = config.programs.coreutils.package;
   jsonFormat = pkgs.formats.json { };
   nixosUtils = import "${inputs.nixpkgs}/nixos/lib/utils.nix" {
     inherit lib config pkgs;
   };
 
-  singBoxWrapper = pkgs.writeShellScript "sing-box-start" ''
+  singBoxPreStart = pkgs.writeShellScript "sing-box-pre-start" ''
     set -euo pipefail
     umask 0077
 
     ${nixosUtils.genJqSecretsReplacementSnippet cfg.settings "/run/sing-box/config.json"}
-    ${coreutils}/bin/chown sing-box:sing-box /var/lib/sing-box /run/sing-box /run/sing-box/config.json
-    ${coreutils}/bin/chmod 0600 /run/sing-box/config.json
-
-    exec ${coreutils}/bin/chpst -u sing-box:sing-box \
-      ${lib.getExe cfg.package} -D /var/lib/sing-box -C /run/sing-box run
   '';
 in
 {
@@ -52,16 +46,19 @@ in
 
     finit.services.sing-box = {
       description = "sing-box universal proxy platform";
-      state-dir = "sing-box";
-      state-dir-mode = "0700";
+      user = "sing-box";
+      group = "sing-box";
       runtime-dir = "sing-box";
       runtime-dir-mode = "0700";
+      state-dir = "sing-box";
+      state-dir-mode = "0700";
+      reload-signal = "none";
       environment = {
         GOMEMLIMIT = lib.mkDefault "64MiB";
         GOGC = lib.mkDefault 50;
       };
-      command = "${singBoxWrapper}";
-      reload-triggers = [ singBoxWrapper ];
+      exec-start-pre = "${singBoxPreStart}";
+      command = "${lib.getExe cfg.package} -D /var/lib/sing-box -C /run/sing-box run";
     };
   };
 }

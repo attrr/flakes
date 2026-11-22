@@ -88,6 +88,7 @@ in
       auto = [ "lo" ];
       iface.lo.use = "loopback";
     };
+
     services.nftables = {
       enable = lib.mkDefault cfg.capabilities.net_admin;
       trustedInterfaces = [ "lo" ];
@@ -97,7 +98,10 @@ in
         }
       '';
     };
-    providers.firewall.backend = lib.mkDefault (if cfg.capabilities.net_admin then "nftables" else "none");
+    providers.firewall.backend = lib.mkDefault (
+      if cfg.capabilities.net_admin then "nftables" else "none"
+    );
+
     services.cron = {
       enable = lib.mkDefault true;
       settings = {
@@ -105,27 +109,25 @@ in
         RANDOM_DELAY = lib.mkDefault 1;
       };
     };
-    environment.variables.PATH = [ "/run/wrappers/bin" ] ++ systemPath;
+
+    services.sysklogd = {
+      enable = lib.mkDefault true;
+      extraConfig = lib.mkDefault ''
+        rotate_size  200k
+        rotate_count 1
+      '';
+    };
 
     # Place physical SUID wrappers under `/var/lib/wrappers/bin` (on `/`, avoiding `/run`'s `nosuid`
     # mount in Podman/Docker) and symlink `/run/wrappers -> /var/lib/wrappers` so `pam_unix.so`'s
     # compiled-in `/run/wrappers/bin/unix_chkpwd` resolves onto `/` where SUID works.
     security.wrapperDir = "${wrapperRoot}/bin";
     finit.tmpfiles.rules = [
-      "L+ /run/wrappers - - - - ${wrapperRoot}"
-      "d / 0755 - -"
-      "d /var 0755 - -"
-      "d /var/lib 0755 - -"
       "d ${wrapperRoot} 0755 - -"
-      "d /var/empty - - -"
-      "d /var/log - - -"
+      "L+ /run/wrappers - - - - ${wrapperRoot}"
       "d /tmp 1777 - -"
-      "d /etc - - -"
-      "d /bin - - -"
-      "d /sbin - - -"
-      "d /lib/systemd - - -"
-      "d /nix/var/nix/profiles - - -"
     ];
+    environment.variables.PATH = [ "/run/wrappers/bin" ] ++ systemPath;
 
     programs.sudo.enable = lib.mkDefault true;
     # `secure_path` pins sudo's PATH (incl. `/run/wrappers/bin`) when the caller has a bare one, e.g.
@@ -143,6 +145,32 @@ in
       password = "!";
     };
 
+    # Container runtimes invoke `/sbin/init`, so `argv[0]` would be `/sbin/init` and `finix-setup`
+    # would set `/run/current-system -> /sbin`. Use `bash`'s `exec -a` to pass `$sys/init` as `argv[0]`.
+    boot.init = lib.mkDefault (
+      pkgs.writeScript "init" ''
+        #!${config.programs.bash.package}/bin/bash
+        sys=$(${coreutils}/bin/readlink -f /nix/var/nix/profiles/system)
+        ${coreutils}/bin/mkdir -p /run
+
+        # Finit's `bootmisc` cleans non-tmpfs `/run` with `nftw()` without `FTW_PHYS`,
+        # which follows symlinks and wipes `/nix/store/...-finix-system` or `/var/lib/*`!
+        if ! ${coreutils}/bin/mountpoint -q /run; then
+          ${coreutils}/bin/mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run 2>/dev/null \
+            || ${coreutils}/bin/rm -f /run/current-system /run/booted-system /run/secrets /run/wrappers
+        fi
+
+        exec -a "$sys/init" ${config.finit.package}/bin/finit "$@"
+      ''
+    );
+
+    providers.bootloader.installHook = pkgs.writeScript "container-bootloader" ''
+      #!${coreutils}/bin/sh
+      mkdir -p /sbin /lib/systemd
+      ln -sfn "$1/init" /sbin/init
+      ln -sfn "$1/init" /lib/systemd/systemd
+    '';
+
     # Container bootstrap & takeover script run during `$toplevel/activate`.
     system.activation.scripts.containerInit = {
       deps = [
@@ -150,7 +178,6 @@ in
         "specialfs"
         "users"
         "etc"
-        "tmpfiles"
       ];
       text = ''
         ${lib.optionalString cfg.capabilities.mknod ''
@@ -165,8 +192,10 @@ in
           ln -sfn "$systemConfig" /nix/var/nix/profiles/system
         fi
 
-        ln -sfn "$systemConfig/init" /sbin/init
-        ln -sfn "$systemConfig/init" /lib/systemd/systemd
+        # Provider web consoles and `podman/lxc exec` often invoke `/bin/bash` directly.
+        mkdir -p /bin
+        ln -sfn /run/current-system/sw/bin/bash /bin/bash
+        ${config.providers.bootloader.installHook} "$systemConfig"
       '';
     };
 
@@ -193,8 +222,15 @@ in
       '';
     };
 
-    finit.services.syslogd = {
-      command = "${coreutils}/bin/syslogd -n -O /var/log/messages -s 200 -b 1";
-    };
+    # Finit's `reboot` exits PID 1 with status 0 in containers, which LXC treats as poweroff.
+    # On LXC/Incus (`sys_admin`), shadow `reboot` to call `reboot(RB_AUTOBOOT)` directly so LXC restarts.
+    environment.systemPackages = lib.mkIf cfg.capabilities.sys_admin [
+      (lib.hiPrio (
+        pkgs.writeShellScriptBin "reboot" ''
+          ${coreutils}/bin/sync
+          exec ${coreutils}/bin/reboot -f
+        ''
+      ))
+    ];
   };
 }

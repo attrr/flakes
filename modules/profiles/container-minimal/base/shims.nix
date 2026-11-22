@@ -1,79 +1,57 @@
-# Option shims so we can import Finix's `system/activation` and `networking`
-# without importing `modules/finit` (the C binary), `modules/boot`, or `modules/security/wrappers`.
-{
-  config,
-  lib,
-  ...
-}:
+# Option shims so we can import Finix's `finit`, `system/activation`, `security`, and `networking`
+# without importing `modules/boot` or `modules/finit/{initrd,mount}.nix`.
+{ lib, ... }:
+let
+  mkShim =
+    type: default:
+    lib.mkOption {
+      inherit type default;
+      internal = true;
+    };
+  mkDisabled = mkShim lib.types.anything { enable = false; };
+  mkAttrs = mkShim (lib.types.attrsOf lib.types.anything) { };
+  mkList = mkShim (lib.types.listOf lib.types.anything) [ ];
+in
 {
   options = {
     boot = {
       # Read by `bootstrap/default.nix` (`cfg.config.boot.isContainer`)
-      isContainer = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        internal = true;
-      };
+      isContainer = mkShim lib.types.bool true;
       # Read by `finix/modules/system/activation/default.nix`
-      kernel.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
+      init = lib.mkOption {
+        type = lib.types.path;
         internal = true;
       };
-      initrd.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        internal = true;
+      kernel = {
+        enable = mkShim lib.types.bool false;
+        sysctl = mkAttrs;
       };
-      bootspec.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        internal = true;
+      initrd = {
+        enable = mkShim lib.types.bool false;
+        contents = mkList;
       };
-      # Written by `finix/modules/networking/default.nix`
-      kernel.sysctl = lib.mkOption {
-        type = lib.types.attrsOf lib.types.anything;
-        default = { };
-        internal = true;
-      };
-      initrd.contents = lib.mkOption {
-        type = lib.types.listOf lib.types.anything;
-        default = [ ];
-        internal = true;
-      };
+      bootspec = mkDisabled;
+      supportedFilesystems = mkAttrs;
     };
 
     # Written by `finix/modules/security/wrappers/default.nix` (`fileSystems."/run/wrappers"`)
-    fileSystems = lib.mkOption {
-      type = lib.types.attrsOf lib.types.anything;
-      default = { };
-      internal = true;
-    };
+    fileSystems = mkAttrs;
 
-    # Read by `finix/modules/services/openssh/default.nix` and `finix/modules/programs/shadow/default.nix`
-    services = {
-      sessiond.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        internal = true;
-      };
-      elogind.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        internal = true;
-      };
-      seatd.enable = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        internal = true;
-      };
-    };
+    # Read by `openssh`, `shadow`, `sysklogd`, and `finit/options.nix`
+    services = lib.genAttrs [
+      "sessiond"
+      "elogind"
+      "seatd"
+      "keventd"
+      "gardendevd"
+      "udev"
+      "mdevd"
+    ] (_: mkDisabled);
 
-    # Read by `finix/modules/system/activation/default.nix` (`switch-to-configuration` substitution)
-    finit.package = lib.mkOption {
-      type = lib.types.package;
-      default = config.programs.coreutils.package;
-      internal = true;
+    # Read by `finix/modules/finit/options.nix`
+    programs.plymouth = mkShim lib.types.anything {
+      enable = false;
+      package = null;
     };
 
     # Finix `modules/networking` omits `nameservers`; declared here for `infra.network`.
@@ -81,5 +59,29 @@
       type = lib.types.listOf lib.types.str;
       default = [ ];
     };
+  };
+
+  # Finit's built-in `tmpfiles` ignores `z` (adjust mode/owner of existing paths) rules;
+  # apply them during activation (after `users`) so both boot and `deploy` (`tar --owner=0`) stay consistent.
+  config.system.activation.scripts.tmpfiles-z = {
+    deps = [
+      "specialfs"
+      "users"
+      "etc"
+    ];
+    text = ''
+      while read -r type path mode user group _; do
+        [ "$type" = "z" ] && [ -e "$path" ] || continue
+        if [ -n "$mode" ] && [ "$mode" != "-" ]; then
+          chmod "$mode" "$path"
+        fi
+        case "''${user:--}:''${group:--}" in
+          -:-) ;;
+          -:*) chown ":$group" "$path" ;;
+          *:-) chown "$user" "$path" ;;
+          *) chown "$user:$group" "$path" ;;
+        esac
+      done < /etc/tmpfiles.d/finix.conf
+    '';
   };
 }

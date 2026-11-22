@@ -58,9 +58,6 @@ in
       ''
     );
 
-    # Run `sshd -D -e` so OpenSSH logs to stderr (captured by runit).
-    finit.services.sshd.command = lib.mkForce "${config.services.openssh.package}/bin/sshd -D -e -f /etc/ssh/sshd_config";
-
     environment.etc."ssh/authorized_keys.d/${cfg.user}" = lib.mkIf (cfg.ssh-keys != [ ]) {
       mode = "0444";
       text = lib.concatStringsSep "\n" cfg.ssh-keys + "\n";

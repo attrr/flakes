@@ -112,7 +112,6 @@
               pkgs
               finix
               ;
-            modules = finix.nixosModules;
           };
           modules = [
             ctx.nixosModules.${hostname}

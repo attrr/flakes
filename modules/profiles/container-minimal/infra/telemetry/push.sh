@@ -3,20 +3,16 @@
 : "${TELEMETRY_TOKEN_FILE:?}"
 : "${TELEMETRY_URL:?}"
 
-emit_runit() {
-  for svc in /etc/service/*; do
-    [ -d "$svc/supervise" ] || continue
+emit_services() {
+  for svc in /run/finit/cond/service/*; do
+    [ -d "$svc" ] || continue
     name=${svc##*/}
     st=0
-    if [ -r "$svc/supervise/stat" ] && read -r s < "$svc/supervise/stat" && [ "$s" = "run" ]; then
+    if [ -e "$svc/running" ]; then
       st=1
     fi
-    des=1
-    if [ -e "$svc/down" ]; then
-      des=0
-    fi
-    printf 'node_service_state{service="%s",supervisor="runit"} %d\n' "$name" "$st"
-    printf 'node_service_desired_state{service="%s",supervisor="runit"} %d\n' "$name" "$des"
+    printf 'node_service_state{service="%s",supervisor="finit"} %d\n' "$name" "$st"
+    printf 'node_service_desired_state{service="%s",supervisor="finit"} 1\n' "$name"
   done
 }
 
@@ -42,7 +38,7 @@ push_once() {
         -e "s/^\\(node_uname_info{.*nodename=\"\\)[^\"]*\"/\\1${TELEMETRY_HOST}\"/" \
         -e '/^node_vmstat_oom_kill /d'
     emit_cgroup_oom
-    emit_runit
+    emit_services
   ) | gzip -c | {
     exec 3<<EOF
 user = "${TELEMETRY_USER}:${token}"

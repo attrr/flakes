@@ -34,8 +34,8 @@ let
     [ -f "$profiles/current-secrets" ] || die "missing current-secrets"
     grep -Fxq ${toplevel} "$profiles/current-store-paths" || die "toplevel not in manifest"
 
+    ${toplevel}/bin/switch-to-configuration switch
     ln -sfn ${toplevel} "$profiles/system"
-    ${toplevel}/activate
 
     prune_store() {
       for p in /nix/store/*; do
@@ -139,8 +139,10 @@ in
       missing_count=$(wc -l < "$work/missing-paths")
       echo "deploy-mini-${srv.hostname}: syncing $missing_count new store path(s) to $target..." >&2
 
+      env_prefix=""
+      [ "''${NIXOS_NO_CHECK:-}" = 1 ] && env_prefix="export NIXOS_NO_CHECK=1; "
       tar --owner=0 --group=0 --numeric-owner -cf - -C "$work/root" . -C / -T "$work/missing-paths" \
-        | ssh "$@" "$target" ${lib.escapeShellArg remoteEntrypoint}
+        | ssh "$@" "$target" "''${env_prefix}"${lib.escapeShellArg remoteEntrypoint}
     '';
   };
 }
