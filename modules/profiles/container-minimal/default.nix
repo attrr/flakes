@@ -89,7 +89,7 @@ in
       iface.lo.use = "loopback";
     };
     services.nftables = {
-      enable = lib.mkDefault true;
+      enable = lib.mkDefault cfg.capabilities.net_admin;
       trustedInterfaces = [ "lo" ];
       tables.nixos-fw.content = lib.mkAfter ''
         chain input-allow {
@@ -97,7 +97,7 @@ in
         }
       '';
     };
-    providers.firewall.backend = lib.mkDefault "nftables";
+    providers.firewall.backend = lib.mkDefault (if cfg.capabilities.net_admin then "nftables" else "none");
     services.cron = {
       enable = lib.mkDefault true;
       settings = {
