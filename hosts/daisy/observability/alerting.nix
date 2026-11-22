@@ -90,6 +90,36 @@ lib.mkIf ctx.alerts.enable {
             };
           }
           {
+            alert = "HighCpuSustained";
+            expr = ''100 - (avg by (host, group) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85'';
+            for = "15m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "{{ $labels.host }} sustained high CPU";
+              description = "CPU usage on {{ $labels.host }} has been {{ $value | printf \"%.0f\" }}% (> 85%) for > 15m.";
+            };
+          }
+          {
+            alert = "HighOutboundPps";
+            expr = ''max by (host, group) (rate(node_network_transmit_packets_total{device!="lo"}[5m])) > 15000'';
+            for = "10m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "{{ $labels.host }} high outbound PPS";
+              description = "Outbound packet rate on {{ $labels.host }} is {{ $value | printf \"%.0f\" }} pps (> 15000) for > 10m.";
+            };
+          }
+          {
+            alert = "HighOutboundTraffic";
+            expr = ''max by (host, group) (rate(node_network_transmit_bytes_total{device!="lo"}[5m])) > 25e6'';
+            for = "15m";
+            labels.severity = "warning";
+            annotations = {
+              summary = "{{ $labels.host }} high outbound traffic";
+              description = "Outbound traffic on {{ $labels.host }} is {{ $value | humanize }}B/s (> 25MB/s) for > 15m.";
+            };
+          }
+          {
             alert = "ProbeFailed";
             expr = "probe_success == 0";
             for = "3m";
