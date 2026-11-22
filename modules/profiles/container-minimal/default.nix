@@ -166,9 +166,11 @@ in
 
     providers.bootloader.installHook = pkgs.writeScript "container-bootloader" ''
       #!${coreutils}/bin/sh
-      mkdir -p /sbin /lib/systemd
+      mkdir -p /sbin /lib/systemd /usr/sbin /usr/lib/systemd
       ln -sfn "$1/init" /sbin/init
       ln -sfn "$1/init" /lib/systemd/systemd
+      ln -sfn "$1/init" /usr/sbin/init
+      ln -sfn "$1/init" /usr/lib/systemd/systemd
     '';
 
     # Container bootstrap & takeover script run during `$toplevel/activate`.

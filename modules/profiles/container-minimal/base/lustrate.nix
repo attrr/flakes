@@ -67,8 +67,16 @@ in
       if [ ! -L /etc/static ]; then
         mkdir -p ${lib.concatMapStringsSep " " dest (lib.attrNames cfg.keep)}
         ${lib.concatStringsSep "\n" (lib.mapAttrsToList sweep cfg.keep)}
+        # On usr-merged distros (Debian 12+, Ubuntu 22.04+, Arch, Fedora), `/bin` and `/sbin`
+        # are symlinks into `/usr` (just moved to `/old-root/usr`), leaving them dangling.
+        for d in /bin /sbin; do
+          if [ -L "$d" ] && [ ! -e "$d" ]; then
+            rm -f "$d"
+          fi
+        done
       fi
     '';
+    system.activation.scripts.binsh.deps = [ "containerLustrate" ];
     system.activation.scripts.etc.deps = [ "containerLustrate" ];
     system.activation.scripts.users.deps = [ "containerLustrate" ];
   };
