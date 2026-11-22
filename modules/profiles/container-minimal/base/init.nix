@@ -26,14 +26,16 @@ let
     let
       user = if stanza.user != null then stanza.user else "root";
       group = if stanza.group != null then stanza.group else user;
+      extraGroups = if stanza.extra-groups != null then stanza.extra-groups else [ ];
+      chpstSpec = lib.concatStringsSep ":" ([ user group ] ++ extraGroups);
     in
     {
       owner = "${user}:${group}";
       chpst =
-        if user == "root" && group == "root" then
+        if user == "root" && group == "root" && extraGroups == [ ] then
           ""
         else
-          "${coreutils}/bin/chpst -u ${lib.escapeShellArg "${user}:${group}"} ";
+          "${coreutils}/bin/chpst -u ${lib.escapeShellArg chpstSpec} ";
     };
 
   mkBinPath =
@@ -67,10 +69,20 @@ let
           type = lib.types.nullOr lib.types.str;
           default = null;
         };
+        extra-groups = lib.mkOption {
+          description = "Supplementary groups passed to `chpst -u`.";
+          type = with lib.types; nullOr (listOf str);
+          default = null;
+        };
         path = lib.mkOption {
           description = "Extra packages/paths whose `bin` directories are prepended to `PATH`.";
           type = with lib.types; listOf (either package str);
           default = [ ];
+        };
+        envfile = lib.mkOption {
+          description = "Path to an environment file to source (`-` prefix ignores missing file).";
+          type = with lib.types; nullOr (coercedTo path toString str);
+          default = null;
         };
         environment = lib.mkOption {
           description = "Environment variables exported before running the command (`null` skips).";
@@ -84,6 +96,16 @@ let
             )
           );
           default = { };
+        };
+        log = lib.mkOption {
+          description = "Redirect stdout/stderr via a runit log service (to syslog via `logger`, or `log.file`).";
+          type = with lib.types; coercedTo bool (v: if v then { } else null) (nullOr (attrsOf anything));
+          default = null;
+        };
+        manual-start = lib.mkOption {
+          description = "Do not auto-start the service on boot (creates runit `down` file).";
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
         };
         workingDirectory = lib.mkOption {
           description = "Directory to `cd` into before running the command.";
@@ -145,6 +167,16 @@ let
           type = lib.types.nullOr program;
           default = null;
         };
+        exec-stop-post = lib.mkOption {
+          description = "Program run via runit `finish` after the service exits.";
+          type = lib.types.nullOr program;
+          default = null;
+        };
+        restart-sec = lib.mkOption {
+          description = "Seconds to sleep in runit `finish` before restarting a stopped service.";
+          type = lib.types.nullOr lib.types.ints.unsigned;
+          default = null;
+        };
         command = lib.mkOption {
           description = "Program to exec; wrapped in `chpst` when `user`/`group` is non-root.";
           type = lib.types.nullOr program;
@@ -165,6 +197,11 @@ let
           type = lib.types.int;
           default = 1000;
         };
+        runlevel = lib.mkOption {
+          description = ''Finit runlevel string; `"S"` runs only once at boot (`::sysinit:`), others run during activation.'';
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+        };
       };
 
       config.command = lib.mkIf (config.script != "") (
@@ -182,6 +219,27 @@ let
   enabledTasks = lib.sort (a: b: a.value.priority < b.value.priority) (
     lib.attrsToList (lib.filterAttrs (_: t: t.enable) (config.finit.tasks // config.finit.run))
   );
+  bootTasks = lib.filter (t: t.value.runlevel == "S") enabledTasks;
+  activationTasks = lib.filter (t: t.value.runlevel != "S") enabledTasks;
+
+  mkTaskSnippet =
+    { name, value }:
+    let
+      task = value;
+      inherit (runAs task) chpst;
+    in
+    ''
+      (
+        set -eu
+        ${mkStanzaEnvAndDirs task}
+        ${chpst}${task.command}
+      ) || echo "ERROR: finit.tasks.${name} failed (exit $?); continuing" >&2
+    '';
+
+  sysinitScript = pkgs.writeScript "sysinit" ''
+    #!${coreutils}/bin/sh
+    ${lib.concatMapStringsSep "\n" mkTaskSnippet bootTasks}
+  '';
 
   mkDirSnippet =
     base: rel: mode: owner: envVar:
@@ -197,11 +255,35 @@ let
       ''
     );
 
+  mkEnvFileSnippet =
+    envfile:
+    lib.optionalString (envfile != null) (
+      let
+        optional = lib.hasPrefix "-" envfile;
+        path = lib.removePrefix "-" envfile;
+      in
+      if optional then
+        ''
+          if [ -r ${lib.escapeShellArg path} ]; then
+            set -a
+            . ${lib.escapeShellArg path}
+            set +a
+          fi
+        ''
+      else
+        ''
+          set -a
+          . ${lib.escapeShellArg path}
+          set +a
+        ''
+    );
+
   mkStanzaEnvAndDirs =
     svc:
     let
       inherit (runAs svc) owner;
-      extraPath = mkBinPath svc.path;
+      extraPath = mkBinPath (svc.path ++ config.finit.path);
+      mergedEnv = config.finit.environment // svc.environment;
     in
     ''
       export PATH=${
@@ -209,10 +291,11 @@ let
           lib.optionalString (extraPath != "") "${extraPath}:" + "${coreutils}/bin:${systemPath}"
         )
       }
+      ${mkEnvFileSnippet svc.envfile}
       ${lib.concatStringsSep "\n" (
         lib.mapAttrsToList (
           k: v: lib.optionalString (v != null) "export ${k}=${lib.escapeShellArg (toString v)}"
-        ) svc.environment
+        ) mergedEnv
       )}
       ${mkDirSnippet "/var/lib" svc.state-dir svc.state-dir-mode owner "STATE_DIRECTORY"}
       ${mkDirSnippet "/run" svc.runtime-dir svc.runtime-dir-mode owner "RUNTIME_DIRECTORY"}
@@ -237,13 +320,52 @@ let
       exec ${chpst}${svc.command}
     '';
 
+  mkFinishScript =
+    name: svc:
+    pkgs.writeScript "${name}-finish" ''
+      #!${coreutils}/bin/sh
+      ${lib.optionalString (svc.exec-stop-post != null) "${svc.exec-stop-post} || true"}
+      ${lib.optionalString (svc.restart-sec != null && svc.restart-sec > 0) "${coreutils}/bin/sleep ${toString svc.restart-sec}"}
+    '';
+
+  mkLogScript =
+    name: svc:
+    let
+      tag = svc.log.tag or name;
+      logCmd =
+        if svc.log ? file then
+          "${coreutils}/bin/cat >> ${lib.escapeShellArg (toString svc.log.file)}"
+        else
+          "${coreutils}/bin/logger -t ${lib.escapeShellArg tag}";
+    in
+    pkgs.writeScript "${name}-log-run" ''
+      #!${coreutils}/bin/sh
+      exec ${logCmd}
+    '';
+
   servicesDir = pkgs.runCommandLocal "runit-services" { } ''
     mkdir -p "$out"
     ${lib.concatStringsSep "\n" (
-      lib.mapAttrsToList (name: svc: ''
-        mkdir -p "$out/${name}"
-        ln -s ${mkRunScript name svc} "$out/${name}/run"
-      '') enabledServices
+      lib.mapAttrsToList (
+        name: svc:
+        let
+          hasFinish = svc.exec-stop-post != null || (svc.restart-sec != null && svc.restart-sec > 0);
+        in
+        ''
+          mkdir -p "$out/${name}"
+          ln -s ${mkRunScript name svc} "$out/${name}/run"
+          ${lib.optionalString hasFinish ''
+            ln -s ${mkFinishScript name svc} "$out/${name}/finish"
+          ''}
+          ${lib.optionalString (svc.manual-start == true) ''
+            : > "$out/${name}/down"
+          ''}
+          ${lib.optionalString (svc.log != null) ''
+            mkdir -p "$out/${name}/log"
+            ln -s ${mkLogScript name svc} "$out/${name}/log/run"
+          ''}
+        ''
+      ) enabledServices
     )}
   '';
 
@@ -307,14 +429,19 @@ in
 
     environment.etc = {
       inittab.text = ''
+        ${lib.optionalString (bootTasks != [ ]) "::sysinit:${sysinitScript}"}
         ::respawn:${runsvdirWrapper}
         ::shutdown:${coreutils}/bin/sv down /run/service/*
       '';
     };
 
-    finit.tmpfiles.rules = lib.mapAttrsToList (
-      name: _: "d /run/service/${name}/supervise 0755 - -"
-    ) enabledServices;
+    finit.tmpfiles.rules = lib.concatLists (
+      lib.mapAttrsToList (
+        name: svc:
+        [ "d /run/service/${name}/supervise 0755 - -" ]
+        ++ lib.optional (svc.log != null) "d /run/service/${name}/log/supervise 0755 - -"
+      ) enabledServices
+    );
 
     # 1. Execute `finit.tmpfiles.rules` (`d`, `f`, `L+`, `R!`)
     system.activation.scripts.tmpfiles = {
@@ -377,7 +504,7 @@ in
       ) config.finit.tmpfiles.rules;
     };
 
-    # 2. Execute oneshot `finit.tasks.*` and `finit.run.*` before starting/restarting services
+    # 2. Execute oneshot `finit.tasks.*` and `finit.run.*` (except `runlevel = "S"`) before starting/restarting services
     system.activation.scripts.tasks = {
       deps = [
         "specialfs"
@@ -385,20 +512,7 @@ in
         "etc"
         "tmpfiles"
       ];
-      text = lib.concatMapStringsSep "\n" (
-        { name, value }:
-        let
-          task = value;
-          inherit (runAs task) chpst;
-        in
-        ''
-          (
-            set -eu
-            ${mkStanzaEnvAndDirs task}
-            ${chpst}${task.command}
-          ) || echo "ERROR: finit.tasks.${name} failed (exit $?); continuing activation" >&2
-        ''
-      ) enabledTasks;
+      text = lib.concatMapStringsSep "\n" mkTaskSnippet activationTasks;
     };
 
     # 3. Reconcile `/etc/service/<name>` -> `/run/service/<name>` and restart changed services
@@ -428,6 +542,28 @@ in
           prev=$(readlink "/run/service/$name/run" 2>/dev/null || true)
           next=$(readlink "$svc/run" 2>/dev/null || true)
           ln -sfn "$next" "/run/service/$name/run"
+          if [ -L "$svc/finish" ]; then
+            ln -sfn "$(readlink "$svc/finish")" "/run/service/$name/finish"
+          else
+            rm -f "/run/service/$name/finish"
+          fi
+          if [ -e "$svc/down" ]; then
+            : > "/run/service/$name/down"
+          else
+            rm -f "/run/service/$name/down"
+          fi
+          if [ -L "$svc/log/run" ]; then
+            mkdir -p "/run/service/$name/log"
+            prev_log=$(readlink "/run/service/$name/log/run" 2>/dev/null || true)
+            next_log=$(readlink "$svc/log/run" 2>/dev/null || true)
+            ln -sfn "$next_log" "/run/service/$name/log/run"
+            if [ -n "$prev_log" ] && [ "$prev_log" != "$next_log" ] && [ -e "/run/service/$name/log/supervise/ok" ]; then
+              ${coreutils}/bin/sv restart "/etc/service/$name/log" || true
+            fi
+          elif [ -d "/run/service/$name/log" ]; then
+            ${coreutils}/bin/sv down "/etc/service/$name/log" 2>/dev/null || true
+            rm -rf "/run/service/$name/log"
+          fi
           ln -sfn "/run/service/$name" "/etc/service/$name"
           if [ -n "$prev" ] && [ "$prev" != "$next" ] && [ -e "/run/service/$name/supervise/ok" ]; then
             ${coreutils}/bin/sv restart "/etc/service/$name" || true

@@ -159,17 +159,6 @@ in
             ${coreutils}/bin/mknod -m 0666 /dev/net/tun c 10 200 || true
           fi
         ''}
-        ${lib.optionalString cfg.capabilities.sys_admin ''
-          if [ -d /sys/fs/cgroup ] && [ ! -r /sys/fs/cgroup/memory.events ] && [ ! -r /sys/fs/cgroup/memory/memory.oom_control ]; then
-            ${coreutils}/bin/mount -t cgroup2 -o ro none /sys/fs/cgroup 2>/dev/null || true
-            if [ ! -r /sys/fs/cgroup/memory.events ]; then
-              ${coreutils}/bin/umount /sys/fs/cgroup 2>/dev/null || true
-              ${coreutils}/bin/mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /sys/fs/cgroup 2>/dev/null || true
-              ${coreutils}/bin/mkdir -p /sys/fs/cgroup/memory 2>/dev/null || true
-              ${coreutils}/bin/mount -t cgroup -o memory,ro cgroup /sys/fs/cgroup/memory 2>/dev/null || true
-            fi
-          fi
-        ''}
         touch /etc/NIXOS
 
         if [ ! -e /nix/var/nix/profiles/system ]; then
@@ -178,6 +167,29 @@ in
 
         ln -sfn "$systemConfig/init" /sbin/init
         ln -sfn "$systemConfig/init" /lib/systemd/systemd
+      '';
+    };
+
+    finit.run.mount-cgroup = {
+      enable = cfg.capabilities.sys_admin;
+      description = "mount cgroup memory controller for container-scoped metrics";
+      runlevel = "S";
+      script = ''
+        if [ -d /sys/fs/cgroup ] && ! mountpoint -q /sys/fs/cgroup; then
+          if mount -t cgroup2 -o ro none /sys/fs/cgroup 2>/dev/null; then
+            if [ ! -r /sys/fs/cgroup/memory.events ]; then
+              umount /sys/fs/cgroup 2>/dev/null || true
+            fi
+          fi
+          if ! mountpoint -q /sys/fs/cgroup; then
+            if mount -t tmpfs -o mode=0755,nosuid,nodev,noexec tmpfs /sys/fs/cgroup 2>/dev/null; then
+              if ! (mkdir -p /sys/fs/cgroup/memory 2>/dev/null \
+                && mount -t cgroup -o memory,ro cgroup /sys/fs/cgroup/memory 2>/dev/null); then
+                umount /sys/fs/cgroup 2>/dev/null || true
+              fi
+            fi
+          fi
+        fi
       '';
     };
 
