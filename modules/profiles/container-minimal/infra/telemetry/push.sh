@@ -20,6 +20,16 @@ emit_runit() {
   done
 }
 
+emit_cgroup_oom() {
+  local f v
+  for f in /sys/fs/cgroup/memory.events /sys/fs/cgroup/memory/memory.oom_control; do
+    if [ -r "$f" ] && v=$(awk '$1 == "oom_kill" { print $2; exit }' "$f") && [ -n "$v" ]; then
+      printf 'node_vmstat_oom_kill %s\n' "$v"
+      return 0
+    fi
+  done
+}
+
 push_once() {
   local token
   token=$(cat "$TELEMETRY_TOKEN_FILE")
@@ -28,7 +38,10 @@ push_once() {
       --cpu-on --filefd-on --filesystem-on --loadavg-on --meminfo-on \
       --netdev-on --netif-on --pressure-on --stat-on --uname-on --vmstat-on \
       --filesystem-include-device='/*,overlay' \
-      | sed "s/^\\(node_uname_info{.*nodename=\"\\)[^\"]*\"/\\1${TELEMETRY_HOST}\"/"
+      | sed \
+        -e "s/^\\(node_uname_info{.*nodename=\"\\)[^\"]*\"/\\1${TELEMETRY_HOST}\"/" \
+        -e '/^node_vmstat_oom_kill /d'
+    emit_cgroup_oom
     emit_runit
   ) | gzip -c | {
     exec 3<<EOF
