@@ -23,8 +23,14 @@ lib.mkMerge [
   (lib.mkIf cfg.enable {
     sops.secrets = lib.mkIf cfg.push {
       "${cfg.token.name}" = {
-        owner = lib.mkIf (config.users.users ? vmagent) (lib.mkDefault "vmagent");
-        restartUnits = [ "vmagent.service" ];
+        owner =
+          if config.users.users ? vmagent then
+            lib.mkDefault "vmagent"
+          else if config.users.users ? telemetry then
+            lib.mkDefault "telemetry"
+          else
+            lib.mkDefault "root";
+        restartUnits = lib.optionals (config.users.users ? vmagent) [ "vmagent.service" ];
       };
     };
 

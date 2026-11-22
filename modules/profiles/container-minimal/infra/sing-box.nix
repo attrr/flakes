@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  self,
   ...
 }:
 let
@@ -8,7 +9,7 @@ let
 in
 {
   imports = [
-    ../../../services/sing-box/common.nix
+    "${self}/modules/services/sing-box/common.nix"
   ];
 
   options.infra.sing-box.warp-svc.enable = lib.mkOption {

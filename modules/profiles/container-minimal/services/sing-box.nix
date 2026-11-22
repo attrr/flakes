@@ -57,8 +57,8 @@ in
       runtime-dir = "sing-box";
       runtime-dir-mode = "0700";
       environment = {
-        GOMEMLIMIT = "64MiB";
-        GOGC = 50;
+        GOMEMLIMIT = lib.mkDefault "64MiB";
+        GOGC = lib.mkDefault 50;
       };
       command = "${singBoxWrapper}";
       reload-triggers = [ singBoxWrapper ];

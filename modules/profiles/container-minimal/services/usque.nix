@@ -47,8 +47,8 @@ in
       state-dir-mode = "0700";
       workingDirectory = "/var/lib/usque";
       environment = {
-        GOMEMLIMIT = "48MiB";
-        GOGC = 50;
+        GOMEMLIMIT = lib.mkDefault "48MiB";
+        GOGC = lib.mkDefault 50;
       };
       exec-start-pre = pkgs.writeScript "usque-register" ''
         #!${coreutils}/bin/sh

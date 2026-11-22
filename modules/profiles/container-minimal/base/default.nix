@@ -25,6 +25,8 @@
     "${finix}/modules/providers/bootloader"
     "${finix}/modules/providers/firewall"
     "${finix}/modules/providers/privileges"
+    "${finix}/modules/providers/scheduler"
+    "${finix}/modules/services/cron"
     "${finix}/modules/services/nftables"
     "${finix}/modules/system/activation"
     "${finix}/modules/system/activation/specialisation.nix"

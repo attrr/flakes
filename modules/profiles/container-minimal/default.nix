@@ -37,15 +37,13 @@ in
   imports = [
     ./base
     ./deploy.nix
-    ./services/node-exporter.nix
     ./services/sing-box.nix
     ./services/usque.nix
-    ./services/vmagent.nix
     ./infra/server.nix
     ./infra/network.nix
     ./infra/tunnelbroker.nix
     ./infra/sing-box.nix
-    ./infra/telemetry.nix
+    ./infra/telemetry
   ];
 
   options = {
@@ -100,6 +98,13 @@ in
       '';
     };
     providers.firewall.backend = lib.mkDefault "nftables";
+    services.cron = {
+      enable = lib.mkDefault true;
+      settings = {
+        MAILTO = lib.mkDefault "";
+        RANDOM_DELAY = lib.mkDefault 1;
+      };
+    };
     environment.variables.PATH = [ "/run/wrappers/bin" ] ++ systemPath;
 
     # Place physical SUID wrappers under `/var/lib/wrappers/bin` (on `/`, avoiding `/run`'s `nosuid`
