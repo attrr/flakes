@@ -76,12 +76,13 @@ _PLAIN_PREFIXES: tuple[str, ...] = (
 class SimpleTTLCache:
     """In-memory TTL cache for subscription responses.
 
-    Each entry expires after *ttl* seconds and is evicted lazily on the
-    next :py:meth:`get` for the same key.
+    Each entry expires after *ttl* seconds and is evicted lazily on access
+    or when *maxsize* is reached.
     """
 
-    def __init__(self, ttl: int) -> None:
+    def __init__(self, ttl: int, maxsize: int = 256) -> None:
         self._ttl = ttl
+        self._maxsize = maxsize
         self._store: dict[str, tuple[float, str]] = {}
 
     def get(self, key: str) -> str | None:
@@ -97,7 +98,14 @@ class SimpleTTLCache:
 
     def set(self, key: str, content: str) -> None:
         """Store *content* under *key* with the current timestamp."""
-        self._store[key] = (time.time(), content)
+        now = time.time()
+        expired = [k for k, (ts, _) in self._store.items() if now - ts > self._ttl]
+        for k in expired:
+            del self._store[k]
+        if key not in self._store and len(self._store) >= self._maxsize:
+            oldest_key = min(self._store, key=lambda k: self._store[k][0])
+            del self._store[oldest_key]
+        self._store[key] = (now, content)
 
 
 cache = SimpleTTLCache(ttl=CACHE_TTL)
@@ -240,7 +248,7 @@ async def _fetch_with_retry(
     assert last_exception is not None
     error_detail = f"{type(last_exception).__name__}: {last_exception}"
     logger.error("All proxy retries exhausted. Last error: %s", error_detail)
-    raise HTTPException(status_code=500, detail=error_detail)
+    raise HTTPException(status_code=502, detail="Failed to fetch subscription from upstream")
 
 
 def process_ss_url(url: str) -> str:
@@ -697,7 +705,7 @@ async def cleaner(
         )
     except Exception as e:
         logger.error(f"An error occurred: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to process subscription")
 
 
 @app.get("/helper", response_class=PlainTextResponse)

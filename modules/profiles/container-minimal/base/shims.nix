@@ -71,15 +71,15 @@ in
     ];
     text = ''
       while read -r type path mode user group _; do
-        [ "$type" = "z" ] && [ -e "$path" ] || continue
+        [ "$type" = "z" ] && [ -e "$path" ] && [ ! -L "$path" ] || continue
         if [ -n "$mode" ] && [ "$mode" != "-" ]; then
           chmod "$mode" "$path"
         fi
         case "''${user:--}:''${group:--}" in
           -:-) ;;
-          -:*) chown ":$group" "$path" ;;
-          *:-) chown "$user" "$path" ;;
-          *) chown "$user:$group" "$path" ;;
+          -:*) chown -h ":$group" "$path" ;;
+          *:-) chown -h "$user" "$path" ;;
+          *) chown -h "$user:$group" "$path" ;;
         esac
       done < /etc/tmpfiles.d/finix.conf
     '';

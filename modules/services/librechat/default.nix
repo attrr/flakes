@@ -9,18 +9,29 @@ let
   containerRoot = "/var/lib/nixos-containers/librechat";
   fetchJwt = pkgs.writeShellScript "fetch-gcp-jwt" ''
     set -euo pipefail
-    BAO="${cfg.wif.openbaoUrl}"
-    ROLE_ID=$(cat ${cfg.wif.roleIdFile})
-    SECRET_ID=$(cat ${cfg.wif.secretIdFile})
+    umask 0077
+    BAO=${lib.escapeShellArg cfg.wif.openbaoUrl}
 
-    TOKEN=$(${pkgs.curl}/bin/curl -sf "$BAO/v1/auth/approle/login" \
-      -H "Content-Type: application/json" \
-      -d "{\"role_id\":\"$ROLE_ID\",\"secret_id\":\"$SECRET_ID\"}" \
-      | ${pkgs.jq}/bin/jq -r '.auth.client_token')
+    TOKEN=$(
+      ${pkgs.jq}/bin/jq -n \
+        --rawfile role_id ${lib.escapeShellArg cfg.wif.roleIdFile} \
+        --rawfile secret_id ${lib.escapeShellArg cfg.wif.secretIdFile} \
+        '{role_id: ($role_id | rtrimstr("\n")), secret_id: ($secret_id | rtrimstr("\n"))}' \
+      | ${pkgs.curl}/bin/curl -sf "$BAO/v1/auth/approle/login" \
+          -H "Content-Type: application/json" \
+          --data-binary @- \
+      | ${pkgs.jq}/bin/jq -er '.auth.client_token'
+    )
 
-    ${pkgs.curl}/bin/curl -sf "$BAO/v1/identity/oidc/token/vertex-oidc-role" \
-      -H "X-Vault-Token: $TOKEN" \
-      | ${pkgs.jq}/bin/jq -r '.data.token' > /run/librechat/bao_jwt
+    JWT=$(
+      ${pkgs.curl}/bin/curl -sf "$BAO/v1/identity/oidc/token/vertex-oidc-role" \
+        -H @<(printf 'X-Vault-Token: %s' "$TOKEN") \
+      | ${pkgs.jq}/bin/jq -er '.data.token'
+    )
+
+    printf '%s\n' "$JWT" > /run/librechat/bao_jwt.tmp
+    chmod 0640 /run/librechat/bao_jwt.tmp
+    mv -f /run/librechat/bao_jwt.tmp /run/librechat/bao_jwt
   '';
 in
 {

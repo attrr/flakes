@@ -121,8 +121,7 @@ in
 
         # may be a read-only store symlink
         { cat "$keys" 2>/dev/null; } > "$keys.new"
-        eval "set -- $(cat /proc/cmdline)"
-        for arg do
+        xargs -n1 < /proc/cmdline | while IFS= read -r arg; do
           case "$arg" in
             ssh_key=*) printf '\n%s\n' "''${arg#ssh_key=}" >> "$keys.new" ;;
           esac

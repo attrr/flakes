@@ -23,10 +23,12 @@
     containers = false;
     auto-resize = true;
   };
-  services.openssh.lockRootLogin = false;
-  users.users.root.hashedPassword = ctx.ssh.hashed-password;
-  services.tailscale.enable = true;
 
+  users.mutableUsers = false;
+  users.users.root.hashedPassword = ctx.ssh.hashed-password;
+  services.openssh.lockRootLogin = false;
+
+  services.tailscale.enable = true;
   infra.acme = {
     enable = true;
     api = registry.acme-dns.url;

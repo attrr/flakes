@@ -44,12 +44,50 @@ in
       after = [ "network.target" ];
 
       serviceConfig = {
-        ExecStart =
-          "${cfg.package}/bin/pooper-scooper --host ${cfg.host} --port ${toString cfg.port}"
-          + (lib.optionalString (cfg.doh_url != null) " --doh_url ${cfg.doh_url}");
+        ExecStart = lib.escapeShellArgs (
+          [
+            "${cfg.package}/bin/pooper-scooper"
+            "--host"
+            cfg.host
+            "--port"
+            (toString cfg.port)
+          ]
+          ++ lib.optionals (cfg.doh_url != null) [
+            "--doh_url"
+            cfg.doh_url
+          ]
+        );
         DynamicUser = true;
         Restart = "always";
         RestartSec = "5s";
+
+        CapabilityBoundingSet = "";
+        NoNewPrivileges = true;
+        PrivateTmp = true;
+        PrivateDevices = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+        ProtectClock = true;
+        ProtectHostname = true;
+        ProtectKernelLogs = true;
+        ProtectKernelModules = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        ProtectProc = "invisible";
+        LockPersonality = true;
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        RestrictAddressFamilies = [
+          "AF_UNIX"
+          "AF_INET"
+          "AF_INET6"
+        ];
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+        ];
       };
     };
   };
