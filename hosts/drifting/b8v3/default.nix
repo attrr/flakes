@@ -9,4 +9,6 @@
 
   infra.container.runtime = "lxc";
   infra.network.topology = "static";
+
+  services.usque.http2 = true;
 }
