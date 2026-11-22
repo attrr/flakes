@@ -155,7 +155,7 @@ in
               @relay_write {
                 remote_ip ${lib.concatStringsSep " " relayIps}
                 method POST
-                path /api/v1/write
+                path /api/v1/write /api/v1/import/prometheus
               }
               handle @relay_write {
                 request_body {

@@ -112,7 +112,7 @@ in
             # Reject direct-to-origin traffic before bcrypt basic_auth to prevent CPU DoS.
             import ${pkgs.cloudflare-ips}/share/cloudflare-ips/caddy/remote-ip.caddy
             method POST
-            path /api/v1/write
+            path /api/v1/write /api/v1/import/prometheus
           }
 
           handle @write {
@@ -121,8 +121,8 @@ in
                 max_size 10MB
               }
               import ${nodes}
-              # Strip client query params and force authoritative host/instance/group labels in VM.
-              rewrite * /api/v1/write?extra_label=host={telemetry_host}&extra_label=instance={telemetry_host}&extra_label=group={telemetry_group}
+              # Strip client query params and force authoritative host/instance/group/job labels in VM.
+              rewrite * {path}?extra_label=host={telemetry_host}&extra_label=instance={telemetry_host}&extra_label=group={telemetry_group}&extra_label=job=node
               reverse_proxy ${cfg.target} {
                 header_up -Authorization
               }

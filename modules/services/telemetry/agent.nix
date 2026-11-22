@@ -72,10 +72,7 @@ in
             assertion =
               cfg.mode != "push"
               || (
-                cfg.push.url != null
-                && cfg.push.url != ""
-                && cfg.push.tokenFile != null
-                && cfg.push.tokenFile != ""
+                cfg.push.url != null && cfg.push.url != "" && cfg.push.tokenFile != null && cfg.push.tokenFile != ""
               );
             message = "infra.telemetry (push) requires push.url and push.tokenFile";
           }
