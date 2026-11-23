@@ -87,6 +87,7 @@
           ]
           ++ lib.optional (
             host.metadata.provider != null
+            && builtins.pathExists ./modules/ctx/providers/${host.metadata.provider}.nix
           ) ./modules/ctx/providers/${host.metadata.provider}.nix
           ++ lib.optional (builtins.pathExists entry) entry;
           specialArgs = {
@@ -97,6 +98,7 @@
       mkContainerMinimal =
         hostname: entry:
         let
+          lib = nixpkgs.lib;
           host = hosts.${hostname};
           system = host.metadata.arch;
           pkgs = import nixpkgs {
@@ -104,7 +106,7 @@
             overlays = [ self.overlays.default ];
           };
         in
-        nixpkgs.lib.evalModules {
+        lib.evalModules {
           specialArgs = {
             inherit
               inputs
@@ -116,8 +118,17 @@
           modules = [
             ctx.nixosModules.${hostname}
             ./modules/profiles/container-minimal
+            ./modules/ctx/container-minimal.nix
+            ./modules/ctx/server.nix
+            ./modules/ctx/network.nix
+            ./modules/ctx/proxy.nix
+            ./modules/ctx/telemetry.nix
           ]
-          ++ nixpkgs.lib.optional (entry != null && builtins.pathExists entry) entry;
+          ++ lib.optional (
+            host.metadata.provider != null
+            && builtins.pathExists ./modules/ctx/providers/${host.metadata.provider}.nix
+          ) ./modules/ctx/providers/${host.metadata.provider}.nix
+          ++ lib.optional (entry != null && builtins.pathExists entry) entry;
         };
 
       isContainerMinimal = name: hosts.${name}.metadata.minimal;
@@ -334,6 +345,16 @@
                     nix run ".#nixosConfigurations.$h.config.system.build.deploy" -- "''${mini[$h]}" "$@"
                   fi
                 done
+              ''
+            );
+          };
+
+          # nix run .#drifting -- <subcommand>
+          drifting = {
+            type = "app";
+            program = toString (
+              pkgs.writeShellScript "drifting" ''
+                exec ${ctx.packages.${system}.default}/bin/vars drifting "$@"
               ''
             );
           };
