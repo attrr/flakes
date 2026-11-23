@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 let
@@ -58,7 +57,6 @@ in
           users.groups.sing-box.gid = cfg.gid;
           services.sing-box = {
             enable = true;
-            package = lib.mkDefault pkgs.sing-box-minimal;
             settings = cfg.settings;
           };
           services.journald.extraConfig = ''
@@ -71,7 +69,6 @@ in
 
     services.sing-box = lib.mkIf (!cfg.isolated) {
       enable = true;
-      package = lib.mkDefault pkgs.sing-box-minimal;
       settings = cfg.settings;
     };
 

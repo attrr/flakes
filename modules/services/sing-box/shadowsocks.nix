@@ -15,6 +15,12 @@ in
       description = "shadowsocks inbound tag";
     };
 
+    listen = lib.mkOption {
+      type = lib.types.str;
+      default = "0.0.0.0";
+      description = "address shadowsocks listens on";
+    };
+
     port = lib.mkOption {
       type = lib.types.port;
       default = 1089;
@@ -47,7 +53,7 @@ in
         tag = cfg.tag;
         method = "2022-blake3-aes-128-gcm";
         password._secret = cfg.passwordPath;
-        listen = "0.0.0.0";
+        listen = cfg.listen;
         listen_port = cfg.port;
         multiplex = {
           enabled = true;

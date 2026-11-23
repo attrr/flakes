@@ -11,6 +11,7 @@ let
       pyyaml
       pillow
       rich
+      click
       ipython
     ]
   );

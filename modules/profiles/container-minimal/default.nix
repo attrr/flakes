@@ -92,11 +92,19 @@ in
     services.nftables = {
       enable = lib.mkDefault cfg.capabilities.net_admin;
       trustedInterfaces = [ "lo" ];
-      tables.nixos-fw.content = lib.mkAfter ''
-        chain input-allow {
-          icmpv6 type { nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
-        }
-      '';
+      tables = {
+        scanner-blocklist = {
+          family = "inet";
+          content = ''
+            include "${pkgs.scanner-blocklist-nft}"
+          '';
+        };
+        nixos-fw.content = lib.mkAfter ''
+          chain input-allow {
+            icmpv6 type { nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+          }
+        '';
+      };
     };
     providers.firewall.backend = lib.mkDefault (
       if cfg.capabilities.net_admin then "nftables" else "none"

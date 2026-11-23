@@ -1,7 +1,6 @@
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 let
@@ -46,7 +45,6 @@ in
 
     services.usque = {
       enable = true;
-      package = lib.mkDefault pkgs.usque-strip;
       inherit (cfg) port ipv6 http2;
     };
   };

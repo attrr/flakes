@@ -10,6 +10,11 @@ in
       default = "hy2";
       description = "hysteria2 inbound tag";
     };
+    listen = lib.mkOption {
+      type = lib.types.str;
+      default = "::";
+      description = "address hysteria2 listens on";
+    };
     port = lib.mkOption {
       type = lib.types.port;
       default = 0;
@@ -80,8 +85,7 @@ in
       {
         type = "hysteria2";
         tag = cfg.tag;
-        # ipv6 only
-        listen = "::";
+        listen = cfg.listen;
         listen_port = cfg.port;
         up_mbps = cfg.upMbps;
         down_mbps = cfg.downMbps;

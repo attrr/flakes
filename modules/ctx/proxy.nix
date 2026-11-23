@@ -38,12 +38,14 @@ in
 
     shadowsocks = {
       enable = lib.mkDefault shadowsocks.enable;
+      listen = lib.mkIf shadowsocks.enable shadowsocks.listen-address;
       port = lib.mkIf shadowsocks.enable shadowsocks.port;
       passwordPath = lib.mkIf shadowsocks.enable shadowsocks.password.path;
     };
 
     hysteria2 = lib.mkIf hysteria2.enable {
       enable = true;
+      listen = hysteria2.listen-address;
       port = hysteria2.port;
       upMbps = hysteria2.up-mbps;
       downMbps = hysteria2.down-mbps;
@@ -55,6 +57,7 @@ in
 
     vless = lib.mkIf vless.enable {
       enable = true;
+      listen = vless.listen-address;
       port = vless.port;
       uuidPath = vless.uuid.path;
       privateKey = vless.private-key.path;
