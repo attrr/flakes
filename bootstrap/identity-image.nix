@@ -20,10 +20,10 @@ let
   local = n: "$keys/${baseNameOf n}";
   public = lib.hasSuffix ".pub";
 
-  # sets up $keys (tmpfs) and $work (under $PWD, images are too big for tmpfs)
+  # sets up $keys (tmpfs) and $work (under $work_base or $PWD, images can be too big for tmpfs)
   decrypt = vars: ''
     keys=$(mktemp -d -p "''${XDG_RUNTIME_DIR:-/tmp}")
-    work=$(mktemp -d -p "$PWD")
+    work=$(mktemp -d -p "''${work_base:-$PWD}")
     trap 'rm -rf "$keys" "$work"' EXIT
 
     umask 077
@@ -62,7 +62,17 @@ let
         gnused
       ];
       text = ''
-        out=$PWD/${name}.tar.gz
+        to_stdout=0
+        if [ "''${1:-}" = --stdout ]; then
+          to_stdout=1
+          shift
+        fi
+        if [ "$to_stdout" = 1 ]; then
+          work_base=''${XDG_RUNTIME_DIR:-/tmp}
+        else
+          work_base=$PWD
+          out=$PWD/${name}.tar.gz
+        fi
         ${decrypt vars}
 
         umask 022
@@ -92,8 +102,12 @@ let
 
         sed 's|^/||' ${closure}/store-paths > "$work/paths"
         umask 077
-        tar --owner=0 --group=0 --numeric-owner -cf - -C "$root" . -C / -T "$work/paths" | gzip -c > "$out"
-        echo "$out"
+        if [ "$to_stdout" = 1 ]; then
+          tar --owner=0 --group=0 --numeric-owner -cf - -C "$root" . -C / -T "$work/paths" | gzip -c
+        else
+          tar --owner=0 --group=0 --numeric-owner -cf - -C "$root" . -C / -T "$work/paths" | gzip -c > "$out"
+          echo "$out"
+        fi
       '';
     };
 in
