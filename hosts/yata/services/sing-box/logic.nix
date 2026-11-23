@@ -10,6 +10,7 @@ let
   wg = ctx.services.wireguard;
   cfg = config.yata.sing-box;
   tags = cfg.tags;
+  drifting = tags.drifting or [ ];
 in
 {
   yata.sing-box.settings = {
@@ -21,6 +22,7 @@ in
           "out"
           "out-all"
           "hy2-out"
+          "drifting"
           "upstream"
         ];
         default = "out";
@@ -36,7 +38,7 @@ in
       {
         tag = "out-all";
         type = "selector";
-        outbounds = tags.shadowsocks ++ tags.hysteria2 ++ tags.vless;
+        outbounds = lib.subtractLists drifting (tags.shadowsocks ++ tags.hysteria2 ++ tags.vless);
         interrupt_exist_connections = true;
       }
       {
@@ -70,7 +72,13 @@ in
       {
         tag = "hy2-out";
         type = "selector";
-        outbounds = tags.hysteria2;
+        outbounds = lib.subtractLists drifting tags.hysteria2;
+        interrupt_exist_connections = true;
+      }
+      {
+        tag = "drifting";
+        type = "selector";
+        outbounds = drifting;
         interrupt_exist_connections = true;
       }
     ];

@@ -19,6 +19,7 @@ let
       server = address;
       server_port = outbound.port;
       password._secret = outbound.password.path;
+      _tags = outbound.tags;
     };
   hysteriaAdapter =
     {
@@ -41,6 +42,7 @@ let
       tls.server_name = outbound.tls.sni;
       tls.ech.config_path = outbound.tls.ech-config;
       tls.certificate_path = sb.ca;
+      _tags = outbound.tags;
     };
   vlessAdapter =
     {
@@ -56,6 +58,7 @@ let
       tls.server_name = outbound.server-name;
       tls.reality.public_key = outbound.public-key;
       tls.reality.short_id._secret = outbound.short-id.path;
+      _tags = outbound.tags;
     };
 
   wireguardPeerAdapter = peer: {
@@ -69,7 +72,7 @@ let
     lib.imap0 (
       i: addr:
       let
-        tagPrefix = "${namespace}-${outbound.tag}-${class}";
+        tagPrefix = "${namespace}-${outbound.name}-${class}";
         tag = if i == 0 then tagPrefix else "${tagPrefix}-${i}";
       in
       {
@@ -85,8 +88,8 @@ let
       ipv4 = results.right;
       ipv6 = results.wrong;
     in
-    (mapClassedAddrOutbound namespace outbound "ipv4" ipv4)
-    ++ (mapClassedAddrOutbound namespace outbound "ipv6" ipv6);
+    (mapClassedAddrOutbound namespace outbound "v4" ipv4)
+    ++ (mapClassedAddrOutbound namespace outbound "v6" ipv6);
 
   shadowsocks = helpers.sing.mkShadowsocks (
     map shadowsocksAdapter (lib.concatMap (mapMultiAddrOutbound "out") sb.outbounds.shadowsocks)
@@ -96,6 +99,10 @@ let
   );
   vless = helpers.sing.mkVless (
     map vlessAdapter (lib.concatMap (mapMultiAddrOutbound "vless") sb.outbounds.vless)
+  );
+  allOutbounds = shadowsocks ++ hysteria2 ++ vless;
+  byTag = lib.zipAttrsWith (_: lib.concatLists) (
+    map (o: lib.genAttrs o._tags (_: [ o.tag ])) allOutbounds
   );
 
 in
@@ -113,10 +120,10 @@ in
         peers = (map wireguardPeerAdapter wg.peers);
       }
     ];
-    outbounds = lib.mkOrder 300 (shadowsocks ++ hysteria2 ++ vless);
+    outbounds = lib.mkOrder 300 (map (lib.filterAttrs (n: _: !lib.hasPrefix "_" n)) allOutbounds);
   };
 
-  yata.sing-box.tags = {
+  yata.sing-box.tags = byTag // {
     shadowsocks = map (o: o.tag) shadowsocks;
     hysteria2 = map (o: o.tag) hysteria2;
     vless = map (o: o.tag) vless;
