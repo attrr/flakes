@@ -20,6 +20,8 @@ in
     };
 
     ipv6 = lib.mkEnableOption "use IPv6 for MASQUE connection";
+
+    http2 = lib.mkEnableOption "use HTTP/2 over TCP+TLS instead of HTTP/3 over QUIC";
   };
 
   config = lib.mkIf (config.infra.sing-box.enable && cfg.enable) {
@@ -45,7 +47,7 @@ in
     services.usque = {
       enable = true;
       package = lib.mkDefault pkgs.usque-strip;
-      inherit (cfg) port ipv6;
+      inherit (cfg) port ipv6 http2;
     };
   };
 }

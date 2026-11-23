@@ -33,6 +33,7 @@ in
     usque = {
       enable = lib.mkDefault true;
       ipv6 = lib.mkDefault (builtins.elem "ipv6-only" ctx.metadata.tags);
+      http2 = lib.mkDefault ctx.services.usque.http2;
     };
 
     shadowsocks = {
