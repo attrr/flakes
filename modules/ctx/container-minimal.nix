@@ -6,18 +6,27 @@
   ...
 }:
 let
-  engine = ctx.metadata.engine;
+  engine = ctx.metadata.engine.type;
+  caps = ctx.metadata.engine.capabilities;
   memMb = ctx.metadata.specs.memory;
   lowMem = memMb != null && memMb <= 96;
   hasStatic = ctx.network.ipv4.addresses != [ ] || ctx.network.ipv6.addresses != [ ];
 in
 {
-  infra.container.runtime = lib.mkIf (builtins.elem engine [
-    "lxc"
-    "incus"
-    "podman"
-    "docker"
-  ]) (lib.mkDefault engine);
+  infra.container = {
+    runtime = lib.mkIf (builtins.elem engine [
+      "lxc"
+      "incus"
+      "podman"
+      "docker"
+    ]) (lib.mkDefault engine);
+
+    capabilities = lib.mapAttrs (_: v: lib.mkDefault v) (
+      lib.filterAttrs (_: v: v != null) {
+        inherit (caps) sys_admin net_admin mknod;
+      }
+    );
+  };
 
   infra.network.topology = lib.mkIf hasStatic (lib.mkDefault "static");
 
