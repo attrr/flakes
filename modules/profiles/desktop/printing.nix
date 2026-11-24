@@ -31,7 +31,7 @@ in
     })
 
     (lib.mkIf pcfg.hp {
-      allowUnfree = {
+      nixpkgs.allowUnfree = {
         enable = true;
         packages = [ pkgs.hplipWithPlugin ];
       };
@@ -43,7 +43,7 @@ in
     })
 
     (lib.mkIf pcfg.epson {
-      allowUnfree = {
+      nixpkgs.allowUnfree = {
         enable = true;
         packages = [ pkgs.epkowa ] ++ lib.attrValues pkgs.epkowa.plugins;
         names = [ "iscan-data" ];

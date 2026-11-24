@@ -6,8 +6,7 @@
 }:
 {
   imports = [
-    "${self}/modules/profiles/desktop"
-    "${self}/modules/ctx/desktop.nix"
+    self.modules.nixos.desktop
     "${self}/modules/hardware/kled.nix"
     ./hardware.nix
   ];

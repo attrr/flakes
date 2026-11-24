@@ -8,13 +8,21 @@
 }:
 {
   # set by the flake: foo is NixOS, foo+generic anything else
-  options.os.isNixOS = lib.mkOption {
-    type = lib.types.bool;
-    description = "Whether the home is switched on NixOS.";
+  options = {
+    os.isNixOS = lib.mkOption {
+      type = lib.types.bool;
+      description = "Whether the home is switched on NixOS.";
+    };
+
+    secrets.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = config.os.isNixOS;
+      description = "Whether to decrypt user-scoped sops secrets on this machine.";
+    };
   };
 
   imports = [
-    "${self}/modules/services/unfree.nix"
+    "${self}/modules/services/unfree"
     ./agents
     ./apps.nix
     ./cli.nix
@@ -38,7 +46,11 @@
     programs.home-manager.enable = true;
     xdg.enable = true;
 
-    allowUnfree.enable = true;
+    nixpkgs.allowUnfree.enable = true;
+
+    sops.age.keyFile = lib.mkIf config.secrets.enable (
+      lib.mkDefault "${config.xdg.configHome}/sops/age/home.txt"
+    );
 
     _module.args.pkgsUnstable = import inputs.nixpkgs-unstable {
       inherit (pkgs.stdenv.hostPlatform) system;

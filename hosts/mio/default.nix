@@ -17,8 +17,7 @@ in
 {
   imports = [
     inputs.lanzaboote.nixosModules.lanzaboote
-    "${self}/modules/profiles/desktop"
-    "${self}/modules/ctx/desktop.nix"
+    self.modules.nixos.desktop
     ./hardware.nix
     ./disko.nix
     ./network.nix

@@ -52,7 +52,7 @@
       black
     ]);
 
-  allowUnfree.packages =
+  nixpkgs.allowUnfree.packages =
     (with pkgsUnstable; [
       android-studio
       vscode

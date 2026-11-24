@@ -4,11 +4,11 @@
   ...
 }:
 let
-  cfg = config.allowUnfree;
+  cfg = config.nixpkgs.allowUnfree;
 in
 {
-  options.allowUnfree = {
-    enable = lib.mkEnableOption "enable";
+  options.nixpkgs.allowUnfree = {
+    enable = lib.mkEnableOption "allowlist-based unfree package predicate";
     packages = lib.mkOption {
       default = [ ];
       type = lib.types.listOf lib.types.package;

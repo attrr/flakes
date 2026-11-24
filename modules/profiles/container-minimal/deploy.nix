@@ -62,7 +62,7 @@ let
   remoteEntrypoint = ''
     set -eu
     [ -e /etc/NIXOS ] || [ -e /nix/var/nix/profiles/system ] || {
-      echo "ERROR: target is not bootstrapped (not NixOS/Finix); use .#bootstrap.images.<name> instead of deploy" >&2
+      echo "ERROR: target is not bootstrapped (not NixOS/finix); use .#bootstrap.images.<name> instead of deploy" >&2
       exit 1
     }
     export PATH=/run/current-system/sw/bin:/bin:/sbin

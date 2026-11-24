@@ -91,6 +91,14 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    infra.secrets = [
+      {
+        path = cfg.tls.keyPath;
+        owner = "caddy";
+        reloadUnits = [ "caddy.service" ];
+      }
+    ];
+
     assertions = [
       {
         assertion = cfg.nodes != { };

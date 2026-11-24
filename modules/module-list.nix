@@ -2,22 +2,22 @@
 [
   ./disko
   ./network
-  ./services/acme.nix
-  ./services/alerts.nix
-  ./services/containers.nix
+  ./services/acme
+  ./services/alerts
+  ./services/containers
   ./services/knot
-  ./services/restic.nix
-  ./services/ssh.nix
+  ./services/restic
+  ./services/ssh
   ./services/telemetry
   ./services/tunnelbroker
-  ./services/unfree.nix
+  ./services/unfree
   ./services/librechat
   ./services/librechat-rag-api
-  ./services/mediawiki.nix
-  ./services/openbao.nix
+  ./services/mediawiki
+  ./services/openbao
   ./services/sing-box
   ./services/pooper-scooper
   ./services/quadlet
   ./services/tgu
-  ./services/usque.nix
+  ./services/usque
 ]

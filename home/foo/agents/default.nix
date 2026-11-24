@@ -51,7 +51,7 @@
     antigravity-acp
   ];
 
-  allowUnfree.packages = with pkgsUnstable; [
+  nixpkgs.allowUnfree.packages = with pkgsUnstable; [
     claude-code
     antigravity-cli
     antigravity-hub

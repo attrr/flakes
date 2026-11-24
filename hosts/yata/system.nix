@@ -7,8 +7,7 @@
 }:
 {
   imports = [
-    "${self}/modules/profiles/server"
-    "${self}/modules/ctx/server.nix"
+    self.modules.nixos.server
     ./services/sing-box
     ./services/loadbalance
     ./services/caddy.nix

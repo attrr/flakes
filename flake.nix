@@ -55,6 +55,16 @@
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
 
       hosts = ctx.cluster.hosts;
+      aspectLib = import ./lib/aspects.nix { inherit (nixpkgs) lib; };
+      modExports = import ./modules { inherit (nixpkgs) lib; };
+      providerModules =
+        class: host:
+        aspectLib.resolve class (
+          nixpkgs.lib.optional (
+            host.metadata.provider != null
+            && builtins.pathExists ./modules/providers/${host.metadata.provider}.nix
+          ) ./modules/providers/${host.metadata.provider}.nix
+        );
 
       # <host> from hosts/<host>/default.nix, <host>+<variant> from
       # hosts/<host>/default-<variant>.nix (same ctx entry, so same identity)
@@ -66,13 +76,11 @@
         in
         lib.nixosSystem {
           modules = [
-            self.nixosModules.default
+            self.modules.nixos.host
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
             ctx.nixosModules.${hostname}
             ./lib/default.nix
-            ./modules/ctx/host.nix
-            ./modules/ctx/proxy.nix
             { nixpkgs.overlays = [ self.overlays.default ]; }
             # as in home/foo
             (
@@ -85,10 +93,7 @@
               }
             )
           ]
-          ++ lib.optional (
-            host.metadata.provider != null
-            && builtins.pathExists ./modules/ctx/providers/${host.metadata.provider}.nix
-          ) ./modules/ctx/providers/${host.metadata.provider}.nix
+          ++ providerModules "nixos" host
           ++ lib.optional (builtins.pathExists entry) entry;
           specialArgs = {
             inherit inputs self;
@@ -117,17 +122,9 @@
           };
           modules = [
             ctx.nixosModules.${hostname}
-            ./modules/profiles/container-minimal
-            ./modules/ctx/container-minimal.nix
-            ./modules/ctx/server.nix
-            ./modules/ctx/network.nix
-            ./modules/ctx/proxy.nix
-            ./modules/ctx/telemetry.nix
+            self.modules.finix.container-minimal
           ]
-          ++ lib.optional (
-            host.metadata.provider != null
-            && builtins.pathExists ./modules/ctx/providers/${host.metadata.provider}.nix
-          ) ./modules/ctx/providers/${host.metadata.provider}.nix
+          ++ providerModules "finix" host
           ++ lib.optional (entry != null && builtins.pathExists entry) entry;
         };
 
@@ -185,9 +182,13 @@
               pkgs = value.pkgs or nixpkgs.legacyPackages.x86_64-linux;
               extraSpecialArgs = {
                 inherit inputs self;
+                ctx = {
+                  inherit (ctx.cluster) global registry hosts;
+                };
               }
               // (value.extraSpecialArgs or { });
               modules = [
+                sops-nix.homeManagerModules.sops
                 (./home + "/${user}/default.nix")
                 (
                   { ... }:
@@ -258,125 +259,15 @@
           directory = ./pkgs;
         };
 
-      # nix run .#deploy -- [--checks] <selector>... [-- <deploy-rs args>]: a
-      # selector is a host, a ctx group, tag or provider, or "all". Skips the
-      # flake checks (every host's evaluation) unless --checks
       apps = forAllSystems (
-        system:
-        let
-          lib = nixpkgs.lib;
-          pkgs = nixpkgs.legacyPackages.${system};
-          selectors = lib.zipAttrsWith (_: lib.concatLists) (
-            [ { all = lib.attrNames hosts; } ]
-            ++ lib.mapAttrsToList (
-              name: h:
-              {
-                ${name} = [ name ];
-              }
-              // lib.genAttrs (
-                h.metadata.tags
-                ++ lib.filter (x: x != null) [
-                  h.metadata.group
-                  h.metadata.provider
-                  (lib.last (lib.splitString "-" name))
-                ]
-              ) (_: [ name ])
-            ) hosts
-          );
-        in
-        {
-          deploy = {
-            type = "app";
-            program = toString (
-              pkgs.writeShellScript "deploy-selected" ''
-                set -euo pipefail
-                declare -A sel=(${
-                  lib.concatStrings (
-                    lib.mapAttrsToList (
-                      n: hs: "[${lib.escapeShellArg n}]=${lib.escapeShellArg (toString (lib.unique hs))} "
-                    ) selectors
-                  )
-                })
-                declare -A mini=(${
-                  lib.concatStrings (
-                    lib.mapAttrsToList (
-                      n: h: "[${lib.escapeShellArg n}]=${lib.escapeShellArg "${h.deploy.user}@${h.deploy.hostname}"} "
-                    ) (lib.filterAttrs (n: _: isContainerMinimal n) hosts)
-                  )
-                })
-                targets=()
-                checks=(--skip-checks)
-                while [ $# -gt 0 ] && [ "$1" != -- ]; do
-                  if [ "$1" = --checks ]; then
-                    checks=()
-                    shift
-                    continue
-                  fi
-                  if [ -z "''${sel[$1]+x}" ]; then
-                    echo "unknown selector '$1', one of: ''${!sel[*]}" >&2
-                    exit 1
-                  fi
-                  for h in ''${sel[$1]}; do targets+=("$h"); done
-                  shift
-                done
-                [ "''${1:-}" = -- ] && shift
-                [ ''${#targets[@]} -gt 0 ] || { echo "usage: nix run .#deploy -- [--checks] <selector>... [-- <deploy-rs args>]" >&2; exit 1; }
-                mapfile -t targets < <(printf '%s\n' "''${targets[@]}" | sort -u)
-                rs_targets=()
-                mini_targets=()
-                for h in "''${targets[@]}"; do
-                  if [ -n "''${mini[$h]+x}" ]; then
-                    mini_targets+=("$h")
-                  else
-                    rs_targets+=(".#$h")
-                  fi
-                done
-                if [ ''${#rs_targets[@]} -gt 0 ]; then
-                  echo "deploying: ''${rs_targets[*]#.#}" >&2
-                  ${
-                    deploy-rs.packages.${system}.default
-                  }/bin/deploy "''${checks[@]}" --targets "''${rs_targets[@]}" "$@"
-                fi
-                for h in "''${mini_targets[@]}"; do
-                  echo "deploying (minimal): $h" >&2
-                  if [ $# -gt 0 ] && [ "''${1#-}" = "$1" ]; then
-                    nix run ".#nixosConfigurations.$h.config.system.build.deploy" -- "$@"
-                  else
-                    nix run ".#nixosConfigurations.$h.config.system.build.deploy" -- "''${mini[$h]}" "$@"
-                  fi
-                done
-              ''
-            );
-          };
-
-          # nix run .#drifting -- <subcommand>
-          drifting = {
-            type = "app";
-            program = toString (
-              pkgs.writeShellScript "drifting" ''
-                exec ${ctx.packages.${system}.default}/bin/vars drifting "$@"
-              ''
-            );
-          };
-
-          # nix run .#gcroots: keep every host's build graph from gc
-          gcroots = {
-            type = "app";
-            program = toString (
-              pkgs.writeShellScript "gcroots" ''
-                set -e
-                roots=''${XDG_STATE_HOME:-$HOME/.local/state}/flakes-gcroots
-                rm -rf "$roots"
-                mkdir -p "$roots"
-                for name in $(nix eval --raw .#nixosConfigurations --apply 'cs: toString (builtins.attrNames cs)'); do
-                  nix-instantiate --add-root "$roots/$name" --expr \
-                    "(builtins.getFlake \"$PWD\").nixosConfigurations.\"$name\".config.system.build.toplevel" \
-                    >/dev/null
-                  echo "rooted $name"
-                done
-              ''
-            );
-          };
+        import ./lib/apps.nix {
+          inherit
+            nixpkgs
+            ctx
+            deploy-rs
+            hosts
+            isContainerMinimal
+            ;
         }
       );
 
@@ -401,7 +292,7 @@
         }
       );
 
-      nixosModules = import ./modules;
+      inherit (modExports) nixosModules modules;
 
       checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
     };

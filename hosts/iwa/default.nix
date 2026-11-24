@@ -6,10 +6,10 @@
 }:
 {
   imports = [
-    "${self}/modules/profiles/server"
-    "${self}/modules/ctx/server.nix"
+    self.modules.nixos.server
     ./hardware.nix
   ];
+
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 

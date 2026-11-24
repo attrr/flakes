@@ -1,122 +1,165 @@
 {
-  config,
-  lib,
-  pkgs,
-  utils,
-  ...
-}:
+  module.nixos =
+    {
+      config,
+      lib,
+      pkgs,
+      utils,
+      ...
+    }:
 
-let
-  cfg = config.services.tgu;
-  settingsFormat = pkgs.formats.json { };
-in
-{
-  options.services.tgu = {
-    enable = lib.mkEnableOption "tgu daemon";
+    let
+      cfg = config.services.tgu;
+      settingsFormat = pkgs.formats.json { };
+    in
+    {
+      options.services.tgu = {
+        enable = lib.mkEnableOption "tgu daemon";
 
-    package = lib.mkOption {
-      type = lib.types.package;
-      default = pkgs.tgu;
-      description = "The tgu package to use.";
-    };
-
-    # Point at a sops-nix (or any) secret file exporting:
-    #   TGU_API_ID, TGU_API_HASH, TGU_BOT_TOKEN
-    #   TGU_GELBOORU_API_KEY, TGU_GELBOORU_USER_ID  (optional)
-    environmentFile = lib.mkOption {
-      type = lib.types.path;
-      description = "Path to a file containing secret environment variables.";
-    };
-
-    settings = lib.mkOption {
-      type = settingsFormat.type;
-      default = { };
-      description = ''
-        Contents of config.json, passed verbatim.
-        Secret fields (api-id, api-hash, token) should be set to the
-        corresponding env-var reference, e.g. "''$TGU_API_ID", which
-        the daemon resolves at runtime from environmentFile.
-      '';
-      example = lib.literalExpression ''
-        {
-          "api-id"   = "$TGU_API_ID";
-          "api-hash" = "$TGU_API_HASH";
-          "token"    = "$TGU_BOT_TOKEN";
-          "user-ids" = [ 123456789 ];
-          daemon = {
-            channels      = [ "@my_channel" ];
-            sync-interval = 3600;
-          };
-        }
-      '';
-    };
-
-    gallery-dl = {
-      configFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        description = ''
-          Path to a custom gallery-dl config file.
-          If set, it will be copied to /var/lib/tgu/.config/gallery-dl/config.json.
-        '';
-      };
-
-      settings = lib.mkOption {
-        type = lib.types.submodule {
-          freeformType = settingsFormat.type;
+        package = lib.mkOption {
+          type = lib.types.package;
+          default = pkgs.tgu;
+          description = "The tgu package to use.";
         };
-        default = { };
-        description = ''
-          Declarative configuration for gallery-dl.
-          If set, the module will generate and place the configuration at
-          /var/lib/tgu/.config/gallery-dl/config.json.
-        '';
+
+        # Point at a sops-nix (or any) secret file exporting:
+        #   TGU_API_ID, TGU_API_HASH, TGU_BOT_TOKEN
+        #   TGU_GELBOORU_API_KEY, TGU_GELBOORU_USER_ID  (optional)
+        environmentFile = lib.mkOption {
+          type = lib.types.path;
+          description = "Path to a file containing secret environment variables.";
+        };
+
+        settings = lib.mkOption {
+          type = settingsFormat.type;
+          default = { };
+          description = ''
+            Contents of config.json, passed verbatim.
+            Secret fields (api-id, api-hash, token) should be set to the
+            corresponding env-var reference, e.g. "''$TGU_API_ID", which
+            the daemon resolves at runtime from environmentFile.
+          '';
+          example = lib.literalExpression ''
+            {
+              "api-id"   = "$TGU_API_ID";
+              "api-hash" = "$TGU_API_HASH";
+              "token"    = "$TGU_BOT_TOKEN";
+              "user-ids" = [ 123456789 ];
+              daemon = {
+                channels      = [ "@my_channel" ];
+                sync-interval = 3600;
+              };
+            }
+          '';
+        };
+
+        gallery-dl = {
+          configFile = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+            description = ''
+              Path to a custom gallery-dl config file.
+              If set, it will be copied to /var/lib/tgu/.config/gallery-dl/config.json.
+            '';
+          };
+
+          settings = lib.mkOption {
+            type = lib.types.submodule {
+              freeformType = settingsFormat.type;
+            };
+            default = { };
+            description = ''
+              Declarative configuration for gallery-dl.
+              If set, the module will generate and place the configuration at
+              /var/lib/tgu/.config/gallery-dl/config.json.
+            '';
+          };
+        };
       };
-    };
-  };
 
-  config = lib.mkIf cfg.enable {
-    users.users.tgu = {
-      isSystemUser = true;
-      home = "/var/lib/tgu";
-      group = "tgu";
-    };
-    users.groups.tgu = { };
-
-    systemd.services.tgu = {
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
-
-      preStart = ''
-        mkdir -p /var/lib/tgu/.config/gallery-dl
-        ${lib.optionalString (cfg."gallery-dl".configFile != null) ''
-          cp -f ${cfg."gallery-dl".configFile} /var/lib/tgu/.config/gallery-dl/config.json
-          chmod 600 /var/lib/tgu/.config/gallery-dl/config.json
-        ''}
-        ${lib.optionalString (cfg."gallery-dl".settings != { }) ''
-          ${utils.genJqSecretsReplacementSnippet cfg."gallery-dl".settings
-            "/var/lib/tgu/.config/gallery-dl/config.json"
+      config = lib.mkIf cfg.enable {
+        infra.secrets = [
+          {
+            path = cfg.environmentFile;
+            owner = "tgu";
           }
-          chmod 600 /var/lib/tgu/.config/gallery-dl/config.json
-        ''}
-      '';
+          {
+            path = cfg."gallery-dl".configFile;
+            owner = "tgu";
+          }
+        ];
 
-      serviceConfig = {
-        ExecStart = "${cfg.package}/bin/tgu --config ${settingsFormat.generate "tgu-config.json" cfg.settings} daemon";
-        EnvironmentFile = cfg.environmentFile;
+        users.users.tgu = {
+          isSystemUser = true;
+          home = "/var/lib/tgu";
+          group = "tgu";
+        };
+        users.groups.tgu = { };
 
-        User = "tgu";
-        Group = "tgu";
-        StateDirectory = "tgu";
-        StateDirectoryMode = "0700";
+        systemd.services.tgu = {
+          wantedBy = [ "multi-user.target" ];
+          after = [ "network-online.target" ];
+          wants = [ "network-online.target" ];
 
-        Restart = "on-failure";
-        RestartSec = "10s";
+          preStart = ''
+            mkdir -p /var/lib/tgu/.config/gallery-dl
+            ${lib.optionalString (cfg."gallery-dl".configFile != null) ''
+              cp -f ${cfg."gallery-dl".configFile} /var/lib/tgu/.config/gallery-dl/config.json
+              chmod 600 /var/lib/tgu/.config/gallery-dl/config.json
+            ''}
+            ${lib.optionalString (cfg."gallery-dl".settings != { }) ''
+              ${utils.genJqSecretsReplacementSnippet cfg."gallery-dl".settings
+                "/var/lib/tgu/.config/gallery-dl/config.json"
+              }
+              chmod 600 /var/lib/tgu/.config/gallery-dl/config.json
+            ''}
+          '';
 
-        NoNewPrivileges = true;
-        PrivateTmp = true;
+          serviceConfig = {
+            ExecStart = "${cfg.package}/bin/tgu --config ${settingsFormat.generate "tgu-config.json" cfg.settings} daemon";
+            EnvironmentFile = cfg.environmentFile;
+
+            User = "tgu";
+            Group = "tgu";
+            StateDirectory = "tgu";
+            StateDirectoryMode = "0700";
+
+            Restart = "on-failure";
+            RestartSec = "10s";
+
+            NoNewPrivileges = true;
+            PrivateTmp = true;
+          };
+        };
       };
     };
-  };
+
+  ctx.nixos =
+    { ctx, lib, ... }:
+    let
+      tgu = ctx.services.tgu or { enable = false; };
+    in
+    lib.mkIf tgu.enable {
+      services.tgu = {
+        enable = true;
+        environmentFile = lib.mkDefault tgu.env.path;
+        gallery-dl.configFile = lib.mkDefault tgu.gallery-dl-config.path;
+        settings = {
+          api-id = lib.mkDefault "$TG_API_ID";
+          api-hash = lib.mkDefault "$TG_API_HASH";
+          token = lib.mkDefault "$TG_BOT_TOKEN";
+          gelbooru-api-key = lib.mkDefault "$GELBOORU_API_KEY";
+          gelbooru-user-id = lib.mkDefault "$GELBOORU_USER_ID";
+
+          user-ids = lib.mkDefault tgu.whitelist-users;
+          channel-ids = lib.mkDefault tgu.whitelist-channels;
+          allow-pedestrian = lib.mkDefault false;
+
+          daemon = {
+            channels = lib.mkDefault tgu.monitor-channels;
+            channel-archives = lib.mkDefault tgu.archive-mapping;
+          };
+        };
+      };
+    };
 }

@@ -60,6 +60,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    infra.secrets = map (path: {
+      inherit path;
+      owner = "sing-box";
+    }) cfg.secrets;
+
     assertions = [
       {
         assertion = cfg.shadowsocks.enable || cfg.hysteria2.enable || cfg.vless.enable;

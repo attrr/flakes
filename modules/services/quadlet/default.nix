@@ -13,10 +13,12 @@ let
   mkQuadlet =
     n: v:
     mkSystemd (
-      # FIXME: improve merge logic
-      lib.recursiveUpdate {
-        Unit.PartOf = [ "quadlet-trigger-${n}.service" ];
-      } v
+      v
+      // {
+        Unit = (v.Unit or { }) // {
+          PartOf = (v.Unit.PartOf or [ ]) ++ [ "quadlet-trigger-${n}.service" ];
+        };
+      }
     );
 
   mkQuadletKind =

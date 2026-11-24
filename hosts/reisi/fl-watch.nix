@@ -7,7 +7,12 @@ let
   envSecret = ctx.vars.fl-watch-env.env;
 in
 {
-  sops.secrets.${envSecret.name}.owner = "fl-watch";
+  infra.secrets = [
+    {
+      path = envSecret.path;
+      owner = "fl-watch";
+    }
+  ];
 
   users.users.fl-watch = {
     isSystemUser = true;

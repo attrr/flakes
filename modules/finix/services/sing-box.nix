@@ -1,3 +1,4 @@
+# finix (finit) `services.sing-box` module.
 {
   config,
   inputs,

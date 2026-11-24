@@ -1,5 +1,5 @@
-# Option shims so we can import Finix's `finit`, `system/activation`, `security`, and `networking`
-# without importing `modules/boot` or `modules/finit/{initrd,mount}.nix`.
+# Container-only option shims so we can import finix's `finit`, `system/activation`,
+# `security`, and `networking` without importing `modules/boot` or `modules/finit/{initrd,mount}.nix`.
 { lib, ... }:
 let
   mkShim =
@@ -53,35 +53,5 @@ in
       enable = false;
       package = null;
     };
-
-    # Finix `modules/networking` omits `nameservers`; declared here for `infra.network`.
-    networking.nameservers = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-    };
-  };
-
-  # Finit's built-in `tmpfiles` ignores `z` (adjust mode/owner of existing paths) rules;
-  # apply them during activation (after `users`) so both boot and `deploy` (`tar --owner=0`) stay consistent.
-  config.system.activation.scripts.tmpfiles-z = {
-    deps = [
-      "specialfs"
-      "users"
-      "etc"
-    ];
-    text = ''
-      while read -r type path mode user group _; do
-        [ "$type" = "z" ] && [ -e "$path" ] && [ ! -L "$path" ] || continue
-        if [ -n "$mode" ] && [ "$mode" != "-" ]; then
-          chmod "$mode" "$path"
-        fi
-        case "''${user:--}:''${group:--}" in
-          -:-) ;;
-          -:*) chown -h ":$group" "$path" ;;
-          *:-) chown -h "$user" "$path" ;;
-          *) chown -h "$user:$group" "$path" ;;
-        esac
-      done < /etc/tmpfiles.d/finix.conf
-    '';
   };
 }

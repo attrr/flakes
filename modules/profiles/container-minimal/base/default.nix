@@ -36,9 +36,9 @@
     "${finix}/modules/system/activation/switchable-system.nix"
     "${finix}/modules/system/nixos-compat.nix"
     "${finix}/modules/finit"
+    ../../../finix
     ./shims.nix
     ./lustrate.nix
-    ./sops.nix
   ];
 
   disabledModules = [
@@ -48,7 +48,7 @@
 
   config = lib.mkMerge [
     {
-      # Finix's libconfuse finit.conf format requires finit >= 5.0; build unstable's derivation
+      # finix's libconfuse finit.conf format requires finit >= 5.0; build unstable's derivation
       # against this system's pkgs so glibc/util-linux are not duplicated.
       finit.package = lib.mkDefault (
         pkgs.callPackage "${inputs.nixpkgs-unstable}/pkgs/by-name/fi/finit/package.nix" { }

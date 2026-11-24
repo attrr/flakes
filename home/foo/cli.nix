@@ -43,7 +43,7 @@ lib.mkMerge [
       google-cloud-sdk
       tftp-hpa # openwrt bootstrap
     ];
-    allowUnfree.packages = [ pkgs.unrar ];
+    nixpkgs.allowUnfree.packages = [ pkgs.unrar ];
 
     programs.java.enable = true;
     programs.direnv.enable = true;

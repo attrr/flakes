@@ -35,7 +35,7 @@
     ];
   };
 
-  allowUnfree.packages = [
+  nixpkgs.allowUnfree.packages = [
     pkgs.fcitx5-pinyin-moegirl
   ];
 

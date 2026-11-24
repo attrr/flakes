@@ -38,7 +38,7 @@ let
 in
 {
   imports = [
-    "${self}/modules/profiles/base"
+    self.modules.nixos.base
     "${self}/modules/hardware/google-flame"
     "${self}/modules/hardware/google-flame/debug.nix"
     ./phosh.nix

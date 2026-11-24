@@ -1,27 +1,14 @@
 { lib, ... }:
 let
-  normalize =
-    set:
-    lib.mapAttrs' (
-      name: value: lib.nameValuePair (builtins.replaceStrings [ "-" ] [ "_" ] name) value
-    ) set;
+  normalize = lib.mapAttrs' (
+    name: value: lib.nameValuePair (builtins.replaceStrings [ "-" ] [ "_" ] name) value
+  );
 
-  # Attr, Attr -> Attr
-  mapMergeAttrs = default: value: lib.recursiveUpdate default (normalize value);
-  # Attr, Entries -> Entries
-  mapMergeEntries = default: l: map (mapMergeAttrs default) l;
-  # ((n, v) -> bool), Entries -> { _true = Entries, _false=Entries }
-  splitEntries = pred: entries: {
-    _true = map (lib.filterAttrs pred) entries;
-    _false = map (lib.filterAttrs (n: v: !(pred n v))) entries;
-  };
-  # ((n, v) -> bool), Entries -> Entries
-  splitWithPrefixEntries = prefix: entries: splitEntries (n: v: lib.hasPrefix prefix n) entries;
-  # Entries, Entries = Entries
-  combineEntries = lib.zipListsWith lib.recursiveUpdate;
+  mapMergeEntries = default: map (value: lib.recursiveUpdate default (normalize value));
 in
 {
   inherit normalize;
+
   # -> tag, path
   mkLocalRuleSets = mapMergeEntries {
     type = "local";
@@ -41,8 +28,7 @@ in
     detour = "upstream";
   };
 
-  # -> tag, server, server_port, password
-  # -> tls.server_name tls.certificate_path tls.ech.config_path
+  # -> tag, server, server_port, password, tls.*
   mkHysteria2 = mapMergeEntries {
     type = "hysteria2";
     up_mbps = 30;
@@ -50,23 +36,18 @@ in
     tls = {
       enabled = true;
       alpn = [ "h3" ];
-      ech = {
-        enabled = true;
-      };
+      ech.enabled = true;
     };
   };
 
-  # -> tag, server, server_port, uuid
-  # -> tls.server_name tls.reality.public_key tls.reality.short_id
+  # -> tag, server, server_port, uuid, tls.*
   mkVless = mapMergeEntries {
     type = "vless";
     flow = "xtls-rprx-vision";
     packet_encoding = "xudp";
     tls = {
       enabled = true;
-      reality = {
-        enabled = true;
-      };
+      reality.enabled = true;
       utls = {
         enabled = true;
         fingerprint = "chrome";
@@ -75,38 +56,38 @@ in
   };
 
   # _host_id, _prefixes, public_key, pre_shared_key
-  mkWireGuardPeers =
-    l:
-    let
-      splits = splitWithPrefixEntries "_" l;
-      listOfIPs = map (attrs: {
-        allowed_ips = map (
-          prefix:
-          if lib.hasInfix ":" prefix then
-            "${prefix}${toString attrs._host_id}/128" # IPv6
-          else
-            "${prefix}${toString attrs._host_id}/32" # IPv4
-        ) attrs._prefixes;
-      }) splits._true;
-    in
-    combineEntries splits._false listOfIPs;
+  mkWireGuardPeers = map (
+    e:
+    (removeAttrs e [
+      "_host_id"
+      "_prefixes"
+    ])
+    // {
+      allowed_ips = map (
+        prefix: "${prefix}${toString e._host_id}/${if lib.hasInfix ":" prefix then "128" else "32"}"
+      ) e._prefixes;
+    }
+  );
 
   # _name, url
   mkProviders =
     l:
-    let
-      splits = splitWithPrefixEntries "_" l;
-      names = map (attrs: {
-        tag = attrs._name;
-        cache_file = "providers/${attrs._name}";
-      }) splits._true;
-      value = combineEntries splits._false names;
-    in
-    mapMergeEntries {
-      type = "http";
-      # needs a `direct` entry in http_clients. By tag, not left to
-      # route.default_http_client: the fork's providers resolve their client
-      # before that one is set up
-      http_client = "direct";
-    } value;
+    mapMergeEntries
+      {
+        type = "http";
+        # needs a `direct` entry in http_clients. By tag, not left to
+        # route.default_http_client: the fork's providers resolve their client
+        # before that one is set up
+        http_client = "direct";
+      }
+      (
+        map (
+          e:
+          (removeAttrs e [ "_name" ])
+          // {
+            tag = e._name;
+            cache_file = "providers/${e._name}";
+          }
+        ) l
+      );
 }

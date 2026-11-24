@@ -13,6 +13,15 @@
                 },
                 "custom": {
                     "expr": "(import ./eval-modules.nix).custom"
+                },
+                "finix": {
+                    "expr": "(import ./eval-modules.nix).finix"
+                },
+                "ctx": {
+                    "expr": "(import ./eval-modules.nix).ctx"
+                },
+                "aspect": {
+                    "expr": "(import ./eval-modules.nix).aspect"
                 }
             }
         }

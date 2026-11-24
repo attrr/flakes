@@ -31,7 +31,7 @@
         xournalpp
         krita
       ];
-      allowUnfree.packages = [ pkgs.google-chrome ];
+      nixpkgs.allowUnfree.packages = [ pkgs.google-chrome ];
 
       programs.anki.enable = true;
     }

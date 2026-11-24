@@ -1,87 +1,12 @@
-# Platform-independent host telemetry agent (node_exporter + optional vmagent push).
+# NixOS node_exporter + vmagent push implementation for infra.telemetry.
 { config, lib, ... }:
 let
   cfg = config.infra.telemetry;
 in
 {
-  options.infra.telemetry = {
-    enable = lib.mkEnableOption "host telemetry (node_exporter + optional vmagent push)";
-
-    mode = lib.mkOption {
-      type = lib.types.enum [
-        "push"
-        "pull"
-        "local-only"
-      ];
-      default = "local-only";
-      description = "How node metrics are exposed or shipped.";
-    };
-
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 9100;
-      description = "Port for node_exporter.";
-    };
-
-    labels = {
-      host = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        description = "Host label attached to pushed metrics.";
-      };
-      group = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        description = "Group label attached to pushed metrics.";
-      };
-    };
-
-    push = {
-      url = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Remote-write endpoint URL.";
-      };
-      username = lib.mkOption {
-        type = lib.types.str;
-        default = cfg.labels.host;
-        defaultText = lib.literalExpression "config.infra.telemetry.labels.host";
-        description = "Basic-auth username for remote-write.";
-      };
-      tokenFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Path to the remote-write token file.";
-      };
-    };
-
-    pull = {
-      address = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Bind address for node_exporter in pull mode.";
-      };
-    };
-  };
-
   config = lib.mkIf cfg.enable (
     lib.mkMerge [
       {
-        assertions = [
-          {
-            assertion =
-              cfg.mode != "push"
-              || (
-                cfg.push.url != null && cfg.push.url != "" && cfg.push.tokenFile != null && cfg.push.tokenFile != ""
-              );
-            message = "infra.telemetry (push) requires push.url and push.tokenFile";
-          }
-          {
-            assertion = cfg.mode != "pull" || (cfg.pull.address != null && cfg.pull.address != "");
-            message = "infra.telemetry (pull) requires pull.address";
-          }
-        ];
-
         services.prometheus.exporters.node = {
           enable = lib.mkDefault true;
           port = lib.mkDefault cfg.port;
