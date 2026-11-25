@@ -1,204 +1,65 @@
 # bootstrap
 
-Install-time artifacts. Nothing here is imported into `nixosConfigurations`.
+Install-time artifacts (`legacyPackages.<system>.bootstrap`). Nothing here is imported into `nixosConfigurations`.
 
-```
+```text
 legacyPackages.<system>.bootstrap
-├── rescue.default   generic rescue, DHCP, keys only via ssh_key= on the cmdline
-├── rescue.<host>    rescue configured from ctx: port, static network, MAC, hostname
-├── images.<name>    flashable images, or scripts that write one into $PWD
-└── mkRescue         { modules, specialArgs, kernelPackages } -> rescue
+├── rescue.default   generic RAM rescue initrd (DHCP, ssh_key= on cmdline)
+├── rescue.<host>    RAM rescue preconfigured from ctx (+ rescue/hosts/<host>.nix if present)
+├── images.<name>    scripts that build a host-identity image into $PWD (or --stdout for tarballs)
+└── mkRescue         custom rescue builder
 ```
 
-## Rescue
+## Rescue Initrd (`rescue.<host>`)
 
-A NixOS systemd initrd that never leaves initrd and runs entirely in RAM:
-sshd, zsh on every console, and enough tools to wipe and write a disk
-(`dd`, `parted`, `sfdisk`, `curl`, `zstd`, `grub2`, ...). About 75 MB of RAM is used after boot.
+Minimal RAM-only NixOS systemd initrd (`sshd`, `zsh`, `dd`, `parted`, `sfdisk`, `zstd`, `grub2`; ~75 MiB RAM):
 
 ```sh
 nix build .#bootstrap.rescue.<host>
-ls result/
-# bzImage          kernel
-# initrd           stage0 + squashfs merged, the one to use by default
-# stage0.initrd    stage0 only, squashfs found on disk (see below)
-# stage1.squashfs  the rescue OS
+# result/{bzImage,initrd,stage0.initrd,stage1.squashfs}
 ```
 
-### Access
+- **Access**: `root`, port `ctx.ssh.ports[0]`, keys from `global.deploy-keys` (or extra `ssh_key="ssh-ed25519 ..."` on kernel cmdline). Host key is ephemeral per boot.
+- **kexec from running Linux**:
+  ```sh
+  scp result/bzImage result/initrd root@<host>:/tmp/
+  ssh root@<host> 'kexec -l /tmp/bzImage --initrd=/tmp/initrd --command-line="console=ttyS0 console=tty0" && kexec -e'
+  ```
+- **Local QEMU check** (`rescue.default` for user-net DHCP):
+  ```sh
+  qemu-system-x86_64 -enable-kvm -m 512 -nographic \
+    -kernel result/bzImage -initrd result/initrd \
+    -append "console=ttyS0 ssh_key=\"$(cat ~/.ssh/id_ed25519.pub)\"" \
+    -netdev user,id=n,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n
+  ```
+- **Per-host rescue overrides**: add `bootstrap/rescue/hosts/<host>.nix` (auto-loaded; ctx values use `mkDefault`).
 
-- `rescue.<host>`: root, port `ctx.ssh.ports[0]`, keys from `global.deploy-keys`
-  (`ctx/common/default.nix`). These keys are meant for rescue only, never for running hosts.
-  The build fails while that list is empty.
-- Any variant: extra keys can be added at boot with `ssh_key="ssh-ed25519 AAAA..."` on the
-  kernel cmdline (repeatable).
-- The host key is generated on every boot, so expect a changed fingerprint:
-  `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ...`
+## Identity Images (`images.<name>`)
 
-### Booting it
-
-**kexec from a running Linux** (no provider support needed; the host needs RAM for the ~50 MB initrd):
+Generated for every host with `ctx/vars/<host>/ssh-host-key/ssh_host_ed25519_key` (plus `yata` SD image and `flame` repart image). Decrypts host identity (`ssh_host_ed25519_key`, optional `tailscaled.state`) into tmpfs and embeds it so first boot comes up as the host with working sops decryption—no second deploy needed.
 
 ```sh
-scp result/bzImage result/initrd root@host:/tmp/
-ssh root@host 'kexec -l /tmp/bzImage --initrd=/tmp/initrd \
-  --command-line="console=ttyS0 console=tty0" && kexec -e'
+nix run .#bootstrap.images.<name>                   # writes ./<name>.{raw.zst,qcow2,img,tar.gz} (mode 600)
+nix run .#bootstrap.images.<name> -- --format qcow2 # disko hosts: raw.zst | qcow2 (<host>+vm defaults to qcow2)
+nix run .#bootstrap.images.<name> -- --stdout       # container tarballs: stream directly over SSH
 ```
 
-**GRUB** (e.g. from the provider's rescue system or an old install):
-
-```
-menuentry "rescue" {
-  linux  /boot/rescue/bzImage console=ttyS0 console=tty0
-  initrd /boot/rescue/initrd
-}
-```
-
-**Low RAM**: keep the squashfs on disk and boot only the 4 MB stage0, which loop-mounts
-it from `root=` + `stage1.path=`. If neither is given, it scans every raw block device.
-
-```
-linux  /boot/rescue/bzImage console=ttyS0 root=/dev/vda1 stage1.path=/boot/rescue/stage1.squashfs
-initrd /boot/rescue/stage0.initrd
-```
-
-**qemu** (to check it locally):
-
-```sh
-qemu-system-x86_64 -enable-kvm -m 512 -nographic \
-  -kernel result/bzImage -initrd result/initrd \
-  -append "console=ttyS0 ssh_key=\"$(cat ~/.ssh/id_ed25519.pub)\"" \
-  -netdev user,id=n,hostfwd=tcp:127.0.0.1:2222-:22 -device virtio-net-pci,netdev=n
-ssh -p 2222 root@127.0.0.1
-```
-
-Hosts with a static network in ctx won't come up under qemu's user net; use `rescue.default` there.
-
-### Installing from it
-
-```sh
-ssh root@host 'lsblk'
-# <name>.raw.zst from images.<name> (below), already compressed
-ssh root@host 'zstd -dc | dd of=/dev/vda bs=4M status=progress && sync' < <name>.raw.zst
-ssh root@host reboot
-```
-
-### Kernel cmdline
-
-| param | effect |
-|---|---|
-| `console=` | a shell is spawned on each; default `ttyS0` + `tty0` |
-| `ssh_key="..."` | add an authorized key for root |
-| `root=` `stage1.path=` | where stage0 finds the squashfs (stage0.initrd only) |
-
-### Per-host tweaks
-
-Create `bootstrap/hosts/<host>.nix`. It is picked up automatically and is a normal NixOS module
-for the rescue initrd:
-
-```nix
-{ pkgs, ... }:
-{
-  rescue.zram.enable = true;          # very low RAM
-  rescue.extraPackages = [ pkgs.btrfs-progs ];
-  boot.initrd.availableKernelModules = [ "e1000e" ];
-}
-```
-
-Options: `rescue.ssh.{port,authorizedKeys,hostKeys}`, `rescue.zram.{enable,size}`, `rescue.extraPackages`.
-
-Everything derived from ctx is `mkDefault`, so plain assignments win. Networks:
-
-| file | source |
-|---|---|
-| `10-*` .. `49-*` | yours, matched before ctx |
-| `50-ctx` | ctx static addresses/gateways (only if ctx has any) |
-| `99-eth-all` | DHCP on `en* eth*` |
-
-```nix
-{
-  # tweak the ctx network
-  boot.initrd.systemd.network.networks."50-ctx".networkConfig.DHCP = "yes";
-  # or replace it for this NIC
-  boot.initrd.systemd.network.networks."10-uplink" = {
-    matchConfig.Name = "ens18";
-    address = [ "192.0.2.10/24" ];
-    routes = [ { Gateway = "192.0.2.1"; } ];
-  };
-}
-```
-
-One-off build without a file:
-
-```sh
-nix build --impure --expr '(builtins.getFlake "git+file://'$PWD'")
-  .legacyPackages.x86_64-linux.bootstrap.mkRescue { modules = [ { rescue.zram.enable = true; } ]; }'
-```
-
-## Images with a host identity
-
-Every image comes up as its host, with its full config: same ssh host key (which is
-also its sops age key, so secrets decrypt on first boot) and, if captured, the same
-tailscale node (so its tailscale IPs, and everything bound to them, stay valid). There is
-no second deploy. `images.<name>` exists for every config whose host has an ssh host key
-in `ctx/vars/<host>/`; they are scripts, not derivations:
-
-```sh
-nix run .#bootstrap.images.<name>   # ./<name>.raw.zst, .qcow2 (VMs), .img (sd card) or .tar.gz (containers)
-nix run .#bootstrap.images.<name> -- --format qcow2   # disko hosts: raw.zst | qcow2
-```
-
-They decrypt the host's identity with your admin age key into `$XDG_RUNTIME_DIR` and wipe
-it on exit; only the encrypted files ever reach the nix store. Big temp files go in a
-temp dir under `$PWD`.
-
-- disko hosts: disko's image script with `--post-format-files`, then zstd-compressed:
-  `raw.zst` by default, to stream onto a disk from rescue, or a qcow2 (zstd clusters)
-  for configs meant to run as VMs:
-
+- **disko hosts** (`raw.zst` / `qcow2`): stream from rescue onto target disk:
   ```sh
   ssh root@<rescue> 'zstd -dc | dd of=/dev/vda bs=4M status=progress && sync' < <name>.raw.zst
+  ssh root@<rescue> reboot
   ```
-- sd card hosts: the config's `sdImage`, the files written into its root partition
-  offline with `debugfs`.
-- container hosts (`boot.isContainer`): a `.tar.gz` containing the closure,
-  `/nix-path-registration`, `/nix/var/nix/profiles/system`, `/etc/NIXOS`, and the host's
-  identity. Stream it onto a running stock container and switch `/sbin/init`:
-
+- **NixOS containers** (`boot.isContainer`, `.tar.gz`): stream onto stock container and switch `/sbin/init` (or `/lib/systemd/systemd` on systemd-based OCI/Podman images):
   ```sh
-  ssh root@<host> 'tar -xzpf - -C / --numeric-owner && ln -sfn /nix/var/nix/profiles/system/init /sbin/init && sync && reboot' < <name>.tar.gz
+  nix run .#bootstrap.images.<name> -- --stdout | \
+    ssh root@<host> 'tar -xzpf - -C / --numeric-owner && ln -sfn /nix/var/nix/profiles/system/init /sbin/init && sync && reboot'
   ```
+- **finix minimal containers** (`drifting` / `container-minimal`, `.tar.gz`): bundles pre-decrypted `/var/lib/secrets/*` (no Nix DB registration). Normally driven via `nix run .#drifting -- bootstrap <name>` (see `ctx/docs/drifting.md`).
+- **SD / repart images** (`yata`, `flame`): injects identity into root partition offline via `debugfs`.
 
-  For systemd-based OCI/Podman images whose entrypoint is `/lib/systemd/systemd`
-  (Debian, Ubuntu, etc.), redirect `/lib/systemd/systemd` instead of `/sbin/init`:
+### Capturing an Existing Host's Identity
 
-  ```sh
-  ssh root@<host> 'tar -xzpf - -C / --numeric-owner && ln -sfn /nix/var/nix/profiles/system/init /lib/systemd/systemd && sync && reboot' < <name>.tar.gz
-  ```
-
-  On first boot, `boot.postBootCommands` loads `/nix-path-registration` into the Nix DB.
-  After rebooting into NixOS, leftover stock OS directories (`/usr`, `/lib`, `/lib64`,
-  `/var/cache/apt`, `/var/lib/apt`, `/var/lib/dpkg`) can be deleted to reclaim disk space
-  (keep `/lib/systemd/systemd` — and `/usr/lib/systemd/systemd` when `/lib -> usr/lib` — on
-  Podman images that boot via `/lib/systemd/systemd`).
-
-| in `ctx/vars/<host>/` | lands at |
-|---|---|
-| `ssh-host-key/ssh_host_ed25519_key`, `.pub` | `/etc/ssh/` |
-| `tailscale-state/tailscaled.state` | `/var/lib/tailscale/` |
-
-- Checking one offline (any filesystem, btrfs subvolumes included):
-  `zstd -dc --sparse <name>.raw.zst > main.raw`, then
-  `nix shell --inputs-from . nixpkgs#libguestfs-with-appliance -c guestfish --ro -a main.raw`
-  (`run`, `list-filesystems`, `mount-options subvol=root /dev/sdaN /`, `checksum sha256 <file>`).
-- The output holds private keys (written mode 600): keep it off shared storage.
-- Never boot it while the original host is up; they will fight over IP and tailscale node.
-- With a tailscale state, disable key expiry for the node in the tailscale admin console,
-  or the saved state goes stale.
-- The host declares its identity in ctx: `credentials.identity.generate = true` (the
-  `ssh-host-key` generator) and optionally `credentials.identity.tailscale = true`, both
-  admin only. A new host just runs `nix run ./ctx -- generate`; an existing one has its
-  identity captured instead (plaintext only goes through pipes):
+For a new host, declare `credentials.identity.generate = true` (and optionally `tailscale = true`) in `ctx` and run `nix run ./ctx -- generate`. For an existing host:
 
 ```sh
 nix run ./ctx -- import <host>/ssh-host-key \
@@ -208,19 +69,4 @@ nix run ./ctx -- import <host>/tailscale-state \
   tailscaled.state=plain:<(ssh <host> sudo cat /var/lib/tailscale/tailscaled.state)
 ```
 
-## Layout
-
-```
-default.nix     outputs, mkRescue, shared kernel module list
-identity-image.nix  image scripts carrying a host identity (disko, sd)
-images/         per-host image modules (an sd card on top of the host's config)
-rescue.nix      stage1: the rescue OS (sshd, console shells, tools, zram)
-ctx.nix         ctx -> rescue (keys, port, static addresses/gateways, MAC match)
-console.sh      systemd generator: a shell per console= tty
-stage0/         busybox init: find squashfs, overlay it, switch_root
-hosts/          optional per-host modules
-```
-
-Boot flow: kernel → stage0 (busybox, modules, ash init) → mount `stage1.squashfs`
-(embedded / `root=` partition / raw disk scan, else an emergency shell) → tmpfs overlay → `switch_root`
-→ systemd initrd, which is kept from leaving initrd.
+> **Safety**: Outputs contain private keys (mode 600)—keep off shared storage and delete after flashing. Never boot a cloned identity image while the original host is still online.
