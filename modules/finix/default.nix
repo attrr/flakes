@@ -1,4 +1,3 @@
-# finix platform polyfills and upstream-equivalent modules.
 {
   imports = [
     ./compat.nix

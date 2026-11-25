@@ -1,4 +1,3 @@
-# Multi-class `infra.server` feature (pure profile + ctx wiring).
 {
   module = {
     common =

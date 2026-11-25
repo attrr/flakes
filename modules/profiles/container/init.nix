@@ -1,4 +1,3 @@
-# Multi-class container init / bootloader symlink management (NixOS + finix).
 let
   mkInstallInit =
     {

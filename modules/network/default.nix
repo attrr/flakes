@@ -1,4 +1,3 @@
-# `infra.network` options, topologies, tunnelbroker, and ctx wiring.
 {
   includes = [
     ./static.nix

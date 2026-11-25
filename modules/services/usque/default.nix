@@ -1,4 +1,3 @@
-# Multi-class `services.usque` module (NixOS systemd + finix finit).
 {
   common =
     {

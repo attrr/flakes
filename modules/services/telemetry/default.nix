@@ -1,4 +1,3 @@
-# Multi-class `infra.telemetry` feature (pure module + ctx wiring).
 {
   module = {
     common =

@@ -1,4 +1,3 @@
-# Flake checks (`nix flake check`): deploy-rs, nixfmt, deadnix, and module boundary tests.
 {
   self,
   nixpkgs,

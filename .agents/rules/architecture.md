@@ -21,3 +21,4 @@ When writing or modifying code in this repository, rigidly adhere to the followi
 - **`lib/*`**: Helpers for host configs, exposed as the `helpers` module arg (not ctx's `fn`). They should only depend on `lib` and not system configuration or context.
 - **`pkgs/`**: Contains custom derivations and software packages built from source via `callPackage`.
 - **`bootstrap/`**: Install-time artifacts only (`legacyPackages.<system>.bootstrap`): the RAM rescue initrd (`rescue.<host>`, configured from `ctx` via `bootstrap/rescue/ctx.nix`, per-host tweaks in `bootstrap/rescue/hosts/<host>.nix`) and flashable images (`images.<name>`). Never import anything from here into `nixosConfigurations`.
+- **Comments**: Only add comments that explain *why*, non-obvious invariants, gotchas, or contracts—never add boilerplate file headers that merely restate the filename, path, or module structure.

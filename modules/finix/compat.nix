@@ -1,4 +1,3 @@
-# finix platform polyfills (nameservers option + tmpfiles `z` activation).
 { lib, ... }:
 {
   options = {

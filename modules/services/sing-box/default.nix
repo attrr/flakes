@@ -1,4 +1,3 @@
-# Multi-class `infra.sing-box` feature (pure module + exitnode ctx wiring).
 {
   includes = [ ../usque ];
 

@@ -1,4 +1,3 @@
-# Multi-class container runtime presets and capability workarounds (NixOS + finix).
 {
   common =
     { config, lib, ... }:

@@ -1,4 +1,3 @@
-# Nix cache (harmonia) + remote builders feature (NixOS only).
 {
   ctx.nixos =
     {

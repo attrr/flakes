@@ -1,4 +1,3 @@
-# Flake apps (`deploy`, `drifting`, `gcroots`).
 {
   nixpkgs,
   ctx,

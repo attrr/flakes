@@ -1,4 +1,3 @@
-# Multi-class container profile (NixOS systemd + finix finit).
 {
   includes = [
     ./capabilities.nix

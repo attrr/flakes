@@ -1,4 +1,3 @@
-# NixOS container base & trim (boot.isContainer, systemd suppression, gc/journald).
 {
   config,
   lib,

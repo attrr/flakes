@@ -1,4 +1,3 @@
-# NixOS node_exporter + vmagent push implementation for infra.telemetry.
 { config, lib, ... }:
 let
   cfg = config.infra.telemetry;

@@ -1,4 +1,3 @@
-# Multi-class first-boot takeover lustrate (NixOS + finix).
 # On overlayfs (Podman/Docker), delete swept entries (whiteouts, avoiding EXDEV full copies
 # of lowerdir trees into `/old-root`); elsewhere, move them to `/old-root`.
 let

@@ -1,4 +1,3 @@
-# Static network topology (gated by `infra.network.topology == "static"`).
 {
   nixos =
     {

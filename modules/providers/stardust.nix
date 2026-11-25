@@ -1,4 +1,3 @@
-# Scaleway Stardust provider feature.
 {
   includes = [ ../profiles/server ];
 

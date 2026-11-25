@@ -1,4 +1,3 @@
-# Oracle Cloud (OCI) provider feature.
 {
   includes = [ ../profiles/server ];
 

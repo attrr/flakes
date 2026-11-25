@@ -1,4 +1,3 @@
-# Backend-agnostic `infra.secrets` declarations + sops adapter.
 {
   common =
     {

@@ -1,4 +1,3 @@
-# Multi-class `infra.tunnelbroker` module (NixOS sit/wireguard + finix boringtun-cli).
 {
   common =
     { config, lib, ... }:

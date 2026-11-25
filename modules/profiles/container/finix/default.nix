@@ -1,4 +1,3 @@
-# finix minimal container runtime (busybox, cron, sysklogd, SUID wrappers, sudo/users, ops packages).
 {
   config,
   lib,

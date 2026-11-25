@@ -1,4 +1,3 @@
-# Base feature applied to every standard NixOS host.
 {
   includes = (import ../module-list.nix) ++ [
     ../nix.nix

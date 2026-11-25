@@ -1,4 +1,3 @@
-# DHCP network topology (gated by `infra.network.topology == "dhcp"`).
 {
   nixos =
     { config, lib, ... }:
