@@ -49,8 +49,13 @@ nix eval --impure --json --expr 'let m = import ./eval-modules.nix; in builtins.
 
 For zero-regression refactors, save the `drvPath` JSON before and after and diff them.
 
-## 4. Format, Clean-Tree Eval & Commit Order
+## 4. Format, Flake Checks & Commit Order
 
-1. Format modified `.nix` files with `nixfmt`.
-2. Run a pure git evaluation (`nix eval .#nixosConfigurations.<host>.config.system.build.toplevel.drvPath`) to ensure no untracked-file dependency remains.
+1. Format `.nix` files with `nix fmt` (or `nixfmt`).
+2. Run flake checks (verifies `nixfmt`, `deadnix`, pure `nixosModules.default` without `ctx`, `nixos.container` profile, and `deploy-rs` schema):
+   ```sh
+   nix flake check --no-build
+   # or build the lightweight checks directly:
+   nix build .#checks.x86_64-linux.format .#checks.x86_64-linux.deadnix .#checks.x86_64-linux.pure-nixos-modules .#checks.x86_64-linux.nixos-container-profile --no-link
+   ```
 3. Commit `ctx` first, then `git add ctx` and commit `flakes`. Never `git push` unless explicitly requested.

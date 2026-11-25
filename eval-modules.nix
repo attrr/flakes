@@ -6,7 +6,7 @@ let
 
   pkgs = import nixpkgs { system = "x86_64-linux"; };
   lib = nixpkgs.lib.extend (
-    self: super: {
+    _: _: {
       hm = hm.lib.hm;
     }
   );
@@ -57,7 +57,6 @@ let
     (import ./modules { inherit lib; }).nixosModules.default
     flake.inputs.disko.nixosModules.disko
     flake.inputs.sops-nix.nixosModules.sops
-    (aspectLib.resolveModule "nixos" [ ./modules/secrets.nix ])
     ctxOptionModule
     ./lib/default.nix
     profileModules

@@ -45,5 +45,5 @@ in
     ];
   };
 
-  yata.loadbalance.secrets = lib.mapAttrsToList (n: v: v.url.path) lb.providers;
+  yata.loadbalance.secrets = lib.mapAttrsToList (_: v: v.url.path) lb.providers;
 }

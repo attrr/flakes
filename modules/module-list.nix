@@ -2,6 +2,7 @@
 [
   ./disko
   ./network
+  ./secrets.nix
   ./services/acme
   ./services/alerts
   ./services/containers

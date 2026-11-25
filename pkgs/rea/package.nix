@@ -26,7 +26,7 @@
 let
   sources = lib.importJSON ./sources.json;
 
-  wabt_1_0_42 = wabt.overrideAttrs (old: rec {
+  wabt_1_0_42 = wabt.overrideAttrs (_: rec {
     version = "1.0.42";
     src = fetchFromGitHub {
       owner = "WebAssembly";
@@ -40,7 +40,7 @@ let
   pwntoolsPython = python3.withPackages (
     ps:
     let
-      pyelftools_0_33 = ps.pyelftools.overridePythonAttrs (old: rec {
+      pyelftools_0_33 = ps.pyelftools.overridePythonAttrs (_: rec {
         version = "0.33";
         src = fetchFromGitHub {
           owner = "eliben";

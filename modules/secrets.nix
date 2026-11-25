@@ -1,7 +1,12 @@
 # Backend-agnostic `infra.secrets` declarations + sops adapter.
 {
   common =
-    { config, lib, ... }:
+    {
+      config,
+      lib,
+      options,
+      ...
+    }:
     let
       prefix = "/run/secrets/";
       entries = builtins.filter (
@@ -35,13 +40,15 @@
         default = [ ];
       };
 
-      config.sops.secrets = lib.mkMerge (
-        map (e: {
-          ${lib.removePrefix prefix (toString e.path)} =
-            lib.optionalAttrs (e.owner != null) { owner = lib.mkDefault e.owner; }
-            // lib.optionalAttrs (e.reloadUnits != [ ]) { inherit (e) reloadUnits; }
-            // lib.optionalAttrs (e.restartUnits != [ ]) { inherit (e) restartUnits; };
-        }) entries
-      );
+      config = lib.optionalAttrs (options ? sops) {
+        sops.secrets = lib.mkMerge (
+          map (e: {
+            ${lib.removePrefix prefix (toString e.path)} =
+              lib.optionalAttrs (e.owner != null) { owner = lib.mkDefault e.owner; }
+              // lib.optionalAttrs (e.reloadUnits != [ ]) { inherit (e) reloadUnits; }
+              // lib.optionalAttrs (e.restartUnits != [ ]) { inherit (e) restartUnits; };
+          }) entries
+        );
+      };
     };
 }

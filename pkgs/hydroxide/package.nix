@@ -3,7 +3,7 @@
   fetchFromCodeberg,
 }:
 
-prev.hydroxide.overrideAttrs (old: rec {
+prev.hydroxide.overrideAttrs (_: rec {
   version = "0.2.33";
 
   src = fetchFromCodeberg {

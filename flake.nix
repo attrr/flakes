@@ -215,7 +215,7 @@
             inherit system;
             overlays = [
               deploy-rs.overlays.default
-              (self: super: {
+              (_: super: {
                 deploy-rs = {
                   inherit (pkgs) deploy-rs;
                   lib = super.deploy-rs.lib;
@@ -294,6 +294,17 @@
 
       inherit (modExports) nixosModules modules;
 
-      checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
+
+      checks = forAllSystems (
+        import ./lib/checks.nix {
+          inherit
+            self
+            nixpkgs
+            disko
+            deploy-rs
+            ;
+        }
+      );
     };
 }

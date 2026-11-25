@@ -35,7 +35,7 @@ in
     users.users = {
       root.hashedPassword = lib.mkIf cfg.lockRootLogin "!";
     }
-    // lib.mapAttrs (n: v: {
+    // lib.mapAttrs (_: v: {
       isNormalUser = true;
       extraGroups = [ "wheel" ];
       openssh.authorizedKeys.keys = v.authorizedKeys;
