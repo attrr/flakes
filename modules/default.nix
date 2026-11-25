@@ -15,10 +15,15 @@ let
     ) (builtins.readDir dir);
 
   profiles = discover ./profiles;
+  moduleList = import ./module-list.nix;
 in
 {
   nixosModules.default = {
-    imports = aspectLib.resolveModule "nixos" (import ./module-list.nix);
+    imports = aspectLib.resolveModule "nixos" (moduleList.common ++ moduleList.nixos);
+  };
+
+  finixModules.default = {
+    imports = aspectLib.resolveModule "finix" (moduleList.common ++ moduleList.finix);
   };
 
   modules = lib.genAttrs [

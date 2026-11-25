@@ -4,10 +4,6 @@
     ./init.nix
     ./lustrate.nix
     ../server
-    ../../network
-    ../../services/sing-box
-    ../../secrets.nix
-    ../../services/telemetry
   ];
 
   module = {

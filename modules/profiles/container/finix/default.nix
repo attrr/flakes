@@ -17,7 +17,6 @@ let
 in
 {
   imports = [
-    ./base
     ./deploy.nix
   ];
 

@@ -1,99 +1,90 @@
 let
-  flake = builtins.getFlake "git+file://${toString ./.}";
-  nixpkgs = flake.inputs.nixpkgs;
-  hm = flake.inputs.home-manager;
-  finix = flake.inputs.finix;
+  flake = builtins.${"getFlake"} "git+file://${toString ./.}";
+  inherit (flake) inputs;
+  inherit (inputs)
+    nixpkgs
+    home-manager
+    finix
+    disko
+    sops-nix
+    ;
 
   pkgs = import nixpkgs { system = "x86_64-linux"; };
-  lib = nixpkgs.lib.extend (
-    _: _: {
-      hm = hm.lib.hm;
-    }
-  );
+  lib = nixpkgs.lib.extend (_: _: { hm = home-manager.lib.hm; });
+
+  aspectLib = import ./lib/aspects.nix { inherit lib; };
+  modExports = import ./modules { inherit lib; };
 
   specialArgs = {
-    inherit lib pkgs finix;
-    inputs = flake.inputs;
-    modulesPath = nixpkgs + "/nixos/modules";
+    inherit
+      inputs
+      lib
+      pkgs
+      finix
+      ;
+    modulesPath = "${nixpkgs}/nixos/modules";
+    fn = import ./ctx/lib/default.nix { inherit lib; };
     self = ./.;
   };
 
-  aspectLib = import ./lib/aspects.nix { inherit lib; };
   evalOpts =
     modules:
     (lib.evalModules {
-      modules = modules ++ [ { _module.check = false; } ];
       inherit specialArgs;
+      modules = modules ++ [ { _module.check = false; } ];
     }).options;
-
-  profileModules =
-    let
-      dir = ./modules/profiles;
-      isProfile =
-        name: type:
-        name != "host.nix"
-        && (
-          (type == "regular" && lib.hasSuffix ".nix" name)
-          || (type == "directory" && builtins.pathExists (dir + "/${name}/default.nix"))
-        );
-    in
-    aspectLib.resolveModule "nixos" (
-      map (name: dir + "/${name}") (builtins.attrNames (lib.filterAttrs isProfile (builtins.readDir dir)))
-    );
-
-  ctxOptionModule =
-    { lib, ... }:
-    {
-      options.ctx = lib.mkOption {
-        type = lib.types.submoduleWith {
-          modules = [ ./ctx/modules/perhost ];
-          specialArgs.fn = import ./ctx/lib/default.nix { inherit lib; };
-        };
-        default = { };
-      };
-    };
-
-  customModules = lib.flatten [
-    (import ./modules { inherit lib; }).nixosModules.default
-    flake.inputs.disko.nixosModules.disko
-    flake.inputs.sops-nix.nixosModules.sops
-    ctxOptionModule
-    ./lib/default.nix
-    profileModules
-  ];
-
-  finixModules =
-    aspectLib.resolveModule "finix" [
-      ./modules/profiles/container
-      ./modules/profiles/server
-      ./modules/network
-      ./modules/services/sing-box
-      ./modules/services/usque
-      ./modules/services/tunnelbroker
-      ./modules/services/nano-exporter
-      ./modules/services/telemetry
-      ./modules/secrets.nix
-    ]
-    ++ [ ctxOptionModule ];
-
-  hmModules =
-    (import (hm + "/modules/modules.nix") {
-      inherit pkgs lib;
-      check = false;
-    })
-    ++ [ flake.inputs.sops-nix.homeManagerModules.sops ];
-
-  nixosBase = import (nixpkgs + "/nixos/modules/module-list.nix");
 
   mkClassOpt =
     modules:
     lib.mkOption {
       type = lib.types.submoduleWith {
-        modules = modules ++ [ { _module.check = false; } ];
         inherit specialArgs;
+        modules = modules ++ [ { _module.check = false; } ];
       };
       default = { };
     };
+
+  ctxOption = {
+    options.ctx = lib.mkOption {
+      type = lib.types.submoduleWith {
+        modules = [ ./ctx/modules/perhost ];
+        specialArgs.fn = specialArgs.fn;
+      };
+      default = { };
+    };
+  };
+
+  nixosBase = import "${nixpkgs}/nixos/modules/module-list.nix";
+
+  nixosProfiles =
+    let
+      entries = removeAttrs (builtins.readDir ./modules/profiles) [ "host.nix" ];
+    in
+    aspectLib.resolveModule "nixos" (
+      map (name: ./modules/profiles + "/${name}") (builtins.attrNames entries)
+    );
+
+  customModules = [
+    modExports.nixosModules.default
+    disko.nixosModules.disko
+    sops-nix.nixosModules.sops
+    ctxOption
+    ./lib/default.nix
+  ]
+  ++ nixosProfiles;
+
+  finixModules = [
+    modExports.finixModules.default
+    ctxOption
+  ]
+  ++ aspectLib.resolveModule "finix" [ ./modules/profiles/container ];
+
+  hmModules =
+    (import "${home-manager}/modules/modules.nix" {
+      inherit pkgs lib;
+      check = false;
+    })
+    ++ [ sops-nix.homeManagerModules.sops ];
 
   classOptions = {
     common = mkClassOpt customModules;
@@ -108,19 +99,10 @@ in
   home-manager = evalOpts hmModules;
   custom = evalOpts customModules;
   finix = evalOpts finixModules;
-  ctx =
-    (lib.evalModules {
-      modules = [
-        ./ctx/modules/perhost
-        ./ctx/modules/cluster/global.nix
-        { _module.check = false; }
-      ];
-      specialArgs = {
-        inherit lib pkgs;
-        modulesPath = nixpkgs + "/nixos/modules";
-        fn = import ./ctx/lib/default.nix { inherit lib; };
-      };
-    }).options;
+  ctx = evalOpts [
+    ./ctx/modules/perhost
+    ./ctx/modules/cluster/global.nix
+  ];
   aspect = evalOpts [
     {
       options = classOptions // {

@@ -56,7 +56,7 @@
 
       hosts = ctx.cluster.hosts;
       aspectLib = import ./lib/aspects.nix { inherit (nixpkgs) lib; };
-      modExports = import ./modules { inherit (nixpkgs) lib; };
+      modules = import ./modules { inherit (nixpkgs) lib; };
       providerModules =
         class: host:
         aspectLib.resolve class (
@@ -121,6 +121,7 @@
               ;
           };
           modules = [
+            self.modules.finix.host
             ctx.nixosModules.${hostname}
             self.modules.finix.container
           ]
@@ -292,7 +293,7 @@
         }
       );
 
-      inherit (modExports) nixosModules modules;
+      inherit (modules) nixosModules finixModules modules;
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 

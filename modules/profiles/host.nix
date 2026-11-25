@@ -1,7 +1,23 @@
+let
+  moduleList = import ../module-list.nix;
+in
 {
-  includes = (import ../module-list.nix) ++ [
-    ../nix.nix
-  ];
+  includes = moduleList.common;
+
+  module = {
+    nixos =
+      { lib, ... }:
+      {
+        imports = (import ../../lib/aspects.nix { inherit lib; }).resolve "nixos" (
+          moduleList.nixos ++ [ ../nix.nix ]
+        );
+      };
+    finix =
+      { lib, ... }:
+      {
+        imports = (import ../../lib/aspects.nix { inherit lib; }).resolve "finix" moduleList.finix;
+      };
+  };
 
   ctx.nixos =
     {
