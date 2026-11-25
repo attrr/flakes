@@ -33,6 +33,16 @@ let
   nixosContainer = self.nixosConfigurations.koto.extendModules {
     modules = [ self.modules.nixos.container ];
   };
+
+  nixosContainerPodman = self.nixosConfigurations.koto.extendModules {
+    modules = [
+      self.modules.nixos.container
+      {
+        infra.container.runtime = "podman";
+        services.resolved.enable = true;
+      }
+    ];
+  };
 in
 (deploy-rs.lib.${system}.deployChecks self.deploy)
 // {
@@ -55,6 +65,14 @@ in
   nixos-container-profile =
     assert nixosContainer.config.infra.container.runtime == "lxc";
     assert builtins.isString nixosContainer.config.system.activationScripts.containerLustrate;
+    assert !nixosContainerPodman.config.services.resolved.enable;
+    assert !nixosContainerPodman.config.networking.nftables.enable;
+    assert
+      nixosContainerPodman.config.services.endlessh.enable
+      ->
+        !nixosContainerPodman.config.systemd.services.endlessh.serviceConfig.DynamicUser
+        && nixosContainerPodman.config.systemd.services.endlessh.serviceConfig.RootDirectory == "";
+    assert builtins.isString nixosContainerPodman.config.system.build.toplevel.drvPath;
     pkgs.runCommand "check-nixos-container-profile" { } ''
       touch $out
     '';

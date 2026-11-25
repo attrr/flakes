@@ -21,7 +21,13 @@ let
     ''
       if [ ! -L /etc/static ]; then
         is_overlay=0
-        if awk '$2 == "/" { fs = $3 } END { exit (fs != "overlay") }' /proc/mounts 2>/dev/null; then
+        root_fs=""
+        if [ -r /proc/mounts ]; then
+          while read -r _ mp fs _; do
+            [ "$mp" = "/" ] && root_fs="$fs"
+          done < /proc/mounts
+        fi
+        if [ "$root_fs" = "overlay" ]; then
           is_overlay=1
         else
           mkdir -p ${lib.concatMapStringsSep " " dest (lib.attrNames keep)}

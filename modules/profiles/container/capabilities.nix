@@ -68,12 +68,19 @@
         })
 
         (lib.mkIf (!cap.net_admin) {
-          # Runtime pre-configures eth0 and bind-mounts /etc/resolv.conf.
+          # runtime pre-configures interfaces and routes.
           infra.network.topology = lib.mkDefault null;
           networking.useDHCP = lib.mkDefault false;
           networking.useNetworkd = lib.mkOverride 900 false;
+
+          # runtime bind-mounts /etc/resolv.conf.
           networking.useHostResolvConf = lib.mkDefault true;
           networking.resolvconf.enable = lib.mkForce false;
+          services.resolved.enable = lib.mkForce false;
+
+          # netfilter tables require CAP_NET_ADMIN.
+          networking.firewall.enable = lib.mkForce false;
+          networking.nftables.enable = lib.mkForce false;
         })
 
         (lib.mkIf (!cap.sys_admin) {
@@ -96,6 +103,19 @@
 
           # User=nscd + RestrictSUIDSGID=true triggers 217/USER without CAP_SYS_ADMIN.
           systemd.services.nscd.serviceConfig.RestrictSUIDSGID = lib.mkForce false;
+
+          # DynamicUser=true and RootDirectory= require mandatory mount namespaces (226/NAMESPACE without CAP_SYS_ADMIN).
+          users.users.endlessh = lib.mkIf config.services.endlessh.enable {
+            isSystemUser = true;
+            group = "endlessh";
+          };
+          users.groups.endlessh = lib.mkIf config.services.endlessh.enable { };
+          systemd.services.endlessh.serviceConfig = lib.mkIf config.services.endlessh.enable {
+            DynamicUser = lib.mkForce false;
+            RootDirectory = lib.mkForce "";
+            User = "endlessh";
+            Group = "endlessh";
+          };
 
           # sops-install-secrets checks mountinfo.Mounted("/run/secrets.d") even when /run is already tmpfs;
           # skip remounting when the underlying filesystem already matches tmpfs magic.
