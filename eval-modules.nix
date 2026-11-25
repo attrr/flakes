@@ -31,8 +31,7 @@ let
       dir = ./modules/profiles;
       isProfile =
         name: type:
-        name != "container-minimal"
-        && name != "host.nix"
+        name != "host.nix"
         && (
           (type == "regular" && lib.hasSuffix ".nix" name)
           || (type == "directory" && builtins.pathExists (dir + "/${name}/default.nix"))
@@ -66,7 +65,7 @@ let
 
   finixModules =
     aspectLib.resolveModule "finix" [
-      ./modules/profiles/container-minimal
+      ./modules/profiles/container
       ./modules/profiles/server
       ./modules/network
       ./modules/services/sing-box

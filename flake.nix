@@ -122,7 +122,7 @@
           };
           modules = [
             ctx.nixosModules.${hostname}
-            self.modules.finix.container-minimal
+            self.modules.finix.container
           ]
           ++ providerModules "finix" host
           ++ lib.optional (entry != null && builtins.pathExists entry) entry;

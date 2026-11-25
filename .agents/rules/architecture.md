@@ -15,8 +15,8 @@ When writing or modifying code in this repository, rigidly adhere to the followi
   - **Secrets**: Service modules declare backend-agnostic `infra.secrets.<name>` (including their own runtime `owner`/`group`, accounting for `DynamicUser` when applicable). `modules/secrets.nix` centrally adapts them to `sops.secrets`.
   - **`modules/services/`**: Standardize every service as `<name>/default.nix`.
   - **`modules/finix/`**: finix platform polyfills / upstream-equivalent modules (`compat.nix`, `sops.nix`, `services/sing-box.nix`). Always spell `finix` lowercase.
-  - **`modules/profiles/`**: Opinionated profiles (`base`, `server`, `desktop`, `container`, `container-minimal`, `host.nix`). Hardware profiles (`modules/hardware/`) are imported by hosts; provider presets live under `modules/providers/`.
-  - `flake.nix` exposes profiles as `self.modules.<class>.<name>` (e.g. `self.modules.nixos.server`, `self.modules.finix.container-minimal`, `self.modules.homeManager.desktop`).
+  - **`modules/profiles/`**: Opinionated profiles (`base`, `server`, `desktop`, `container`, `host.nix`). Hardware profiles (`modules/hardware/`) are imported by hosts; provider presets live under `modules/providers/`.
+  - `flake.nix` exposes profiles as `self.modules.<class>.<name>` (e.g. `self.modules.nixos.server`, `self.modules.finix.container`, `self.modules.homeManager.desktop`).
 - **Host-private options**: Options declared inside `hosts/<host>/` live under `<host>.*` (e.g. `yata.sing-box`).
 - **`lib/*`**: Helpers for host configs, exposed as the `helpers` module arg (not ctx's `fn`). They should only depend on `lib` and not system configuration or context.
 - **`pkgs/`**: Contains custom derivations and software packages built from source via `callPackage`.

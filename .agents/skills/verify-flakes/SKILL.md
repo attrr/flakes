@@ -35,11 +35,10 @@ git -C ctx add -N <new-ctx-files>
 Evaluate all NixOS + finix hosts, Home Manager configs, and `eval-modules.nix` (used by `nixd`):
 
 ```sh
-nix eval --json path:. --apply 'f:
-  let
-    hosts = builtins.mapAttrs (_: c: c.config.system.build.toplevel.drvPath) f.nixosConfigurations;
-    homes = builtins.mapAttrs (_: h: h.activationPackage.drvPath) f.homeConfigurations;
-  in { inherit hosts homes; }'
+nix eval --json --impure --expr 'let f = builtins.getFlake "path:${toString ./.}"; in {
+  hosts = builtins.mapAttrs (_: c: c.config.system.build.toplevel.drvPath) f.nixosConfigurations;
+  homes = builtins.mapAttrs (_: h: h.activationPackage.drvPath) f.homeConfigurations;
+}'
 ```
 
 Verify `eval-modules.nix` (`nixd` completion):

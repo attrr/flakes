@@ -36,9 +36,8 @@
     "${finix}/modules/system/activation/switchable-system.nix"
     "${finix}/modules/system/nixos-compat.nix"
     "${finix}/modules/finit"
-    ../../../finix
+    ../../../../finix
     ./shims.nix
-    ./lustrate.nix
   ];
 
   disabledModules = [

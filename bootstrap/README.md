@@ -54,7 +54,7 @@ nix run .#bootstrap.images.<name> -- --stdout       # container tarballs: stream
   nix run .#bootstrap.images.<name> -- --stdout | \
     ssh root@<host> 'tar -xzpf - -C / --numeric-owner && ln -sfn /nix/var/nix/profiles/system/init /sbin/init && sync && reboot'
   ```
-- **finix minimal containers** (`drifting` / `container-minimal`, `.tar.gz`): bundles pre-decrypted `/var/lib/secrets/*` (no Nix DB registration). Normally driven via `nix run .#drifting -- bootstrap <name>` (see `ctx/docs/drifting.md`).
+- **finix minimal containers** (`drifting` / `self.modules.finix.container`, `.tar.gz`): bundles pre-decrypted `/var/lib/secrets/*` (no Nix DB registration). Normally driven via `nix run .#drifting -- bootstrap <name>` (see `ctx/docs/drifting.md`).
 - **SD / repart images** (`yata`, `flame`): injects identity into root partition offline via `debugfs`.
 
 ### Capturing an Existing Host's Identity

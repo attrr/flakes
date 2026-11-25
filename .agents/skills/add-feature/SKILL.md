@@ -66,6 +66,6 @@ Use `{ includes, module, ctx }` (or shorthand `{ common, nixos, finix, homeManag
 
 ## 3. Register & Update Completion
 
-1. Add the new feature path to `modules/module-list.nix` (for NixOS hosts) and, if applicable, to `modules/profiles/container-minimal/default.nix` (for finix containers).
+1. Add the new feature path to `modules/module-list.nix` (for NixOS hosts) and, if applicable, to `modules/profiles/container/default.nix` (for finix containers).
 2. If the feature supports `finix`, add it to `finixModules` in `eval-modules.nix` so `nixd` completion stays in sync.
 3. Run the `verify-flakes` workflow before committing.
