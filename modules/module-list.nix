@@ -7,6 +7,7 @@
   ./services/alerts
   ./services/containers
   ./services/knot
+  ./services/nano-exporter
   ./services/restic
   ./services/ssh
   ./services/telemetry

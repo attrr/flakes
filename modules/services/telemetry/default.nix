@@ -1,4 +1,6 @@
 {
+  includes = [ ../nano-exporter ];
+
   module = {
     common =
       { config, lib, ... }:
@@ -133,42 +135,19 @@
       {
         config,
         lib,
-        pkgs,
         ...
       }:
       let
         cfg = config.infra.telemetry;
-        coreutils = config.programs.coreutils.package;
 
         importUrl =
           if cfg.push.url != null then
             "${lib.removeSuffix "/api/v1/write" cfg.push.url}/api/v1/import/prometheus"
           else
             "";
-
-        pushScript = pkgs.writeShellApplication {
-          name = "telemetry-push";
-          runtimeInputs = [
-            coreutils
-            pkgs.nano-exporter2
-            pkgs.curlMinimal
-          ];
-          runtimeEnv = {
-            TELEMETRY_HOST = cfg.labels.host;
-            TELEMETRY_USER = cfg.push.username;
-            TELEMETRY_TOKEN_FILE = toString cfg.push.tokenFile;
-            TELEMETRY_URL = importUrl;
-          };
-          text = builtins.readFile ./push.sh;
-        };
       in
       {
         config = lib.mkIf cfg.enable {
-          infra.secrets = lib.optional (cfg.mode == "push") {
-            path = cfg.push.tokenFile;
-            owner = "telemetry";
-          };
-
           assertions = [
             {
               assertion = cfg.mode == "push";
@@ -176,16 +155,19 @@
             }
           ];
 
-          users.users.telemetry = {
-            group = "telemetry";
-            description = "Lightweight telemetry pusher";
+          infra.secrets = lib.optional (cfg.mode == "push") {
+            path = cfg.push.tokenFile;
+            owner = "nano-exporter";
           };
-          users.groups.telemetry = { };
 
-          providers.scheduler.tasks.telemetry-push = {
-            interval = "minutely";
-            user = "telemetry";
-            command = pushScript;
+          services.nano-exporter = {
+            enable = lib.mkDefault true;
+            nodename = lib.mkDefault cfg.labels.host;
+            push = {
+              url = lib.mkDefault importUrl;
+              basicAuthUsername = lib.mkDefault cfg.push.username;
+              basicAuthPasswordFile = lib.mkDefault cfg.push.tokenFile;
+            };
           };
         };
       };

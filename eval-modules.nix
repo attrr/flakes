@@ -70,6 +70,7 @@ let
       ./modules/services/sing-box
       ./modules/services/usque
       ./modules/services/tunnelbroker
+      ./modules/services/nano-exporter
       ./modules/services/telemetry
       ./modules/secrets.nix
     ]
