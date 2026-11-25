@@ -123,6 +123,7 @@ in
       system.activationScripts.containerLustrate = mkScript {
         inherit lib;
         inherit (config.infra.container.lustrate) keep;
+        postHook = ''${config.infra.container.installInit} "$systemConfig"'';
       };
       system.activationScripts.binsh.deps = [ "containerLustrate" ];
       system.activationScripts.etc.deps = [ "containerLustrate" ];
@@ -136,7 +137,7 @@ in
       system.activation.scripts.containerLustrate = mkScript {
         inherit lib;
         inherit (config.infra.container.lustrate) keep;
-        postHook = ''${config.providers.bootloader.installHook} "$systemConfig"'';
+        postHook = ''${config.infra.container.installInit} "$systemConfig"'';
       };
       system.activation.scripts.binsh.deps = [ "containerLustrate" ];
       system.activation.scripts.etc.deps = [ "containerLustrate" ];

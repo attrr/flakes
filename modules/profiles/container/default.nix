@@ -1,6 +1,8 @@
 # Multi-class container profile (NixOS systemd + finix finit).
 {
   includes = [
+    ./capabilities.nix
+    ./init.nix
     ./lustrate.nix
     ../server
     ../../network
@@ -10,7 +12,6 @@
   ];
 
   module = {
-    common = ./common.nix;
     nixos = ./nixos;
     finix = ./finix;
   };
