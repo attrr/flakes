@@ -1,0 +1,104 @@
+name: update-flake
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-flake
+  cancel-in-progress: false
+
+jobs:
+  update-and-prewarm:
+    runs-on: nix
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
+
+      - name: Update flake.lock
+        id: update
+        run: |
+          set -euo pipefail
+          log="${RUNNER_TEMP}/flake-update.log"
+          nix flake update --flake path:. 2>&1 | tee "$log"
+          if git diff --quiet flake.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pre-warm Harmonia cache
+        run: |
+          set -euo pipefail
+          gcroot="${NIX_PREWARM_GCROOT_DIR:-/var/lib/gitea-runner/nix-prewarm}"
+          mkdir -p "$gcroot"
+
+          rc=0
+          for arch in aarch64-linux x86_64-linux; do
+            echo "::group::Building prewarm ($arch)"
+            nix build "path:.#legacyPackages.$arch.prewarm" \
+              --out-link "$gcroot/result-$arch" \
+              --max-jobs 1 \
+              --cores 2 \
+              --keep-going || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
+
+      - name: Create or update flake.lock PR
+        if: steps.update.outputs.changed == 'true'
+        env:
+          TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
+          BRANCH: chore/flake-update
+          BOT_EMAIL: actions@noreply.local
+          TITLE: "chore(flake): update flake.lock"
+        run: |
+          set -euo pipefail
+          if git fetch --depth 1 origin "refs/heads/${BRANCH}" 2>/dev/null; then
+            last_author=$(git log -1 --format=%ae FETCH_HEAD)
+            if [ "$last_author" != "$BOT_EMAIL" ]; then
+              echo "Skipping force-push: ${BRANCH} has manual commits (author: ${last_author})."
+              exit 0
+            fi
+          fi
+
+          git config user.name "forgejo-actions"
+          git config user.email "$BOT_EMAIL"
+
+          git checkout -B "$BRANCH"
+          git add flake.lock
+          git commit -m "$TITLE"
+          git push --force origin "HEAD:refs/heads/${BRANCH}"
+
+          api="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/pulls"
+          summary=$(grep -E '^• ' "${RUNNER_TEMP}/flake-update.log" || echo "Updated flake.lock")
+          body=$(printf 'Automated `nix flake update` with Harmonia cache pre-warmed on both arches.\n\n```text\n%s\n```\n' "$summary")
+
+          existing=$(curl -fsS -H "Authorization: token ${TOKEN}" \
+            "${api}?state=open&limit=50" \
+            | jq -r --arg b "$BRANCH" '.[] | select(.head.ref == $b) | .number' | head -n1)
+
+          if [ -n "$existing" ]; then
+            payload=$(jq -n --arg title "$TITLE" --arg body "$body" '{title: $title, body: $body}')
+            curl -fsS -X PATCH \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$payload" \
+              "${api}/${existing}" >/dev/null
+            echo "Updated PR #${existing}"
+          else
+            payload=$(jq -n \
+              --arg title "$TITLE" \
+              --arg body "$body" \
+              --arg head "$BRANCH" \
+              --arg base "main" \
+              '{title: $title, body: $body, head: $head, base: $base}')
+            pr=$(curl -fsS -X POST \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$payload" \
+              "${api}" | jq -r '.number')
+            echo "Created PR #${pr}"
+          fi

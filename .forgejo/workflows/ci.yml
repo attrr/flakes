@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: nix
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check Nix formatting
+        run: |
+          mapfile -t nix_files < <(git ls-files '*.nix')
+          nix run path:.#formatter.aarch64-linux -- --check "${nix_files[@]}"
+
+      - name: Evaluate prewarm targets
+        run: |
+          for arch in aarch64-linux x86_64-linux; do
+            nix eval --raw "path:.#legacyPackages.$arch.prewarm.drvPath"
+            echo ""
+          done
