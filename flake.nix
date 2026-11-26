@@ -290,6 +290,14 @@
               system
               ;
           };
+          prewarm = import ./lib/prewarm.nix {
+            inherit
+              self
+              nixpkgs
+              disko
+              system
+              ;
+          };
         }
       );
 
