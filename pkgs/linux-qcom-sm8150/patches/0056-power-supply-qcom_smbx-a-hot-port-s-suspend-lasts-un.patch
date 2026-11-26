@@ -18,10 +18,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 22 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index aba449e46efe..a073dfbfc376 100644
+index 8c4cf68b208c..dded7d7033fa 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -845,6 +845,17 @@ static void smb_watchdog_recover(struct smb_chip *chip)
+@@ -849,6 +849,17 @@ static void smb_watchdog_recover(struct smb_chip *chip)
  	smb_update_charging_enable(chip);
  }
  
@@ -39,7 +39,7 @@ index aba449e46efe..a073dfbfc376 100644
  /*
   * Stock's charge table (google,chg-{temp,cv,cc}-limits), as its google_battery
   * runs it, every 30s from the battery this charges: its temperature picks a
-@@ -868,16 +879,23 @@ static void smb_table_work(struct work_struct *work)
+@@ -872,16 +883,23 @@ static void smb_table_work(struct work_struct *work)
  	unsigned long state = READ_ONCE(chip->therm_state);
  	int therm_ua = state ? chip->therm_limits[state - 1] : 0;
  	int usb_online = 0;

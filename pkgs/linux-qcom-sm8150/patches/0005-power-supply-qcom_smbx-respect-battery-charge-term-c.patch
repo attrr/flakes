@@ -15,10 +15,10 @@ Signed-off-by: Casey Connolly <casey.connolly@linaro.org>
  1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 67fdb4335338..95d34049d86a 100644
+index 8c6b7c46b85f..e2b0d2c141d2 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -587,7 +587,7 @@ static void smb_status_change_work(struct work_struct *work)
+@@ -592,7 +592,7 @@ static void smb_status_change_work(struct work_struct *work)
  		current_ua = CDP_CURRENT_UA;
  		break;
  	case POWER_SUPPLY_USB_TYPE_DCP:
@@ -27,7 +27,7 @@ index 67fdb4335338..95d34049d86a 100644
  		break;
  	case POWER_SUPPLY_USB_TYPE_SDP:
  	default:
-@@ -992,6 +992,8 @@ static int smb_probe(struct platform_device *pdev)
+@@ -1028,6 +1028,8 @@ static int smb_probe(struct platform_device *pdev)
  	if (rc)
  		return dev_err_probe(chip->dev, rc,
  				     "Failed to get battery info\n");

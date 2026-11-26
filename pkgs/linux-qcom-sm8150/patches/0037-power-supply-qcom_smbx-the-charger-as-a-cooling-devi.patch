@@ -18,7 +18,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 140 insertions(+), 17 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index d1b7a014a12a..f987dd6e8087 100644
+index c8f32f430f68..2adfcf23c826 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
 @@ -23,6 +23,7 @@
@@ -29,7 +29,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  #include <linux/types.h>
  #include <linux/workqueue.h>
  
-@@ -270,9 +271,16 @@ struct smb_init_register {
+@@ -273,9 +274,16 @@ struct smb_init_register {
   * @usb_in_i_chan:	USB_IN current measurement channel
   * @usb_in_v_chan:	USB_IN voltage measurement channel
   * @chg_psy:		Charger power supply instance
@@ -47,7 +47,7 @@ index d1b7a014a12a..f987dd6e8087 100644
   * @table_work:		The charge table's poll
   * @temp_limits:	The table's temperatures, in tenths of a degree C
   * @volt_limits:	Its tiers' float voltages
-@@ -306,6 +314,12 @@ struct smb_chip {
+@@ -310,6 +318,12 @@ struct smb_chip {
  	struct mutex lock;
  	bool user_inhibit;
  	bool table_inhibit;
@@ -60,7 +60,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  
  	struct delayed_work table_work;
  	int *temp_limits;
-@@ -652,17 +666,21 @@ static int smb_update_charging_enable(struct smb_chip *chip)
+@@ -656,17 +670,21 @@ static int smb_update_charging_enable(struct smb_chip *chip)
   * battery only makes up what the input limit can't; suspending USB_IN runs
   * it from the battery alone
   */
@@ -90,7 +90,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_FORCE_DISCHARGE;
  	else if (READ_ONCE(chip->user_inhibit))
  		*val = POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE;
-@@ -683,15 +701,17 @@ static int smb_set_charge_behaviour(struct smb_chip *chip, int val)
+@@ -687,15 +705,17 @@ static int smb_set_charge_behaviour(struct smb_chip *chip, int val)
  		WRITE_ONCE(chip->user_inhibit,
  			   val == POWER_SUPPLY_CHARGE_BEHAVIOUR_INHIBIT_CHARGE);
  		rc = smb_update_charging_enable(chip);
@@ -114,7 +114,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  		break;
  	default:
  		return -EINVAL;
-@@ -814,9 +834,21 @@ static void smb_table_work(struct work_struct *work)
+@@ -818,9 +838,21 @@ static void smb_table_work(struct work_struct *work)
  	int health = POWER_SUPPLY_HEALTH_GOOD;
  	int fcc = chip->fcc_ua, fv = chip->fv_uv;
  	int t = chip->temp_idx, v = chip->volt_idx;
@@ -136,7 +136,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  	smb_get_prop_usb_online(chip, &usb_online);
  	if (!usb_online) {
  		/* the next plug-in seeds it again */
-@@ -864,6 +896,8 @@ static void smb_table_work(struct work_struct *work)
+@@ -868,6 +900,8 @@ static void smb_table_work(struct work_struct *work)
  		fv = chip->volt_limits[v];
  		inhibit = !fcc;
  	}
@@ -145,7 +145,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  
  	if (t != chip->temp_idx || v != chip->volt_idx) {
  		chip->switch_cnt = 0;
-@@ -951,6 +985,87 @@ static int smb_read_table(struct smb_chip *chip)
+@@ -955,6 +989,87 @@ static int smb_read_table(struct smb_chip *chip)
  	return 0;
  }
  
@@ -233,7 +233,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  static int smb_get_iio_chan(struct smb_chip *chip, struct iio_channel *chan,
  			     int *val)
  {
-@@ -1109,11 +1224,15 @@ static int smb_set_property(struct power_supply *psy,
+@@ -1107,11 +1222,15 @@ static int smb_set_property(struct power_supply *psy,
  			     const union power_supply_propval *val)
  {
  	struct smb_chip *chip = power_supply_get_drvdata(psy);
@@ -251,7 +251,7 @@ index d1b7a014a12a..f987dd6e8087 100644
  	case POWER_SUPPLY_PROP_CURRENT_MAX:
  		return smb_set_current_limit(chip, val->intval);
  	case POWER_SUPPLY_PROP_CHARGE_BEHAVIOUR:
-@@ -1570,6 +1689,10 @@ static int smb_probe(struct platform_device *pdev)
+@@ -1597,6 +1716,10 @@ static int smb_probe(struct platform_device *pdev)
  	if (rc < 0)
  		return rc;
  

@@ -19,7 +19,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 52 insertions(+)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index df02f9d1b3e9..d1b7a014a12a 100644
+index e35eedb69fc7..c8f32f430f68 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
 @@ -108,6 +108,16 @@ enum smb_generation {
@@ -39,7 +39,7 @@ index df02f9d1b3e9..d1b7a014a12a 100644
  #define USBIN_OPTIONS_1_CFG				0x362
  #define AUTO_SRC_DETECT_BIT				BIT(3)
  #define HVDCP_EN_BIT					BIT(2)
-@@ -532,6 +542,30 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
+@@ -536,6 +546,30 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
  				  ICL_OVERRIDE_AFTER_APSD_BIT : 0);
  }
  
@@ -70,7 +70,7 @@ index df02f9d1b3e9..d1b7a014a12a 100644
  static void smb_status_change_work(struct work_struct *work)
  {
  	union power_supply_propval typec_ua;
-@@ -546,6 +580,9 @@ static void smb_status_change_work(struct work_struct *work)
+@@ -550,6 +584,9 @@ static void smb_status_change_work(struct work_struct *work)
  	if (chip->n_temps)
  		mod_delayed_work(system_wq, &chip->table_work, 0);
  
@@ -80,7 +80,7 @@ index df02f9d1b3e9..d1b7a014a12a 100644
  	smb_get_prop_usb_online(chip, &usb_online);
  	if (!usb_online) {
  		/* not to start the next plug-in at this one's limit */
-@@ -1152,6 +1189,21 @@ static irqreturn_t smb_handle_wdog_bark(int irq, void *data)
+@@ -1150,6 +1187,21 @@ static irqreturn_t smb_handle_wdog_bark(int irq, void *data)
  static void smb_external_power_changed(struct power_supply *psy)
  {
  	struct smb_chip *chip = power_supply_get_drvdata(psy);

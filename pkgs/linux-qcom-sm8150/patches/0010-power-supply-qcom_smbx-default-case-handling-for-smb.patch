@@ -13,10 +13,10 @@ Signed-off-by: Joel Selvaraj <foss@joelselvaraj.com>
  1 file changed, 3 insertions(+)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 2e095d225f2d..8a139016ae2f 100644
+index d3dd14df8367..4443675d782e 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -584,6 +584,9 @@ static int smb_get_prop_health(struct smb_chip *chip, int *val)
+@@ -583,6 +583,9 @@ static int smb_get_prop_health(struct smb_chip *chip, int *val)
  		return smb2_get_prop_health(chip, val);
  	case SMB5:
  		return smb5_get_prop_health(chip, val);

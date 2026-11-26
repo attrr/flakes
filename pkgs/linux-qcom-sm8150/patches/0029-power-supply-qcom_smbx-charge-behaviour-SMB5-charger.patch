@@ -17,10 +17,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 100 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 17983d8e659e..0bd080d02e0e 100644
+index c73959adf197..bda98e74d91b 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -212,6 +212,18 @@ enum charger_status {
+@@ -215,6 +215,18 @@ enum charger_status {
  	DISABLE_CHARGE,
  };
  
@@ -39,7 +39,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  struct smb_init_register {
  	u16 addr;
  	u8 mask;
-@@ -267,6 +279,7 @@ static enum power_supply_property smb_properties[] = {
+@@ -272,6 +284,7 @@ static enum power_supply_property smb_properties[] = {
  	POWER_SUPPLY_PROP_HEALTH,
  	POWER_SUPPLY_PROP_ONLINE,
  	POWER_SUPPLY_PROP_USB_TYPE,
@@ -47,7 +47,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  };
  
  static int smb_get_prop_usb_online(struct smb_chip *chip, int *val)
-@@ -352,7 +365,7 @@ static int smbx_ov_status(struct smb_chip *chip)
+@@ -357,7 +370,7 @@ static int smbx_ov_status(struct smb_chip *chip)
  	if (rc)
  		return rc;
  
@@ -56,7 +56,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  }
  
  static int smb_get_prop_status(struct smb_chip *chip, int *val)
-@@ -387,6 +400,25 @@ static int smb_get_prop_status(struct smb_chip *chip, int *val)
+@@ -392,6 +405,25 @@ static int smb_get_prop_status(struct smb_chip *chip, int *val)
  
  	stat = stat & BATTERY_CHARGER_STATUS_MASK;
  
@@ -82,7 +82,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  	switch (stat) {
  	case TRICKLE_CHARGE:
  	case PRE_CHARGE:
-@@ -485,6 +517,65 @@ static void smb_status_change_work(struct work_struct *work)
+@@ -490,6 +522,65 @@ static void smb_status_change_work(struct work_struct *work)
  	power_supply_changed(chip->chg_psy);
  }
  
@@ -148,7 +148,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  static int smb_get_iio_chan(struct smb_chip *chip, struct iio_channel *chan,
  			     int *val)
  {
-@@ -625,6 +716,8 @@ static int smb_get_property(struct power_supply *psy,
+@@ -624,6 +715,8 @@ static int smb_get_property(struct power_supply *psy,
  		return smb_get_prop_health(chip, &val->intval);
  	case POWER_SUPPLY_PROP_USB_TYPE:
  		return smb_apsd_get_charger_type(chip, &val->intval);
@@ -157,7 +157,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  	default:
  		dev_err(chip->dev, "invalid property: %d\n", psp);
  		return -EINVAL;
-@@ -643,6 +736,8 @@ static int smb_set_property(struct power_supply *psy,
+@@ -642,6 +735,8 @@ static int smb_set_property(struct power_supply *psy,
  					  USBIN_SUSPEND_BIT, !val->intval);
  	case POWER_SUPPLY_PROP_CURRENT_MAX:
  		return smb_set_current_limit(chip, val->intval);
@@ -166,7 +166,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  	default:
  		dev_err(chip->dev, "No setter for property: %d\n", psp);
  		return -EINVAL;
-@@ -655,6 +750,7 @@ static int smb_property_is_writable(struct power_supply *psy,
+@@ -654,6 +749,7 @@ static int smb_property_is_writable(struct power_supply *psy,
  	switch (psp) {
  	case POWER_SUPPLY_PROP_STATUS:
  	case POWER_SUPPLY_PROP_CURRENT_MAX:
@@ -174,7 +174,7 @@ index 17983d8e659e..0bd080d02e0e 100644
  		return 1;
  	default:
  		return 0;
-@@ -717,6 +813,9 @@ static const struct power_supply_desc smb_psy_desc = {
+@@ -716,6 +812,9 @@ static const struct power_supply_desc smb_psy_desc = {
  		     BIT(POWER_SUPPLY_USB_TYPE_CDP) |
  		     BIT(POWER_SUPPLY_USB_TYPE_DCP) |
  		     BIT(POWER_SUPPLY_USB_TYPE_UNKNOWN),

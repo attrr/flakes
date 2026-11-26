@@ -14,10 +14,10 @@ Signed-off-by: Casey Connolly <casey.connolly@linaro.org>
  1 file changed, 6 insertions(+)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 8d91731b93ef..2e095d225f2d 100644
+index fca77068c743..d3dd14df8367 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -1091,6 +1091,12 @@ static int smb_probe(struct platform_device *pdev)
+@@ -1146,6 +1146,12 @@ static int smb_probe(struct platform_device *pdev)
  		return dev_err_probe(chip->dev, rc,
  				     "Couldn't write fast charge current cfg");
  

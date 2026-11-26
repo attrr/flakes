@@ -13,7 +13,7 @@ Signed-off-by: Casey Connolly <casey.connolly@linaro.org>
  1 file changed, 4 insertions(+), 207 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 9a0a4886bcd1..2ea84a1474a4 100644
+index 72f9ffa86449..392176f65f5f 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
 @@ -25,37 +25,15 @@

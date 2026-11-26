@@ -10,10 +10,10 @@ Subject: [PATCH] power: supply: qcom_smbx: remove unsupported __counted_by
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 8a139016ae2f..17983d8e659e 100644
+index 4443675d782e..c73959adf197 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -254,7 +254,7 @@ struct smb_match_data {
+@@ -259,7 +259,7 @@ struct smb_match_data {
  	const char *name;
  	enum smb_generation gen;
  	size_t init_seq_len;

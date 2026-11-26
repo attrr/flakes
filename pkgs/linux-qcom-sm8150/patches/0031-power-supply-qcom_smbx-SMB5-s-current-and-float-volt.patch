@@ -12,17 +12,17 @@ generation.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 ---
- drivers/power/supply/qcom_smbx.c | 24 +++++++++++++++++++-----
- 1 file changed, 19 insertions(+), 5 deletions(-)
+ drivers/power/supply/qcom_smbx.c | 51 ++++++++++++++++++++++----------
+ 1 file changed, 36 insertions(+), 15 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index dfefbc0aa7a9..cc8cec2b999d 100644
+index 62ef7d1f528b..37934be5c44a 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -201,6 +201,10 @@ enum smb_generation {
- 
- /* pmi8998 registers represent current in increments of 1/40th of an amp */
- #define CURRENT_SCALE_FACTOR				25000
+@@ -204,6 +204,10 @@ enum smb_generation {
+ #define SMB2_FLOAT_VOLTAGE_MIN_UV			3487500
+ #define SMB2_FLOAT_VOLTAGE_MAX_UV			4920000
+ #define SMB2_FLOAT_VOLTAGE_STEP_UV			7500
 +/* pm8150b's in 1/20th, and float voltage from 3.6V in 10mV */
 +#define SMB5_CURRENT_SCALE_FACTOR			50000
 +#define SMB5_FLOAT_VOLTAGE_MIN_UV			3600000
@@ -30,7 +30,7 @@ index dfefbc0aa7a9..cc8cec2b999d 100644
  /* clang-format on */
  
  enum charger_status {
-@@ -264,6 +268,12 @@ struct smb_chip {
+@@ -269,6 +273,12 @@ struct smb_chip {
  	struct power_supply *chg_psy;
  };
  
@@ -43,7 +43,7 @@ index dfefbc0aa7a9..cc8cec2b999d 100644
  struct smb_match_data {
  	const char *name;
  	enum smb_generation gen;
-@@ -448,7 +458,7 @@ static inline int smb_get_current_limit(struct smb_chip *chip,
+@@ -453,7 +463,7 @@ static inline int smb_get_current_limit(struct smb_chip *chip,
  	int rc = regmap_read(chip->regmap, chip->base + ICL_STATUS(chip), val);
  
  	if (rc >= 0)
@@ -52,7 +52,7 @@ index dfefbc0aa7a9..cc8cec2b999d 100644
  	return rc;
  }
  
-@@ -462,7 +472,7 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
+@@ -467,7 +477,7 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
  			"Can't set current limit higher than 4800000uA");
  		return -EINVAL;
  	}
@@ -61,7 +61,7 @@ index dfefbc0aa7a9..cc8cec2b999d 100644
  
  	rc = regmap_write(chip->regmap, chip->base + USBIN_CURRENT_LIMIT_CFG,
  			  val_raw);
-@@ -938,7 +948,7 @@ static const struct smb_init_register smb5_init_seq[] = {
+@@ -937,7 +947,7 @@ static const struct smb_init_register smb5_init_seq[] = {
  	 */
  	{ .addr = FAST_CHARGE_CURRENT_CFG,
  	  .mask = FAST_CHARGE_CURRENT_SETTING_MASK,
@@ -70,20 +70,47 @@ index dfefbc0aa7a9..cc8cec2b999d 100644
  };
  
  /* Init sequence derived from vendor downstream driver */
-@@ -1183,7 +1193,11 @@ static int smb_probe(struct platform_device *pdev)
- 	if (chip->batt_info->constant_charge_current_max_ua == -EINVAL)
- 		chip->batt_info->constant_charge_current_max_ua = DCP_CURRENT_UA;
+@@ -1225,17 +1235,28 @@ static int smb_probe(struct platform_device *pdev)
+ 		goto skip_float_voltage;
+ 	}
  
--	rc = (chip->batt_info->voltage_max_design_uv - 3487500) / 7500 + 1;
-+	if (chip->gen == SMB5)
-+		rc = (chip->batt_info->voltage_max_design_uv -
-+		      SMB5_FLOAT_VOLTAGE_MIN_UV) / SMB5_FLOAT_VOLTAGE_STEP_UV;
-+	else
-+		rc = (chip->batt_info->voltage_max_design_uv - 3487500) / 7500 + 1;
+-	if (float_voltage_uv < SMB2_FLOAT_VOLTAGE_MIN_UV ||
+-	    float_voltage_uv > SMB2_FLOAT_VOLTAGE_MAX_UV)
+-		return dev_err_probe(chip->dev, -EINVAL,
+-				     "float voltage %d uV outside %d-%d uV\n",
+-				     float_voltage_uv,
+-				     SMB2_FLOAT_VOLTAGE_MIN_UV,
+-				     SMB2_FLOAT_VOLTAGE_MAX_UV);
+-
+-	float_voltage_sel =
+-		(float_voltage_uv - SMB2_FLOAT_VOLTAGE_MIN_UV) /
+-		SMB2_FLOAT_VOLTAGE_STEP_UV;
++	if (chip->gen == SMB5) {
++		if (float_voltage_uv < SMB5_FLOAT_VOLTAGE_MIN_UV ||
++		    float_voltage_uv > SMB5_FLOAT_VOLTAGE_MIN_UV +
++				       FLOAT_VOLTAGE_SETTING_MASK * SMB5_FLOAT_VOLTAGE_STEP_UV)
++			return dev_err_probe(chip->dev, -EINVAL,
++					     "float voltage %d uV out of range\n",
++					     float_voltage_uv);
++		float_voltage_sel =
++			(float_voltage_uv - SMB5_FLOAT_VOLTAGE_MIN_UV) /
++			SMB5_FLOAT_VOLTAGE_STEP_UV;
++	} else {
++		if (float_voltage_uv < SMB2_FLOAT_VOLTAGE_MIN_UV ||
++		    float_voltage_uv > SMB2_FLOAT_VOLTAGE_MAX_UV)
++			return dev_err_probe(chip->dev, -EINVAL,
++					     "float voltage %d uV outside %d-%d uV\n",
++					     float_voltage_uv,
++					     SMB2_FLOAT_VOLTAGE_MIN_UV,
++					     SMB2_FLOAT_VOLTAGE_MAX_UV);
++		float_voltage_sel =
++			(float_voltage_uv - SMB2_FLOAT_VOLTAGE_MIN_UV) /
++			SMB2_FLOAT_VOLTAGE_STEP_UV;
++	}
  	rc = regmap_update_bits(chip->regmap, chip->base + FLOAT_VOLTAGE_CFG,
- 				FLOAT_VOLTAGE_SETTING_MASK, rc);
+ 				FLOAT_VOLTAGE_SETTING_MASK, float_voltage_sel);
  	if (rc < 0)
-@@ -1223,7 +1237,7 @@ static int smb_probe(struct platform_device *pdev)
+@@ -1278,7 +1299,7 @@ static int smb_probe(struct platform_device *pdev)
  	 * reporting.
  	 */
  	rc = regmap_write(chip->regmap, chip->base + FAST_CHARGE_CURRENT_CFG,

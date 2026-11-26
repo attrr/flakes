@@ -19,10 +19,10 @@ Signed-off-by: Casey Connolly <casey.connolly@linaro.org>
  1 file changed, 14 insertions(+), 8 deletions(-)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index 95d34049d86a..9a0a4886bcd1 100644
+index e2b0d2c141d2..72f9ffa86449 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -879,14 +879,6 @@ static const struct smb_init_register smb_init_seq[] = {
+@@ -887,14 +887,6 @@ static const struct smb_init_register smb_init_seq[] = {
  	{ .addr = PRE_CHARGE_CURRENT_CFG,
  	  .mask = PRE_CHARGE_CURRENT_SETTING_MASK,
  	  .val = 500000 / CURRENT_SCALE_FACTOR },
@@ -37,7 +37,7 @@ index 95d34049d86a..9a0a4886bcd1 100644
  };
  
  static int smb_init_hw(struct smb_chip *chip)
-@@ -1032,6 +1024,20 @@ static int smb_probe(struct platform_device *pdev)
+@@ -1093,6 +1085,20 @@ static int smb_probe(struct platform_device *pdev)
  
  	platform_set_drvdata(pdev, chip);
  

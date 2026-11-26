@@ -16,10 +16,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 34 insertions(+)
 
 diff --git a/drivers/power/supply/qcom_smbx.c b/drivers/power/supply/qcom_smbx.c
-index a073dfbfc376..b1ff4398ab2d 100644
+index dded7d7033fa..fb14e8d2a9b1 100644
 --- a/drivers/power/supply/qcom_smbx.c
 +++ b/drivers/power/supply/qcom_smbx.c
-@@ -560,6 +560,21 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
+@@ -564,6 +564,21 @@ static int smb_set_current_limit(struct smb_chip *chip, unsigned int val)
  				  ICL_OVERRIDE_AFTER_APSD_BIT : 0);
  }
  
@@ -41,7 +41,7 @@ index a073dfbfc376..b1ff4398ab2d 100644
  /*
   * As downstream, SMB5 takes a PD contract's voltage, and 5V for the source's
   * transitions and hard resets, as the contract changes; any other source is
-@@ -608,6 +623,12 @@ static void smb_status_change_work(struct work_struct *work)
+@@ -612,6 +627,12 @@ static void smb_status_change_work(struct work_struct *work)
  		return;
  	}
  
@@ -54,7 +54,7 @@ index a073dfbfc376..b1ff4398ab2d 100644
  	for (count = 0; count < 3; count++) {
  		dev_dbg(chip->dev, "get charger type retry %d\n", count);
  		rc = smb_apsd_get_charger_type(chip, &charger_type);
-@@ -643,6 +664,7 @@ static void smb_status_change_work(struct work_struct *work)
+@@ -647,6 +668,7 @@ static void smb_status_change_work(struct work_struct *work)
  		break;
  	}
  
@@ -62,7 +62,7 @@ index a073dfbfc376..b1ff4398ab2d 100644
  	/* A source saying more for itself, by PD or Rp, has the last word */
  	if (!power_supply_get_property_from_supplier(chip->chg_psy,
  						     POWER_SUPPLY_PROP_CURRENT_MAX,
-@@ -1412,6 +1434,18 @@ static void smb_external_power_changed(struct power_supply *psy)
+@@ -1409,6 +1431,18 @@ static void smb_external_power_changed(struct power_supply *psy)
  	 * APSD, which that wait is for
  	 */
  	smb_set_adapter_allowance(chip);
