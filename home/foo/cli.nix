@@ -35,6 +35,7 @@ lib.mkMerge [
 
       # extra
       gh
+      gitleaks
       rlwrap
       libheif
       tpm2-tools

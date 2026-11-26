@@ -118,6 +118,7 @@ in
           curl
           gawk
           git
+          gitleaks
           gnused
           jq
           nodejs

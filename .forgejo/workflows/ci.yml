@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Scan for secrets
+        run: gitleaks dir --no-banner --redact .
+
       - name: Check Nix formatting
         run: |
           mapfile -t nix_files < <(git ls-files '*.nix')
