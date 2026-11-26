@@ -50,12 +50,13 @@ in
   nix.daemonCPUSchedPolicy = "idle";
   nix.daemonIOSchedClass = "idle";
   systemd.services.nix-daemon.serviceConfig = {
-    MemoryHigh = "6G";
-    MemoryMax = "8G";
+    MemoryHigh = "8G";
+    MemoryMax = "9G";
   };
 
   systemd.services.nix-prewarm = lib.mkIf harmonia.prewarm.enable {
     description = "Pre-warm Harmonia binary cache from public flakes repo";
+    restartIfChanged = false;
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     path = with pkgs; [
@@ -94,8 +95,8 @@ in
       StateDirectory = "nix-prewarm";
       Nice = 19;
       IOSchedulingClass = "idle";
-      MemoryHigh = "3G";
-      MemoryMax = "4G";
+      MemoryHigh = "5G";
+      MemoryMax = "6G";
     };
   };
 
