@@ -79,13 +79,15 @@ in
       cd "$repo"
       nix flake update --flake path:.
 
+      rc=0
       for arch in aarch64-linux x86_64-linux; do
         nix build "path:.#legacyPackages.$arch.prewarm" \
           --out-link "/var/lib/nix-prewarm/result-$arch" \
           --max-jobs 1 \
           --cores 2 \
-          --keep-going
+          --keep-going || rc=1
       done
+      exit $rc
     '';
     serviceConfig = {
       Type = "oneshot";
