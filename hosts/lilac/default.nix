@@ -5,6 +5,7 @@
 }:
 {
   imports = [
+    ./restic-server.nix
     ./syncthing.nix
   ];
 

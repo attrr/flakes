@@ -9,6 +9,65 @@
     let
       cfg = config.infra.restic;
       repository = "s3:${cfg.s3.base}/${cfg.s3.bucketName}/${cfg.s3.namespace}";
+
+      mkRepoAttrs =
+        m:
+        lib.optionalAttrs (m.repository != null) { inherit (m) repository; }
+        // lib.optionalAttrs (m.repositoryFile != null) { inherit (m) repositoryFile; };
+
+      mkMaintenance =
+        target:
+        {
+          inherit (cfg) passwordFile;
+          inherit (target) environmentFile timerConfig;
+          pruneOpts = cfg.maintenance.pruneOpts ++ [ "--retry-lock 2h" ];
+          checkOpts = cfg.maintenance.checkOpts ++ [ "--retry-lock 2h" ];
+        }
+        // lib.optionalAttrs (target ? extraOptions) { inherit (target) extraOptions; }
+        // mkRepoAttrs target;
+
+      mirrorBackups = lib.concatMapAttrs (
+        mName: m:
+        let
+          target = {
+            inherit (m) environmentFile extraOptions timerConfig;
+          }
+          // mkRepoAttrs m;
+        in
+        lib.mapAttrs' (
+          bName: b:
+          lib.nameValuePair "${bName}-${mName}" (
+            {
+              inherit (b)
+                paths
+                exclude
+                backupPrepareCommand
+                backupCleanupCommand
+                extraBackupArgs
+                initialize
+                user
+                passwordFile
+                ;
+            }
+            // target
+            // lib.optionalAttrs (b.dynamicFilesFrom != null) { inherit (b) dynamicFilesFrom; }
+          )
+        ) cfg.backups
+        // {
+          "maintenance-${mName}" = mkMaintenance (m // { timerConfig = m.maintenanceTimerConfig; });
+        }
+      ) cfg.mirrors;
+
+      mirrorOrderings = lib.concatMapAttrs (
+        mName: _:
+        lib.mapAttrs' (
+          bName: _:
+          lib.nameValuePair "restic-backups-${bName}-${mName}" {
+            # Avoid colliding with primary job's backupPrepareCommand temp dirs (e.g. sqlite .backup).
+            after = [ "restic-backups-${bName}.service" ];
+          }
+        ) cfg.backups
+      ) cfg.mirrors;
     in
     {
       options.infra.restic = {
@@ -71,6 +130,51 @@
           };
         };
 
+        mirrors = lib.mkOption {
+          default = { };
+          description = "Additional peer restic repositories that receive copies of every backup job";
+          type = lib.types.attrsOf (
+            lib.types.submodule {
+              options = {
+                repository = lib.mkOption {
+                  type = lib.types.nullOr lib.types.str;
+                  default = null;
+                  description = "Full restic repository URL for this peer target";
+                };
+                repositoryFile = lib.mkOption {
+                  type = lib.types.nullOr lib.types.str;
+                  default = null;
+                  description = "Path to a file containing the restic repository URL (keeps credentials out of the Nix store)";
+                };
+                environmentFile = lib.mkOption {
+                  type = with lib.types; nullOr str;
+                  default = null;
+                };
+                extraOptions = lib.mkOption {
+                  type = lib.types.listOf lib.types.str;
+                  default = [ ];
+                };
+                timerConfig = lib.mkOption {
+                  type = lib.types.attrsOf lib.types.anything;
+                  default = {
+                    OnCalendar = "05:00";
+                    RandomizedDelaySec = "1h";
+                    Persistent = true;
+                  };
+                };
+                maintenanceTimerConfig = lib.mkOption {
+                  type = lib.types.attrsOf lib.types.anything;
+                  default = {
+                    OnCalendar = "Sun 06:00";
+                    RandomizedDelaySec = "2h";
+                    Persistent = true;
+                  };
+                };
+              };
+            }
+          );
+        };
+
         backups = lib.mkOption {
           default = { };
           type = lib.types.attrsOf (
@@ -109,21 +213,29 @@
           infra.paths = [ "/var/lib/acme" ];
         };
 
-        services.restic.backups = cfg.backups // {
-          # no paths: only forget --prune and check
-          maintenance = {
-            inherit repository;
-            inherit (cfg) passwordFile environmentFile;
-            inherit (cfg.maintenance) timerConfig;
-            pruneOpts = cfg.maintenance.pruneOpts ++ [ "--retry-lock 2h" ];
-            checkOpts = cfg.maintenance.checkOpts ++ [ "--retry-lock 2h" ];
-          };
-        };
+        services.restic.backups =
+          cfg.backups
+          // {
+            # no paths: only forget --prune and check
+            maintenance = mkMaintenance {
+              inherit repository;
+              repositoryFile = null;
+              inherit (cfg) environmentFile;
+              inherit (cfg.maintenance) timerConfig;
+            };
+          }
+          // mirrorBackups;
+
+        systemd.services = mirrorOrderings;
       };
     };
 
   ctx =
-    { lib, ctx, ... }:
+    {
+      lib,
+      ctx,
+      ...
+    }:
     let
       restic = ctx.services.restic;
     in
@@ -133,6 +245,9 @@
         s3.bucketName = lib.mkDefault restic.bucket-name;
         environmentFile = lib.mkDefault restic.env.path;
         passwordFile = lib.mkDefault restic.password.path;
+        mirrors = lib.mkIf (restic.rest-repo != null) {
+          gdrive.repositoryFile = lib.mkDefault restic.rest-repo.path;
+        };
       };
     };
 }

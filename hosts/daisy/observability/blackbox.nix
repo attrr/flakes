@@ -42,7 +42,10 @@ let
         404
         405
       ];
-      targets = optionalUrl (registry.acme-dns.url or null) ++ optionalUrl registry.telemetry.relay.url;
+      targets =
+        optionalUrl (registry.acme-dns.url or null)
+        ++ optionalUrl (registry.restic-server.url or null)
+        ++ optionalUrl registry.telemetry.relay.url;
     };
   };
 
