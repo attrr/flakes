@@ -67,4 +67,4 @@ Use `{ includes, module, ctx }` (or shorthand `{ common, nixos, finix, homeManag
 ## 3. Register & Update Completion
 
 1. Add the new feature path to `modules/module-list.nix`: put cross-class (`nixos` + `finix`) modules in `common`, NixOS-only modules in `nixos`, and finix-only modules in `finix`. Both `nixosModules.default` / `finixModules.default`, `profiles/host.nix` / `profiles/container`, and `eval-modules.nix` pick it up automatically.
-2. Run the `verify-flakes` workflow before committing.
+2. Run the `verify-flakes` workflow to verify evaluations and checks.

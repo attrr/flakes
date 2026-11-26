@@ -35,7 +35,6 @@ Read `ctx/docs/drifting.md` for flags. Standard flow:
    nix run .#drifting -- init <target> -p <port> --provider <p> --loc <loc> --upstream <u> --ports <p1>,<p2>
    ```
 3. Re-bootstrap an already-declared host: `nix run .#drifting -- bootstrap <name> [target]`
-4. Commit `ctx` first, then bump `ctx` pointer in `flakes`.
 
 ### B. disko Host (VPS / Bare-Metal)
 1. Build rescue initrd: `nix build .#bootstrap.rescue.<host>` (add `bootstrap/rescue/hosts/<host>.nix` if NIC/driver/zram tweaks are needed).

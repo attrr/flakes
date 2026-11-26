@@ -29,3 +29,4 @@ __pycache__/
 # zsh's fmt Makefile
 !home/foo/zsh/Makefile
 docs
+.githooks/
