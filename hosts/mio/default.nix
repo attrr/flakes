@@ -45,8 +45,6 @@ in
     "vfio-pci.ids=${lib.concatStringsSep "," vfioIds}"
   ];
   infra.desktop.enableLibvirtd = true;
-
-  # forgejo has 22 on the wg address
   services.endlessh.enable = false;
 
   # ssh-tpm-agent keys are sealed in the TPM

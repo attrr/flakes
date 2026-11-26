@@ -5,7 +5,6 @@
   ...
 }:
 let
-  wg = ctx.services.wireguard;
   lan = ctx.network;
   direct = lan.ipv4.category.direct;
 
@@ -75,25 +74,6 @@ in
   virtualisation.quadlet = {
     enable = true;
     containers = {
-      forgejo = {
-        Unit = {
-          # git ssh listens on the wg address
-          Wants = [ "wireguard-wg0.service" ];
-          After = [ "wireguard-wg0.service" ];
-        };
-        Container = {
-          Image = "codeberg.org/forgejo/forgejo:14";
-          PublishPort = [
-            "127.0.0.1:3000:3000/tcp"
-            "${wg.ipv4}:22:22/tcp"
-          ];
-          UserNS = "auto";
-          Volume = "/mnt/git:/data:idmap";
-          AutoUpdate = "registry";
-        };
-        Install.WantedBy = [ "mnt.mount" ];
-      };
-
       jellyfin = {
         Container = {
           Image = "docker.io/jellyfin/jellyfin:preview";

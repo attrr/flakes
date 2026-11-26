@@ -11,7 +11,6 @@ let
   direct = "10.200.0.2";
 
   upstreams = {
-    git = "127.0.0.1:3000";
     jellyfish = "127.0.0.1:8096";
     torrent = "${direct}:8080";
     transmission = "${direct}:9091";
@@ -52,8 +51,6 @@ in
   };
 
   networking.firewall.interfaces.wg0.allowedTCPPorts = [
-    # forgejo's git ssh
-    22
     80
     443
   ];
