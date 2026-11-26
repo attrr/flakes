@@ -140,10 +140,12 @@ in
     };
   };
 
+  nix.settings.allowed-users = [ "gitea-runner" ];
+
   systemd.services.gitea-runner-nix = {
     after = [ "forgejo-runner-token.service" ];
     wants = [ "forgejo-runner-token.service" ];
-    environment.NIX_PREWARM_GCROOT_DIR = "/var/lib/gitea-runner/nix-prewarm";
+    environment.NIX_PREWARM_GCROOT_DIR = "/var/lib/gitea-runner/nix/prewarm";
     serviceConfig = {
       TimeoutStartSec = "30s";
       Nice = 19;
