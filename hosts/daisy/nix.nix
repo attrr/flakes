@@ -2,7 +2,6 @@
   config,
   ctx,
   lib,
-  pkgs,
   ...
 }:
 let
@@ -52,61 +51,5 @@ in
   systemd.services.nix-daemon.serviceConfig = {
     MemoryHigh = "8G";
     MemoryMax = "9G";
-  };
-
-  systemd.services.nix-prewarm = lib.mkIf harmonia.prewarm.enable {
-    description = "Pre-warm Harmonia binary cache from public flakes repo";
-    restartIfChanged = false;
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    path = with pkgs; [
-      config.nix.package
-      git
-      coreutils
-    ];
-    script = ''
-      set -euo pipefail
-      repo=/var/lib/nix-prewarm/repo
-      branch=${lib.escapeShellArg harmonia.prewarm.branch}
-
-      if [ -d "$repo/.git" ]; then
-        git -C "$repo" remote set-url origin ${lib.escapeShellArg harmonia.prewarm.repo}
-        git -C "$repo" fetch --depth 1 origin "$branch"
-        git -C "$repo" reset --hard "origin/$branch"
-      else
-        git clone --depth 1 --branch "$branch" ${lib.escapeShellArg harmonia.prewarm.repo} "$repo"
-      fi
-
-      cd "$repo"
-      nix flake update --flake path:.
-
-      rc=0
-      for arch in aarch64-linux x86_64-linux; do
-        nix build "path:.#legacyPackages.$arch.prewarm" \
-          --out-link "/var/lib/nix-prewarm/result-$arch" \
-          --max-jobs 1 \
-          --cores 2 \
-          --keep-going || rc=1
-      done
-      exit $rc
-    '';
-    serviceConfig = {
-      Type = "oneshot";
-      StateDirectory = "nix-prewarm";
-      Nice = 19;
-      IOSchedulingClass = "idle";
-      MemoryHigh = "5G";
-      MemoryMax = "6G";
-    };
-  };
-
-  systemd.timers.nix-prewarm = lib.mkIf harmonia.prewarm.enable {
-    description = "Daily Harmonia cache pre-warming";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "03:00";
-      RandomizedDelaySec = "1h";
-      Persistent = true;
-    };
   };
 }

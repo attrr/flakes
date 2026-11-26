@@ -5,6 +5,7 @@
 }:
 {
   imports = [
+    ./forgejo.nix
     ./nix.nix
     ./observability
   ];
@@ -16,6 +17,19 @@
       "*.${ctx.metadata.fdqn}"
     ];
   };
+
+  infra.restic =
+    let
+      restic = ctx.services.restic;
+    in
+    {
+      enable = true;
+      s3.bucketName = restic.bucket-name;
+      environmentFile = restic.env.path;
+      passwordFile = restic.password.path;
+
+      backups.infra.paths = [ "/var/lib/acme" ];
+    };
 
   nix.gc = {
     automatic = true;

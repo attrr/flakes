@@ -27,6 +27,7 @@ let
         "https://${obs.victoriametrics.domain}/health"
       ]
       ++ optionalUrl (registry.harmonia.url or null)
+      ++ optionalUrl (registry.forgejo.url or null)
       ++ optionalUrl (registry.ntfy.url or null);
     };
 

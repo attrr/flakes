@@ -2,6 +2,7 @@
   config,
   ctx,
   lib,
+  pkgs,
   registry,
   ...
 }:
@@ -199,5 +200,23 @@ in
       ];
       allowedUDPPorts = [ 443 ];
     };
+
+    infra.restic.backups.grafana =
+      let
+        dbBackup = "/var/lib/grafana-db-backup";
+      in
+      {
+        paths = [ dbBackup ];
+        backupPrepareCommand = ''
+          rm -rf ${dbBackup}
+          mkdir -p ${dbBackup}
+          ${pkgs.sqlite}/bin/sqlite3 -cmd ".timeout 10000" \
+            ${lib.escapeShellArg "${config.services.grafana.dataDir}/data/grafana.db"} \
+            ".backup '${dbBackup}/grafana.db'"
+        '';
+        backupCleanupCommand = ''
+          rm -rf ${dbBackup}
+        '';
+      };
   };
 }
