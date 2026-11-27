@@ -19,8 +19,6 @@
     espSize = "512M";
   };
 
-  infra.containers.enable = false;
-
   users.mutableUsers = false;
   users.users.root.hashedPassword = ctx.ssh.hashed-password;
   services.openssh.lockRootLogin = false;

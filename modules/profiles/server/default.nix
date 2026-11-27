@@ -64,7 +64,6 @@
           ];
         }
         (lib.mkIf cfg.lowend {
-          infra.containers.enable = lib.mkDefault false;
           zramSwap.memoryPercent = lib.mkDefault 100;
           services.tailscale.lowMemory = lib.mkDefault true;
         })

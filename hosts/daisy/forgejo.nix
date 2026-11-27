@@ -13,6 +13,8 @@ let
   publicUrl = "https://${forgejo.domain}";
 in
 {
+  infra.containers.enable = true;
+
   services.forgejo = {
     enable = true;
     package = pkgs.forgejo;
