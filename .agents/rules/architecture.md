@@ -12,10 +12,10 @@ When writing or modifying code in this repository, rigidly adhere to the followi
   - **Multi-class mixing**: `common` is loaded for every resolved class (`nixos`, `finix`, `homeManager`), so only put genuinely cross-class declarations there.
   - **`ctx`**: Cluster wiring (`ctx -> infra.*` as `lib.mkDefault`), only loaded by `aspectLib.resolve` during host assembly.
   - **`includes` vs `options`**: Use `includes`/`imports` for static host identity and platform boundaries (`server`, `desktop`, `providers/*`, `hardware/*`); use typed `options` (`enable`, `topology`, `mode`) for configurable or conditional capabilities.
-  - **Secrets**: Service modules declare backend-agnostic `infra.secrets.<name>` (including their own runtime `owner`/`group`, accounting for `DynamicUser` when applicable). `modules/secrets.nix` centrally adapts them to `sops.secrets`.
+  - **Secrets**: Service modules declare backend-agnostic `infra.secrets.<name>` (including their own runtime `owner`/`group`, accounting for `DynamicUser` when applicable). `modules/services/secrets` centrally adapts them to `sops.secrets`.
   - **`modules/services/`**: Standardize every service as `<name>/default.nix`.
   - **`modules/finix/`**: finix platform polyfills / upstream-equivalent modules (`compat.nix`, `sops.nix`, `services/sing-box.nix`). Always spell `finix` lowercase.
-  - **`modules/profiles/`**: Opinionated profiles (`base`, `server`, `desktop`, `container`, `host.nix`). Hardware profiles (`modules/hardware/`) are imported by hosts; provider presets live under `modules/providers/`.
+  - **`modules/profiles/`**: Opinionated profiles (`base`, `server`, `desktop`, `container`). Hardware profiles (`modules/hardware/`) are imported by hosts; provider presets live under `modules/providers/`.
   - `flake.nix` exposes profiles as `self.modules.<class>.<name>` (e.g. `self.modules.nixos.server`, `self.modules.finix.container`, `self.modules.homeManager.desktop`).
 - **Host-private options**: Options declared inside `hosts/<host>/` live under `<host>.*` (e.g. `yata.sing-box`).
 - **`lib/*`**: Helpers for host configs, exposed as the `helpers` module arg (not ctx's `fn`). They should only depend on `lib` and not system configuration or context.

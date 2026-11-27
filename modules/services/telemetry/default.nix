@@ -151,7 +151,7 @@
           assertions = [
             {
               assertion = cfg.mode == "push";
-              message = "${config.infra.server.hostname}: finix infra.telemetry only supports mode = \"push\"";
+              message = "${config.networking.hostName}: finix infra.telemetry only supports mode = \"push\"";
             }
           ];
 

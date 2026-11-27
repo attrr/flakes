@@ -1,88 +1,93 @@
-# The everyday bits; network tuning, security posture and bug workarounds in
-# their own files.
 {
-  lib,
-  pkgs,
-  ...
-}:
-{
-  imports = [
-    ./network.nix
-    ./hardening.nix
-    ./mitigations.nix
-    ./caddy.nix
-  ];
+  module = {
+    os =
+      { lib, pkgs, ... }:
+      {
+        programs.htop.enable = lib.mkDefault true;
+        environment.variables.EDITOR = "mg";
+        environment.systemPackages = map lib.getBin (
+          with pkgs;
+          [
+            mg
+            curlMinimal
+            jq
+            mtr
+          ]
+        );
+      };
 
-  nix.settings = {
-    extra-experimental-features = [
-      "nix-command"
-      "flakes"
-    ];
-    allowed-users = [ "@users" ];
-    trusted-users = [ "@wheel" ];
+    nixos =
+      {
+        config,
+        lib,
+        pkgs,
+        ...
+      }:
+      {
+        imports = [
+          ./mitigations.nix
+        ];
+
+        config = lib.mkMerge [
+          {
+            programs.nano.enable = lib.mkDefault false;
+
+            networking.nftables = {
+              enable = lib.mkDefault true;
+              tables.scanner-blocklist = {
+                family = "inet";
+                content = ''
+                  include "${pkgs.scanner-blocklist-nft}"
+                '';
+              };
+            };
+          }
+
+          (lib.mkIf (!config.boot.isContainer) {
+            # fixes land in mainline first
+            boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
+
+            boot.kernel.sysctl = {
+              # io_uring keeps turning up in privilege escalation chains
+              "kernel.io_uring_disabled" = lib.mkDefault 2;
+
+              # kernel addresses help exploits; nixos defaults kptr_restrict to 1
+              "kernel.kptr_restrict" = lib.mkOverride 999 2;
+              "kernel.dmesg_restrict" = lib.mkDefault 1;
+              "net.core.bpf_jit_harden" = lib.mkDefault 2;
+
+              # network
+              "net.core.default_qdisc" = lib.mkDefault "cake";
+              "net.ipv4.tcp_congestion_control" = "bbr";
+              "net.ipv4.tcp_slow_start_after_idle" = 0;
+              "net.ipv4.tcp_mtu_probing" = 1;
+            };
+          })
+
+          (lib.mkIf config.nix.enable {
+            nix.settings = {
+              extra-experimental-features = [
+                "nix-command"
+                "flakes"
+              ];
+              allowed-users = [ "@users" ];
+              trusted-users = [ "@wheel" ];
+            };
+
+            programs.git = {
+              enable = lib.mkDefault true;
+              package = lib.mkDefault pkgs.gitMinimal;
+              config.init.defaultBranch = "main";
+            };
+          })
+        ];
+      };
   };
 
-  # enable zram regardless
-  zramSwap.enable = lib.mkDefault true;
-  zramSwap.algorithm = "zstd";
-
-  programs.neovim = {
-    enable = true;
-    defaultEditor = true;
-    viAlias = true;
-    vimAlias = true;
-  };
-
-  programs.git = {
-    enable = true;
-    package = lib.mkDefault pkgs.gitMinimal;
-    config = {
-      init.defaultBranch = "main";
+  ctx.os =
+    { lib, ctx, ... }:
+    {
+      networking.hostName = lib.mkDefault ctx.metadata.hostname;
+      nixpkgs.hostPlatform = lib.mkDefault ctx.metadata.arch;
     };
-  };
-
-  programs.htop = {
-    enable = true;
-    settings = rec {
-      highlight_base_name = true;
-      tree_view = true;
-      show_cpu_frequency = true;
-      # less verbose
-      show_program_path = false;
-      hide_kernel_threads = true;
-      hide_userland_threads = true;
-      # steal time
-      detailed_cpu_time = true;
-
-      left_meters = [
-        "AllCPUs"
-        "Memory"
-        "Swap"
-      ];
-      left_meter_modes = (lib.replicate (builtins.length left_meters) 1);
-
-      right_meters = [
-        "NetworkIO"
-        "DiskIO"
-        "Tasks"
-        "LoadAverage"
-        "Uptime"
-        "CPU"
-      ];
-      right_meter_modes = (lib.replicate (builtins.length left_meters) 2);
-    };
-  };
-
-  # basic maintenance tools
-  environment.systemPackages = with pkgs; [
-    curl
-    tmux
-    jq
-    mtr
-    wget
-    nftables
-    dig
-    nethogs
-    iftop
-  ];
 }

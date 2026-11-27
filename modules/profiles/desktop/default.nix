@@ -1,4 +1,6 @@
 {
+  includes = [ ../base ];
+
   module.nixos =
     {
       lib,
@@ -11,7 +13,6 @@
     in
     {
       imports = [
-        ../base
         ./boot.nix
         ./i18n.nix
         ./gnome.nix
@@ -77,8 +78,6 @@
       hub = builtins.head wg.peers;
     in
     {
-      networking.hostName = ctx.metadata.hostname;
-
       assertions = [
         {
           assertion = config.users.users.foo.hashedPassword != null;

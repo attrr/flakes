@@ -19,10 +19,7 @@
     espSize = "512M";
   };
 
-  infra.server = {
-    containers = false;
-    auto-resize = true;
-  };
+  infra.containers.enable = false;
 
   users.mutableUsers = false;
   users.users.root.hashedPassword = ctx.ssh.hashed-password;

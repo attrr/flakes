@@ -1,10 +1,16 @@
 # option modules, inert until enabled; opinionated config lives in ./profiles
 {
   common = [
+    ./services/htop
+    ./services/unfree
+  ];
+
+  os = [
     ./network
-    ./secrets.nix
     ./services/nano-exporter
+    ./services/secrets
     ./services/sing-box
+    ./services/ssh
     ./services/telemetry
     ./services/tunnelbroker
     ./services/usque
@@ -14,18 +20,20 @@
     ./disko
     ./services/acme
     ./services/alerts
+    ./services/caddy
     ./services/containers
     ./services/knot
     ./services/librechat
     ./services/librechat-rag-api
     ./services/mediawiki
+    ./services/nix
     ./services/openbao
     ./services/pooper-scooper
     ./services/quadlet
     ./services/restic
-    ./services/ssh
+    ./services/serial
+    ./services/tailscale
     ./services/tgu
-    ./services/unfree
   ];
 
   finix = [
@@ -33,6 +41,9 @@
     ./finix/shims.nix
     ./finix/compat.nix
     ./finix/sops.nix
+    ./finix/services/openssh.nix
     ./finix/services/sing-box.nix
   ];
+
+  homeManager = [ ];
 }

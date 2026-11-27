@@ -58,7 +58,7 @@ let
 
   nixosProfiles =
     let
-      entries = removeAttrs (builtins.readDir ./modules/profiles) [ "host.nix" ];
+      entries = builtins.readDir ./modules/profiles;
     in
     aspectLib.resolveModule "nixos" (
       map (name: ./modules/profiles + "/${name}") (builtins.attrNames entries)
@@ -88,6 +88,7 @@ let
 
   classOptions = {
     common = mkClassOpt customModules;
+    os = mkClassOpt customModules;
     nixos = mkClassOpt (nixosBase ++ customModules);
     finix = mkClassOpt finixModules;
     homeManager = mkClassOpt hmModules;

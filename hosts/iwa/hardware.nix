@@ -2,7 +2,6 @@
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    (modulesPath + "/profiles/headless.nix")
   ];
 
   boot.initrd.systemd.enable = true;

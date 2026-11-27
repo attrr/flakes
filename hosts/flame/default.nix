@@ -29,8 +29,6 @@
   # deploy adds one before the oldest goes
   boot.loader.systemd-boot.configurationLimit = 4;
 
-  networking.hostName = ctx.metadata.hostname;
-
   services.openssh = {
     enable = true;
     ports = ctx.ssh.ports;

@@ -1,6 +1,4 @@
 {
-  description = "NixOS Declarative Configuration";
-
   inputs = {
     self.submodules = true;
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -76,7 +74,7 @@
         in
         lib.nixosSystem {
           modules = [
-            self.modules.nixos.host
+            self.modules.nixos.default
             sops-nix.nixosModules.sops
             disko.nixosModules.disko
             ctx.nixosModules.${hostname}
@@ -105,25 +103,20 @@
         let
           lib = nixpkgs.lib;
           host = hosts.${hostname};
-          system = host.metadata.arch;
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ self.overlays.default ];
-          };
         in
         lib.evalModules {
           specialArgs = {
             inherit
               inputs
               self
-              pkgs
               finix
               ;
           };
           modules = [
-            self.modules.finix.host
+            self.modules.finix.default
             ctx.nixosModules.${hostname}
             self.modules.finix.container
+            { nixpkgs.overlays = [ self.overlays.default ]; }
           ]
           ++ providerModules "finix" host
           ++ lib.optional (entry != null && builtins.pathExists entry) entry;

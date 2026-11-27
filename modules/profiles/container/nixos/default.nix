@@ -5,7 +5,7 @@
   ...
 }:
 {
-  infra.server.lowend.enable = lib.mkDefault true;
+  infra.server.lowend = lib.mkDefault true;
 
   boot.isContainer = true;
   fileSystems."/" = {
@@ -20,8 +20,7 @@
   # No host kernel modules or block devices to manage.
   boot.blacklistedKernelModules = lib.mkForce [ ];
   boot.extraModprobeConfig = lib.mkForce "";
-  zramSwap.enable = lib.mkForce false;
-  infra.server.auto-resize = lib.mkForce false;
+  zramSwap.enable = false;
 
   # ramfs can fail in unprivileged/restricted containers.
   boot.specialFileSystems."/run/keys".fsType = lib.mkForce "tmpfs";
@@ -71,8 +70,6 @@
     Storage=volatile
     RuntimeMaxUse=32M
   '';
-  services.fail2ban.enable = lib.mkForce false;
-  programs.neovim.enable = lib.mkForce false;
-  programs.git.enable = lib.mkForce false;
-  fonts.fontconfig.enable = lib.mkForce false;
+  services.fail2ban.enable = false;
+  programs.git.enable = false;
 }

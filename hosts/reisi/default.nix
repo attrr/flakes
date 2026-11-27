@@ -7,8 +7,6 @@
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    (modulesPath + "/profiles/headless.nix")
-    (modulesPath + "/profiles/minimal.nix")
     self.modules.nixos.server
     ./fl-watch.nix
   ];
@@ -47,11 +45,8 @@
     };
   };
 
-  infra.server.lowend.enable = true;
-  infra.server.lowend.zram-percent = 150;
-  infra.server = {
-    auto-resize = true;
-  };
+  infra.server.lowend = true;
+  zramSwap.memoryPercent = 150;
 
   systemd.services.nix-daemon.serviceConfig = {
     MemoryMax = "150M";

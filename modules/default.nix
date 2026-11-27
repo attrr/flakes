@@ -16,19 +16,17 @@ let
 
   profiles = discover ./profiles;
   moduleList = import ./module-list.nix;
+  classModules = {
+    nixos = moduleList.common ++ moduleList.os ++ moduleList.nixos;
+    finix = moduleList.common ++ moduleList.os ++ moduleList.finix;
+    homeManager = moduleList.common ++ moduleList.homeManager;
+  };
+
+  forClass =
+    class: base: lib.mapAttrs (_: aspectLib.asModule class) (profiles // { default = base; });
 in
 {
-  nixosModules.default = {
-    imports = aspectLib.resolveModule "nixos" (moduleList.common ++ moduleList.nixos);
-  };
-
-  finixModules.default = {
-    imports = aspectLib.resolveModule "finix" (moduleList.common ++ moduleList.finix);
-  };
-
-  modules = lib.genAttrs [
-    "nixos"
-    "finix"
-    "homeManager"
-  ] (c: lib.mapAttrs (_: aspectLib.asModule c) profiles);
+  nixosModules.default.imports = aspectLib.resolveModule "nixos" classModules.nixos;
+  finixModules.default.imports = aspectLib.resolveModule "finix" classModules.finix;
+  modules = lib.mapAttrs forClass classModules;
 }

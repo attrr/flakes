@@ -2,7 +2,6 @@
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    (modulesPath + "/profiles/minimal.nix")
   ];
 
   infra.disko = {

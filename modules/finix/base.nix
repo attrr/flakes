@@ -36,11 +36,14 @@
     "${finix}/modules/system/activation/switchable-system.nix"
     "${finix}/modules/system/nixos-compat.nix"
     "${finix}/modules/finit"
+    "${inputs.nixpkgs}/nixos/modules/misc/nixpkgs.nix"
+    "${inputs.nixpkgs}/nixos/modules/programs/htop.nix"
   ];
 
   disabledModules = [
     "${finix}/modules/finit/initrd.nix"
     "${finix}/modules/finit/mount.nix"
+    "${inputs.nixpkgs}/nixos/modules/misc/assertions.nix"
   ];
 
   config = lib.mkMerge [

@@ -6,8 +6,6 @@
 {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    (modulesPath + "/profiles/headless.nix")
-    (modulesPath + "/profiles/minimal.nix")
     self.modules.nixos.server
   ];
 
@@ -19,14 +17,9 @@
   system.stateVersion = "25.11";
   boot.loader.grub.enable = true;
 
-  infra.server = {
-    auto-resize = true;
-    serial = true;
-    lowend = {
-      enable = true;
-      zram-percent = 50;
-    };
-  };
+  infra.server.lowend = true;
+  zramSwap.memoryPercent = 50;
+  boot.serial.enable = true;
 
   infra.network.topology = "static";
 }

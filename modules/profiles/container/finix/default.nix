@@ -1,5 +1,4 @@
 {
-  config,
   lib,
   pkgs,
   ...
@@ -67,29 +66,16 @@ in
     programs.sudo.enable = lib.mkDefault true;
     # `secure_path` pins sudo's PATH (incl. `/run/wrappers/bin`) when the caller has a bare one, e.g.
     # non-login `ssh host cmd` as used by deploy.
-    # Wheel members (`sysadm`) run passwordless sudo (matching `profiles/server`).
     environment.etc.sudoers.text = lib.mkAfter ''
       Defaults secure_path="${lib.concatStringsSep ":" ([ "/run/wrappers/bin" ] ++ systemPath)}"
-      %wheel ALL=(ALL:ALL) NOPASSWD: SETENV: ALL
     '';
-
-    users.users.root.password = "!";
-    users.users.${config.infra.server.user} = {
-      isNormalUser = true;
-      extraGroups = [ "wheel" ];
-      password = "!";
-    };
 
     # Lightweight ops/debugging utilities (mostly reusing libs already in closure).
     environment.systemPackages = map lib.getBin [
-      pkgs.curlMinimal
-      pkgs.jq
       pkgs.lsof
-      pkgs.mtr
       pkgs.netcat-openbsd
       pkgs.openssl
       pkgs.procps
-      pkgs.htop
     ];
   };
 }

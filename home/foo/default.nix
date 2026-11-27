@@ -22,14 +22,13 @@
   };
 
   imports = [
-    "${self}/modules/services/unfree"
+    self.modules.homeManager.default
     ./agents
     ./apps.nix
     ./cli.nix
     ./emacs
     ./git.nix
     ./gnome.nix
-    ./htop.nix
     ./hydroxide.nix
     ./i18n.nix
     ./ide.nix

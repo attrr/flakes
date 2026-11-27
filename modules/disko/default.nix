@@ -6,6 +6,7 @@ let
   layouts = map (lib.removeSuffix ".nix") (
     lib.filter (n: n != "default.nix" && lib.hasSuffix ".nix" n) (lib.attrNames (builtins.readDir ./.))
   );
+  autoResize = cfg.layout != null && cfg.layout != "luks-lvm-btrfs-subvol";
 in
 {
   options.infra.disko = {
@@ -31,16 +32,21 @@ in
     };
   };
 
-  # not mkIf: that still evaluates the import, for its attribute names
-  config.disko =
-    if cfg.layout == null then
-      { }
-    else
-      (import ./${cfg.layout}.nix (
-        {
-          inherit (cfg) device;
-        }
-        // lib.filterAttrs (_: v: v != null) { inherit (cfg) espSize imageSize; }
-        // cfg.extraArgs
-      )).disko;
+  config = {
+    # not mkIf: that still evaluates the import, for its attribute names
+    disko =
+      if cfg.layout == null then
+        { }
+      else
+        (import ./${cfg.layout}.nix (
+          {
+            inherit (cfg) device;
+          }
+          // lib.filterAttrs (_: v: v != null) { inherit (cfg) espSize imageSize; }
+          // cfg.extraArgs
+        )).disko;
+
+    boot.growPartition = lib.mkIf autoResize (lib.mkDefault true);
+    fileSystems."/".autoResize = lib.mkIf autoResize (lib.mkDefault true);
+  };
 }

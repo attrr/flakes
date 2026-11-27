@@ -54,21 +54,7 @@
   services.tailscale = {
     enable = true;
     # Prevent direct WAN UDP hole-punching so overseas peers use DERP.
-    openFirewall = lib.mkForce false;
-  };
-
-  networking.nftables = {
-    enable = true;
-    tables.ts-no-wan-udp = {
-      family = "inet";
-      content = ''
-        chain output {
-          type filter hook output priority filter; policy accept;
-          oifname "e*" udp sport 41641 ip daddr != { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 } drop
-          oifname "e*" udp sport 41641 ip6 daddr != { fc00::/7, fe80::/10 } drop
-        }
-      '';
-    };
+    blockDirectWan = true;
   };
 
   services.pooper-scooper = {

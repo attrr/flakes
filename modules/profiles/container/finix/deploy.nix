@@ -5,7 +5,7 @@
   ...
 }:
 let
-  srv = config.infra.server;
+  hostname = config.networking.hostName;
   toplevel = config.system.topLevel;
   closure = pkgs.closureInfo { rootPaths = [ toplevel ]; };
   secretList = lib.attrValues config.sops.secrets;
@@ -80,7 +80,7 @@ let
 in
 {
   config.system.build.deploy = pkgs.writeShellApplication {
-    name = "deploy-mini-${srv.hostname}";
+    name = "deploy-mini-${hostname}";
     runtimeInputs = with pkgs; [
       sops
       gnutar
@@ -92,7 +92,7 @@ in
         target=$1
         shift
       else
-        echo "usage: deploy-mini-${srv.hostname} <user@host> [ssh-opts...]" >&2
+        echo "usage: deploy-mini-${hostname} <user@host> [ssh-opts...]" >&2
         exit 1
       fi
 
@@ -137,7 +137,7 @@ in
 
       fetch_missing_paths "$@" > "$work/missing-paths"
       missing_count=$(wc -l < "$work/missing-paths")
-      echo "deploy-mini-${srv.hostname}: syncing $missing_count new store path(s) to $target..." >&2
+      echo "deploy-mini-${hostname}: syncing $missing_count new store path(s) to $target..." >&2
 
       env_prefix=""
       [ "''${NIXOS_NO_CHECK:-}" = 1 ] && env_prefix="export NIXOS_NO_CHECK=1; "

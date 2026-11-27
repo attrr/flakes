@@ -49,5 +49,8 @@ lib.mkMerge [
     programs.java.enable = true;
     programs.direnv.enable = true;
     programs.direnv.nix-direnv.enable = true;
+
+    programs.htop.enable = true;
+    programs.htop.cpuColumns = 2;
   }
 ]

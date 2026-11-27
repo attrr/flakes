@@ -61,7 +61,7 @@ let
       {
         boot.loader.grub.enable = false;
         services.tailscale.enable = true;
-        infra.server.ssh-keys = [
+        services.openssh.users.sysadm.authorizedKeys = [
           "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIprewarmshimdummykey000000000000000000000000 prewarm"
         ];
       }

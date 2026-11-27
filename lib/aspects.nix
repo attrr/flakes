@@ -4,9 +4,14 @@
 let
   classKeys = [
     "common"
+    "os"
     "nixos"
     "finix"
     "homeManager"
+  ];
+  osClasses = [
+    "nixos"
+    "finix"
   ];
   featureKeys = classKeys ++ [
     "includes"
@@ -33,6 +38,12 @@ let
   extractClassMap =
     raw: prefix: class: m:
     (if m ? common then tagSlot raw "${prefix}:common" (asList m.common) else [ ])
+    ++ (
+      if m ? os && builtins.elem class osClasses then tagSlot raw "${prefix}:os" (asList m.os) else [ ]
+    )
+    ++ (
+      if m ? os && builtins.elem class osClasses then tagSlot raw "${prefix}:os" (asList m.os) else [ ]
+    )
     ++ (if m ? ${class} then tagSlot raw "${prefix}:${class}" (asList m.${class}) else [ ]);
 
   extractSection =
@@ -62,5 +73,5 @@ in
 {
   resolve = class: items: lib.concatMap (resolveOne true class) items;
   resolveModule = class: items: lib.concatMap (resolveOne false class) items;
-  asModule = class: item: { imports = resolveOne true class item; };
+  asModule = class: item: { imports = lib.concatMap (resolveOne true class) (asList item); };
 }

@@ -19,10 +19,7 @@
       };
       system.stateVersion = "26.05";
 
-      infra.server = {
-        auto-resize = true;
-        serial = lib.mkDefault (ctx.metadata.arch == "x86_64-linux");
-      };
+      boot.serial.enable = lib.mkDefault (ctx.metadata.arch == "x86_64-linux");
 
       boot.loader.efi.canTouchEfiVariables = true;
       boot.loader.systemd-boot.enable = true;

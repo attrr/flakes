@@ -1,41 +1,42 @@
-# Workarounds for specific kernel bugs, until the kernel has the fix. An entry
-# keeps its modules from loading on kernels without the fix, and warns on ones
-# with it: then it should go. fixedIn lists the first fixed release per stable
-# branch, as the CVE record does; a kernel past all of them counts as fixed.
+# Temporary kernel CVE workarounds. Blocks listed modules on unpatched kernels
+# and emits a warning once the running kernel includes the fix.
 #
 #   dirty-frag = {
 #     ref = "CVE-2026-43284, CVE-2026-43500";
 #     modules = [ "esp4" "esp6" "rxrpc" ];
 #     fixedIn = [ "6.12.87" "6.18.28" "7.0.5" "7.1" ];
 #   };
-#
-# Past ones (all fixed by 7.1): Copy Fail (algif_aead), Dirty Frag (esp4, esp6,
-# rxrpc), PinTheft (rds), Fragnesia (esp4, esp6).
-{ lib, config, ... }:
+{ config, lib, ... }:
 let
   mitigations = { };
 
   kernel = config.boot.kernelPackages.kernel.version;
-  fixed =
+  isFixed =
     fixedIn:
-    lib.versionAtLeast kernel (lib.last (lib.sort lib.versionOlder fixedIn))
-    || lib.any (
-      v: lib.versions.majorMinor v == lib.versions.majorMinor kernel && lib.versionAtLeast kernel v
-    ) fixedIn;
-  parts = lib.partition (m: fixed m.fixedIn) (
-    lib.mapAttrsToList (name: m: m // { inherit name; }) mitigations
-  );
-  modules = lib.concatMap (m: m.modules) parts.wrong;
+    let
+      latest = lib.last (lib.sort lib.versionOlder fixedIn);
+      sameBranch = v: lib.versions.majorMinor v == lib.versions.majorMinor kernel;
+    in
+    lib.versionAtLeast kernel latest
+    || lib.any (v: sameBranch v && lib.versionAtLeast kernel v) fixedIn;
+
+  entries = lib.mapAttrsToList (name: m: m // { inherit name; }) mitigations;
+  partitioned = lib.partition (m: isFixed m.fixedIn) entries;
+  active = partitioned.wrong;
+  obsolete = partitioned.right;
+  blockedModules = lib.concatMap (m: m.modules) active;
 in
 {
-  boot.blacklistedKernelModules = modules;
-  # the blacklist only stops autoloading, this stops modprobe too
-  boot.extraModprobeConfig = lib.concatMapStringsSep "\n" (
-    mod: "install ${mod} /run/current-system/sw/bin/false"
-  ) modules;
+  config = lib.mkIf (!config.boot.isContainer && mitigations != { }) {
+    boot.blacklistedKernelModules = blockedModules;
+    # blacklist only blocks autoloading; `install ... false` also blocks explicit modprobe
+    boot.extraModprobeConfig = lib.concatMapStringsSep "\n" (
+      mod: "install ${mod} /run/current-system/sw/bin/false"
+    ) blockedModules;
 
-  warnings = map (
-    m:
-    "mitigation ${m.name} (${m.ref}): kernel ${kernel} has the fix, drop it from profiles/base/mitigations.nix"
-  ) parts.right;
+    warnings = map (
+      m:
+      "mitigation ${m.name} (${m.ref}): kernel ${kernel} has the fix, drop it from profiles/base/mitigations.nix"
+    ) obsolete;
+  };
 }

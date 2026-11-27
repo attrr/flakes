@@ -105,6 +105,12 @@
           ];
         };
 
+        # base disables io_uring globally; allow it for mariadb's group
+        boot.kernel.sysctl = lib.mkIf (!config.boot.isContainer) {
+          "kernel.io_uring_disabled" = 1;
+          "kernel.io_uring_group" = config.users.groups.${config.services.mysql.group}.gid;
+        };
+
         # reverse proxy
         infra.secrets = [
           {
