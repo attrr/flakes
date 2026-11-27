@@ -50,12 +50,28 @@
   :config
   (eat-eshell-mode +1))
 
+(define-minor-mode mine/vterm-passthrough-mode
+  "Send all keys directly to vterm except <f12> (toggle) and C-] (send C-g)."
+  :lighter " [RAW]"
+  (if mine/vterm-passthrough-mode
+      (let ((map (make-sparse-keymap)))
+        (vterm--exclude-keys map nil)
+        (set-keymap-parent map vterm-mode-map)
+        (define-key map (kbd "RET") #'vterm-send-return)
+        (define-key map (kbd "TAB") #'vterm-send-tab)
+        (define-key map (kbd "DEL") #'vterm-send-backspace)
+        (define-key map (kbd "C-]") #'vterm-send-C-g)
+        (define-key map (kbd "<f12>") #'mine/vterm-passthrough-mode)
+        (use-local-map map))
+    (use-local-map vterm-mode-map)))
+
 (use-package vterm
   :ensure t
   :bind
   ("<f4>" . mine/vterm-kill-buffer)
   (:map vterm-mode-map
-	("M-w" . mine/vterm-copy-nomode ))
+	("M-w" . mine/vterm-copy-nomode)
+	("<f12>" . mine/vterm-passthrough-mode))
   :config
   ;; GNOME Console/GNOME Theme
   (let ((colors '(("black"   "#241f31" "#5e5c64")
