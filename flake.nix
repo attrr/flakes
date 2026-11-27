@@ -43,36 +43,46 @@
       ...
     }@inputs:
     let
-      # private submodule
-      ctx = (import ./ctx/flake.nix).outputs { inherit nixpkgs; };
+      inherit (nixpkgs) lib;
 
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
       ];
-      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      forAllSystems = lib.genAttrs supportedSystems;
 
+      # private submodule
+      ctx = (import ./ctx/flake.nix).outputs { inherit nixpkgs; };
       hosts = ctx.cluster.hosts;
-      aspectLib = import ./lib/aspects.nix { inherit (nixpkgs) lib; };
-      modules = import ./modules { inherit (nixpkgs) lib; };
+      isContainerMinimal = name: hosts.${name}.metadata.minimal;
+      minimalHosts = lib.filterAttrs (n: _: isContainerMinimal n) hosts;
+      normalHosts = lib.filterAttrs (n: _: !isContainerMinimal n) hosts;
+
+      aspectLib = import ./lib/aspects.nix { inherit lib; };
+      modules = import ./modules { inherit lib; };
+
+      localPkgs =
+        final: prev:
+        lib.packagesFromDirectoryRecursive {
+          callPackage = lib.callPackageWith (final // { inherit prev; });
+          directory = ./pkgs;
+        };
+
       providerModules =
         class: host:
-        aspectLib.resolve class (
-          nixpkgs.lib.optional (
-            host.metadata.provider != null
-            && builtins.pathExists ./modules/providers/${host.metadata.provider}.nix
-          ) ./modules/providers/${host.metadata.provider}.nix
+        let
+          p = ./modules/providers/${toString host.metadata.provider}.nix;
+        in
+        lib.optionals (host.metadata.provider != null && builtins.pathExists p) (
+          aspectLib.resolve class [ p ]
         );
 
       # <host> from hosts/<host>/default.nix, <host>+<variant> from
       # hosts/<host>/default-<variant>.nix (same ctx entry, so same identity)
       mkSystem =
         hostname: entry:
-        let
-          lib = nixpkgs.lib;
-          host = hosts.${hostname};
-        in
         lib.nixosSystem {
+          specialArgs = { inherit inputs self; };
           modules = [
             self.modules.nixos.default
             sops-nix.nixosModules.sops
@@ -91,38 +101,23 @@
               }
             )
           ]
-          ++ providerModules "nixos" host
+          ++ providerModules "nixos" hosts.${hostname}
           ++ lib.optional (builtins.pathExists entry) entry;
-          specialArgs = {
-            inherit inputs self;
-          };
         };
 
       mkContainerMinimal =
         hostname: entry:
-        let
-          lib = nixpkgs.lib;
-          host = hosts.${hostname};
-        in
         lib.evalModules {
-          specialArgs = {
-            inherit
-              inputs
-              self
-              finix
-              ;
-          };
+          specialArgs = { inherit inputs self finix; };
           modules = [
             self.modules.finix.default
             ctx.nixosModules.${hostname}
             self.modules.finix.container
             { nixpkgs.overlays = [ self.overlays.default ]; }
           ]
-          ++ providerModules "finix" host
-          ++ lib.optional (entry != null && builtins.pathExists entry) entry;
+          ++ providerModules "finix" hosts.${hostname}
+          ++ lib.optional (builtins.pathExists entry) entry;
         };
-
-      isContainerMinimal = name: hosts.${name}.metadata.minimal;
 
       hostDir =
         hostname:
@@ -136,13 +131,13 @@
         let
           dir = hostDir hostname;
         in
-        nixpkgs.lib.optionalAttrs (builtins.pathExists dir) (
-          nixpkgs.lib.concatMapAttrs (
+        lib.optionalAttrs (builtins.pathExists dir) (
+          lib.concatMapAttrs (
             f: _:
             let
               m = builtins.match "default-(.+)\\.nix" f;
             in
-            nixpkgs.lib.optionalAttrs (m != null) {
+            lib.optionalAttrs (m != null) {
               "${hostname}+${builtins.head m}" = builder hostname (dir + "/${f}");
             }
           ) (builtins.readDir dir)
@@ -150,108 +145,94 @@
 
       mkHosts =
         builder:
-        nixpkgs.lib.concatMapAttrs (
-          name: _: { ${name} = builder name ((hostDir name) + "/default.nix"); } // variants builder name
+        lib.concatMapAttrs (
+          name: _: { ${name} = builder name (hostDir name + "/default.nix"); } // variants builder name
         );
 
       # <user>: NixOS; <user>+generic: other distros
-      mkHomes =
+      mkHomes = lib.mapAttrs (
+        name: value:
         let
-          lib = nixpkgs.lib;
+          parts = lib.splitString "+" name;
+          user = builtins.head parts;
+          variant = if builtins.length parts > 1 then builtins.elemAt parts 1 else null;
         in
-        attrs:
-        lib.mapAttrs (
-          name: value:
-          let
-            parts = lib.splitString "+" name;
-            user = builtins.head parts;
-            variant = if builtins.length parts > 1 then builtins.elemAt parts 1 else null;
-          in
-          assert lib.assertMsg (lib.elem variant [
-            null
-            "generic"
-          ]) "home ${name}: the only variant is +generic";
-          home-manager.lib.homeManagerConfiguration (
-            lib.recursiveUpdate value {
-              pkgs = value.pkgs or nixpkgs.legacyPackages.x86_64-linux;
-              extraSpecialArgs = {
-                inherit inputs self;
-                ctx = {
-                  inherit (ctx.cluster) global registry hosts;
-                };
-              }
-              // (value.extraSpecialArgs or { });
-              modules = [
-                sops-nix.homeManagerModules.sops
-                (./home + "/${user}/default.nix")
-                (
-                  { ... }:
-                  {
-                    nixpkgs.overlays = [
-                      self.overlays.default
-                      nixgl.overlay
-                    ];
-                  }
-                )
-              ]
-              ++ [ { os.isNixOS = variant == null; } ]
-              ++ (value.modules or [ ]);
+        assert lib.assertMsg (lib.elem variant [
+          null
+          "generic"
+        ]) "home ${name}: the only variant is +generic";
+        home-manager.lib.homeManagerConfiguration (
+          lib.recursiveUpdate value {
+            pkgs = value.pkgs or nixpkgs.legacyPackages.x86_64-linux;
+            extraSpecialArgs = {
+              inherit inputs self;
+              ctx = {
+                inherit (ctx.cluster) global registry hosts;
+              };
             }
-          )
-        ) attrs;
+            // (value.extraSpecialArgs or { });
+            modules = [
+              sops-nix.homeManagerModules.sops
+              (./home + "/${user}/default.nix")
+              {
+                nixpkgs.overlays = [
+                  self.overlays.default
+                  nixgl.overlay
+                ];
+                os.isNixOS = variant == null;
+              }
+            ]
+            ++ (value.modules or [ ]);
+          }
+        )
+      );
+
+      deployPkgs = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        import nixpkgs {
+          inherit system;
+          overlays = [
+            deploy-rs.overlays.default
+            (_: super: {
+              deploy-rs = {
+                inherit (pkgs) deploy-rs;
+                lib = super.deploy-rs.lib;
+              };
+            })
+          ];
+        }
+      );
 
       mkDeployNode =
         name: host:
         let
           system = self.nixosConfigurations.${name}.pkgs.stdenv.hostPlatform.system;
-          pkgs = import nixpkgs { inherit system; };
-          deployPkgs = import nixpkgs {
-            inherit system;
-            overlays = [
-              deploy-rs.overlays.default
-              (_: super: {
-                deploy-rs = {
-                  inherit (pkgs) deploy-rs;
-                  lib = super.deploy-rs.lib;
-                };
-              })
-            ];
-          };
         in
         {
           inherit (host.deploy) hostname;
           sshUser = host.deploy.user;
           profiles.system = {
             user = "root";
-            path = deployPkgs.deploy-rs.lib.activate.nixos self.nixosConfigurations.${name};
+            path = deployPkgs.${system}.deploy-rs.lib.activate.nixos self.nixosConfigurations.${name};
           };
         }
-        // nixpkgs.lib.optionalAttrs host.deploy.fast-connection { fastConnection = true; };
+        // lib.optionalAttrs host.deploy.fast-connection { fastConnection = true; };
     in
     {
       # every ctx host, plus its variants
-      nixosConfigurations =
-        let
-          minimalHosts = nixpkgs.lib.filterAttrs (n: _: isContainerMinimal n) hosts;
-          normalHosts = nixpkgs.lib.filterAttrs (n: _: !isContainerMinimal n) hosts;
-        in
-        (mkHosts mkSystem normalHosts) // (mkHosts mkContainerMinimal minimalHosts);
+      nixosConfigurations = (mkHosts mkSystem normalHosts) // (mkHosts mkContainerMinimal minimalHosts);
 
-      deploy.nodes = nixpkgs.lib.mapAttrs mkDeployNode (
-        nixpkgs.lib.filterAttrs (n: _: !isContainerMinimal n) hosts
-      );
+      deploy.nodes = lib.mapAttrs mkDeployNode normalHosts;
 
       homeConfigurations = mkHomes {
         foo = { };
         "foo+generic" = { };
       };
 
-      overlays.default =
-        final: prev:
-        prev.lib.packagesFromDirectoryRecursive {
-          callPackage = prev.lib.callPackageWith (final // { inherit prev; });
-          directory = ./pkgs;
-        };
+      overlays.default = localPkgs;
 
       apps = forAllSystems (
         import ./lib/apps.nix {
@@ -270,10 +251,7 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
         in
-        pkgs.lib.packagesFromDirectoryRecursive {
-          callPackage = pkgs.lib.callPackageWith (pkgs // { prev = pkgs; });
-          directory = ./pkgs;
-        }
+        localPkgs (pkgs.extend localPkgs) pkgs
         // {
           bootstrap = import ./bootstrap {
             inherit
