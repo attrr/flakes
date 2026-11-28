@@ -3,6 +3,7 @@
     ./capabilities.nix
     ./init.nix
     ./lustrate.nix
+    ./openvz.nix
     ../server
   ];
 
@@ -23,6 +24,7 @@
           runtime = lib.mkIf (builtins.elem engine [
             "lxc"
             "incus"
+            "openvz"
             "podman"
             "docker"
           ]) (lib.mkDefault engine);

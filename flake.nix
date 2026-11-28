@@ -280,9 +280,11 @@
         import ./lib/checks.nix {
           inherit
             self
+            inputs
             nixpkgs
             disko
             deploy-rs
+            finix
             ;
         }
       );

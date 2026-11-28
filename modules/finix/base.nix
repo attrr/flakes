@@ -6,7 +6,12 @@
   pkgs,
   ...
 }:
+let
+  baseFinit = pkgs.callPackage "${inputs.nixpkgs-unstable}/pkgs/by-name/fi/finit/package.nix" { };
+in
 {
+  options.infra.finix.legacyInotify = lib.mkEnableOption "strip IN_MASK_CREATE from finit for kernels older than Linux 4.18 (e.g. OpenVZ 7 / 3.10)";
+
   imports = [
     "${finix}/modules/lib"
     "${finix}/modules/misc"
@@ -51,7 +56,15 @@
       # finix's libconfuse finit.conf format requires finit >= 5.0; build unstable's derivation
       # against this system's pkgs so glibc/util-linux are not duplicated.
       finit.package = lib.mkDefault (
-        pkgs.callPackage "${inputs.nixpkgs-unstable}/pkgs/by-name/fi/finit/package.nix" { }
+        if config.infra.finix.legacyInotify then
+          baseFinit.overrideAttrs (old: {
+            postPatch = (old.postPatch or "") + ''
+              substituteInPlace src/iwatch.h \
+                --replace-fail ' | IN_MASK_CREATE' ""
+            '';
+          })
+        else
+          baseFinit
       );
       # Satisfy finit's non-empty ttys assertion without spawning a getty in containers.
       finit.ttys.console = {

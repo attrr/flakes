@@ -11,6 +11,7 @@
           mknod = true;
         };
         incus = presets.lxc;
+        openvz = presets.lxc;
         podman = {
           sys_admin = false;
           net_admin = false;
@@ -215,13 +216,14 @@
           };
         })
 
-        # LXC/Incus treats PID 1 exit-0 as poweroff; `reboot -f` invokes `reboot(2)` (SIGHUP to PID 1)
+        # LXC/Incus/OpenVZ treats PID 1 exit-0 as poweroff; `reboot -f` invokes `reboot(2)` (SIGHUP to PID 1)
         # so the runtime restarts the container. Podman/Docker relies on PID 1 exit + restart policy
         # (and drops CAP_SYS_BOOT, where `reboot -f` would fail with EPERM).
         (lib.mkIf
           (builtins.elem config.infra.container.runtime [
             "lxc"
             "incus"
+            "openvz"
           ])
           {
             environment.systemPackages = [

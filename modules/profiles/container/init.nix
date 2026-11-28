@@ -36,6 +36,13 @@ in
           internal = true;
           description = "Script that creates `initPaths` symlinks pointing at `$1/init`.";
         };
+
+        bashWrapper = lib.mkOption {
+          type = lib.types.nullOr lib.types.package;
+          default = null;
+          internal = true;
+          description = "Optional wrapper linked at `/bin/bash` instead of the default bash binary.";
+        };
       };
     };
 
@@ -46,19 +53,24 @@ in
       pkgs,
       ...
     }:
+    let
+      cfg = config.infra.container;
+      bashTarget =
+        if cfg.bashWrapper != null then cfg.bashWrapper else "${pkgs.bashInteractive}/bin/bash";
+    in
     {
       infra.container.installInit = mkInstallInit {
         inherit lib pkgs;
         sh = pkgs.runtimeShell;
-        paths = config.infra.container.initPaths;
+        paths = cfg.initPaths;
       };
 
       system.activationScripts.containerInit = {
         deps = [ "containerLustrate" ];
         text = ''
           mkdir -p /bin
-          ln -sfn ${pkgs.bashInteractive}/bin/bash /bin/bash
-          ${config.infra.container.installInit} "$systemConfig"
+          ln -sfn ${bashTarget} /bin/bash
+          ${cfg.installInit} "$systemConfig"
         '';
       };
     };
@@ -73,6 +85,7 @@ in
     let
       cfg = config.infra.container;
       coreutils = config.programs.coreutils.package;
+      bashTarget = if cfg.bashWrapper != null then cfg.bashWrapper else "/run/current-system/sw/bin/bash";
     in
     {
       infra.container.installInit = mkInstallInit {
@@ -119,7 +132,7 @@ in
 
           # Provider web consoles and `podman/lxc exec` often invoke `/bin/bash` directly.
           mkdir -p /bin
-          ln -sfn /run/current-system/sw/bin/bash /bin/bash
+          ln -sfn ${bashTarget} /bin/bash
           ${config.providers.bootloader.installHook} "$systemConfig"
         '';
       };
