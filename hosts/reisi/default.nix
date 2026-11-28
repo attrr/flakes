@@ -64,6 +64,7 @@
         {
           # fixed-ip/direct for VPN restricted trackers
           domain_suffix = [
+            "myanonamouse.net"
             "animebytes.tv"
             "gazellegames.net"
             "filelist.io"

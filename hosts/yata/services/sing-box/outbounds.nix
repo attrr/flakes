@@ -73,7 +73,7 @@ let
       i: addr:
       let
         tagPrefix = "${namespace}-${outbound.name}-${class}";
-        tag = if i == 0 then tagPrefix else "${tagPrefix}-${i}";
+        tag = if i == 0 then tagPrefix else "${tagPrefix}-${toString i}";
       in
       {
         inherit tag outbound;
