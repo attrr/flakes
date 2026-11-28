@@ -8,8 +8,6 @@ let
   harmonia = ctx.services.harmonia;
 in
 {
-  boot.binfmt.emulatedSystems = [ "x86_64-linux" ];
-
   services.harmonia.cache = {
     enable = true;
     signKeyPaths = [ ctx.vars.harmonia-key.secret.path ];

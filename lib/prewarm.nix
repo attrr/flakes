@@ -19,13 +19,15 @@ let
     directory = ../pkgs;
   };
 
-  # private git+ssh, unfree, or x86_64-only (rea -> aapt)
   excludedPkgs = [
     "tgu"
     "firmware-google-flame"
     "warp-podman"
   ]
-  ++ lib.optionals (system != "x86_64-linux") [ "rea" ];
+  ++ lib.optionals (system != "x86_64-linux") [
+    "rea"
+    "loadbalance"
+  ];
 
   buildablePkgs = lib.filterAttrs (
     name: pkg:

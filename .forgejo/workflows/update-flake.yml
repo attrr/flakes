@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           token: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Update flake.lock
         id: update
@@ -29,33 +30,31 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Pre-warm Harmonia cache
+      - name: Pre-warm Harmonia cache (aarch64-linux)
         run: |
           set -euo pipefail
           gcroot="${NIX_PREWARM_GCROOT_DIR:-/var/lib/gitea-runner/nix-prewarm}"
           mkdir -p "$gcroot"
-
-          rc=0
-          for arch in aarch64-linux x86_64-linux; do
-            echo "::group::Building prewarm ($arch)"
-            nix build "path:.#legacyPackages.$arch.prewarm" \
-              --out-link "$gcroot/result-$arch" \
-              --max-jobs 1 \
-              --cores 2 \
-              --keep-going || rc=1
-            echo "::endgroup::"
-          done
-          exit $rc
+          nix build "path:.#legacyPackages.aarch64-linux.prewarm" \
+            --out-link "$gcroot/result-aarch64-linux" \
+            --max-jobs 1 \
+            --cores 2 \
+            --keep-going
 
       - name: Create or update flake.lock PR
         if: steps.update.outputs.changed == 'true'
         env:
           TOKEN: ${{ secrets.FLAKE_UPDATE_TOKEN || github.token }}
           BRANCH: chore/flake-update
-          BOT_EMAIL: actions@noreply.local
-          TITLE: "chore(flake): update flake.lock"
+          BOT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          TITLE: "chore: update flake.lock"
         run: |
           set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.${GITHUB_SERVER_URL%/}/.extraHeader"
+          export GIT_CONFIG_VALUE_0="Authorization: Basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+
           if git fetch --depth 1 origin "refs/heads/${BRANCH}" 2>/dev/null; then
             last_author=$(git log -1 --format=%ae FETCH_HEAD)
             if [ "$last_author" != "$BOT_EMAIL" ]; then
@@ -64,7 +63,7 @@ jobs:
             fi
           fi
 
-          git config user.name "forgejo-actions"
+          git config user.name "github-actions[bot]"
           git config user.email "$BOT_EMAIL"
 
           git checkout -B "$BRANCH"
@@ -74,7 +73,7 @@ jobs:
 
           api="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/pulls"
           summary=$(grep -E '^• ' "${RUNNER_TEMP}/flake-update.log" || echo "Updated flake.lock")
-          body=$(printf 'Automated `nix flake update` with Harmonia cache pre-warmed on both arches.\n\n```text\n%s\n```\n' "$summary")
+          body=$(printf 'Automated `nix flake update` with Harmonia cache pre-warmed (aarch64-linux).\n\n```text\n%s\n```\n' "$summary")
 
           existing=$(curl -fsS -H "Authorization: token ${TOKEN}" \
             "${api}?state=open&limit=50" \
