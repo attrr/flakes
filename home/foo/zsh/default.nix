@@ -50,7 +50,10 @@
     '';
     autosuggestion.enable = true;
     syntaxHighlighting.enable = true;
-    shellAliases.dig = "kdig";
+    shellAliases = {
+      dig = "kdig";
+      tempssh = "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null";
+    };
     plugins = [
       {
         name = "prompt";
