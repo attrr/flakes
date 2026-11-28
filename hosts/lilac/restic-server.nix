@@ -39,7 +39,9 @@ in
       SystemCallFilter = [
         "@system-service"
         "~@privileged"
+        "@chown"
       ];
+      SystemCallErrorNumber = "EPERM";
       Restart = "on-failure";
       RestartSec = "10s";
     };
