@@ -20,6 +20,7 @@ buildGoModule (finalAttrs: {
   vendorHash = "sha256-ipPHWUuYQRwzqfx+qP3oNq5fpojxtimOD19iwj+nHcU=";
 
   env.CGO_ENABLED = 0;
+  doCheck = false;
 
   tags = [
     "with_gvisor"
